@@ -1,0 +1,45 @@
+# ALMlight — local and on-premise deployment: one app container + PostgreSQL.
+#   docker compose up -d --build        -> http://localhost:48080
+# Configuration comes from .env (copy .env.example). Never commit .env.
+name: almlight
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: almlight
+      POSTGRES_USER: almlight
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-almlight}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U almlight -d almlight"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: .
+      target: runtime
+    image: almlight:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ALMLIGHT_DATABASE_URL: postgresql+psycopg://almlight:${POSTGRES_PASSWORD:-almlight}@db:5432/almlight
+      ALMLIGHT_SECRET_KEY: ${ALMLIGHT_SECRET_KEY:-}
+      ALMLIGHT_ADMIN_PASSWORD: ${ALMLIGHT_ADMIN_PASSWORD:-}
+      ALMLIGHT_DEMO_DATA: ${ALMLIGHT_DEMO_DATA:-false}
+      ALMLIGHT_COOKIE_SECURE: ${ALMLIGHT_COOKIE_SECURE:-false}
+      ALMLIGHT_MAX_UPLOAD_MB: ${ALMLIGHT_MAX_UPLOAD_MB:-100}
+    volumes:
+      - app-data:/data
+    ports:
+      - "${ALMLIGHT_PORT:-48080}:8000"
+
+volumes:
+  db-data:
+  app-data:

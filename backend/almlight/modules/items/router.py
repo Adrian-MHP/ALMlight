@@ -1,0 +1,300 @@
+from __future__ import annotations
+
+import uuid
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import FileResponse
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
+
+from almlight.core.db import get_db
+from almlight.core.deps import current_user
+from almlight.core.errors import NotFound
+from almlight.core.schemas import Ok, Page, UserDirectory
+from almlight.modules.audit.models import AuditEntry
+from almlight.modules.identity.models import User
+from almlight.modules.items import service, storage
+from almlight.modules.items.models import Comment, ItemVersion
+from almlight.modules.items.schemas import (
+    CommentIn,
+    CommentOut,
+    ItemDetailOut,
+    ItemIn,
+    ItemOut,
+    ItemPatch,
+    RestoreIn,
+    ReviseIn,
+    VersionOut,
+    item_detail,
+    items_out,
+    version_out,
+)
+from almlight.modules.links import service as links_svc
+from almlight.modules.projects.access import get_project
+from almlight.modules.projects.models import Project
+from almlight.modules.workflow.models import WorkflowEvent
+
+router = APIRouter(prefix="/projects/{project_key}", tags=["items"])
+
+
+@router.get("/items", response_model=Page[ItemOut])
+def list_items(
+    project_key: str,
+    request: Request,
+    q: str | None = None,
+    type: list[str] | None = Query(default=None),
+    state: list[str] | None = Query(default=None),
+    owner: uuid.UUID | None = None,
+    suspect: bool | None = None,
+    key: list[str] | None = Query(default=None),
+    sort: str = "key",
+    limit: int = Query(default=50, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Page[ItemOut]:
+    """List and search items. Filter custom fields with ``field.<key>=<value>`` query parameters."""
+    project = get_project(db, project_key, user)
+    field_filters = {k[6:]: v for k, v in request.query_params.items() if k.startswith("field.")}
+    items, total = service.query_items(db, project, service.ItemQuery(
+        q=q, types=type, states=state, owner_id=owner, suspect=suspect, field_filters=field_filters, keys=key,
+        sort=sort, limit=limit, offset=offset))
+    return Page[ItemOut](items=items_out(project, items, UserDirectory(db)), total=total, limit=limit, offset=offset)
+
+
+@router.post("/items", response_model=ItemDetailOut, status_code=201)
+def create_item(project_key: str, body: ItemIn, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    parent = service.get_item(db, project, body.parent) if body.parent else None
+    item = service.create_item(db, project, user, type_key=body.type, title=body.title, description=body.description,
+                               fields=body.fields, applicability=body.applicability, owner_id=body.owner_id,
+                               parent=parent, position=body.position)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+@router.get("/items/{item_key}", response_model=ItemDetailOut)
+def get_item(project_key: str, item_key: str, user: User = Depends(current_user),
+             db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user)
+    return item_detail(db, project, service.get_item(db, project, item_key), UserDirectory(db))
+
+
+@router.patch("/items/{item_key}", response_model=ItemDetailOut)
+def update_item(project_key: str, item_key: str, body: ItemPatch, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    item = service.get_item(db, project, item_key)
+    sent = body.model_fields_set
+    change = service.ContentChange(
+        title=body.title, description=body.description, fields=body.fields,
+        applicability=(body.applicability or None) if "applicability" in sent else service._UNSET,
+    )
+    item = service.update_item(db, project, user, item, change, expected_version=body.expected_version,
+                               change_note=body.change_note,
+                               owner_id=body.owner_id if "owner_id" in sent else service._UNSET)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+@router.delete("/items/{item_key}", response_model=Ok)
+def delete_item(project_key: str, item_key: str, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> Ok:
+    project = get_project(db, project_key, user, "manager")
+    service.delete_item(db, project, user, service.get_item(db, project, item_key))
+    db.commit()
+    return Ok()
+
+
+@router.post("/items/{item_key}/revise", response_model=ItemDetailOut)
+def revise_item(project_key: str, item_key: str, body: ReviseIn, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    item = service.get_item(db, project, item_key)
+    co = service.get_item(db, project, body.change_order) if body.change_order else None
+    item = service.revise_item(db, project, user, item, change_order=co, change_note=body.change_note)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+@router.get("/items/{item_key}/versions", response_model=list[VersionOut])
+def list_versions(project_key: str, item_key: str, user: User = Depends(current_user),
+                  db: Session = Depends(get_db)) -> list[VersionOut]:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    versions = db.execute(
+        select(ItemVersion).where(ItemVersion.item_id == item.id).order_by(ItemVersion.version_no.desc())
+    ).scalars().all()
+    users = UserDirectory(db)
+    users.preload({v.created_by for v in versions})
+    return [version_out(db, item, v, users) for v in versions]
+
+
+@router.get("/items/{item_key}/versions/{version_no}", response_model=VersionOut)
+def get_version(project_key: str, item_key: str, version_no: int, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> VersionOut:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    return version_out(db, item, service.get_version(db, item, version_no), UserDirectory(db))
+
+
+@router.get("/items/{item_key}/diff")
+def diff(project_key: str, item_key: str, from_version: int = Query(alias="from"),
+         to_version: int | None = Query(default=None, alias="to"), user: User = Depends(current_user),
+         db: Session = Depends(get_db)) -> dict[str, Any]:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    a = service.get_version(db, item, from_version)
+    b = service.get_version(db, item, to_version or item.version_no)
+    return {"from": a.version_label, "to": b.version_label, "changes": service.diff_versions(a, b)}
+
+
+@router.post("/items/{item_key}/restore", response_model=ItemDetailOut)
+def restore(project_key: str, item_key: str, body: RestoreIn, user: User = Depends(current_user),
+            db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    item = service.restore_version(db, project, user, service.get_item(db, project, item_key), body.version_no,
+                                   expected_version=body.expected_version)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+@router.get("/items/{item_key}/history")
+def history(project_key: str, item_key: str, user: User = Depends(current_user),
+            db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Complete timeline of the item: content versions, links, lifecycle, approvals and comments."""
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    entries = db.execute(
+        select(AuditEntry)
+        .where(or_(AuditEntry.entity_id == str(item.id), AuditEntry.related_ids.contains([item.id])))
+        .order_by(AuditEntry.id.desc()).limit(500)
+    ).scalars().all()
+    return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor_name, "action": e.action, "summary": e.summary,
+             "details": e.details} for e in entries]
+
+
+@router.get("/items/{item_key}/workflow-events")
+def workflow_events(project_key: str, item_key: str, user: User = Depends(current_user),
+                    db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    events = db.execute(
+        select(WorkflowEvent).where(WorkflowEvent.item_id == item.id).order_by(WorkflowEvent.created_at.desc())
+    ).scalars().all()
+    users = UserDirectory(db)
+    return [{"from": e.from_state, "to": e.to_state, "transition": e.transition_key, "via": e.via,
+             "actor": users.ref(e.actor_id), "comment": e.comment, "version_no": e.version_no, "signed": e.signed,
+             "at": e.created_at.isoformat()} for e in events]
+
+
+# --- attachments ----------------------------------------------------------------------------
+
+
+@router.post("/items/{item_key}/attachments", response_model=ItemDetailOut, status_code=201)
+def upload(project_key: str, item_key: str, file: UploadFile = File(...), user: User = Depends(current_user),
+           db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    item = service.get_item(db, project, item_key)
+    service.add_attachment(db, project, user, item, filename=file.filename or "file",
+                           content_type=file.content_type or "application/octet-stream", stream=file.file)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+@router.get("/items/{item_key}/attachments/{attachment_id}")
+def download(project_key: str, item_key: str, attachment_id: str, version: int | None = None,
+             user: User = Depends(current_user), db: Session = Depends(get_db)) -> FileResponse:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    meta = service.find_attachment(db, item, attachment_id, version)
+    path = storage.blob_path(meta["sha256"])
+    if not path.exists():
+        raise NotFound("File content missing in the file store")
+    return FileResponse(path, media_type=meta["content_type"], filename=meta["filename"])
+
+
+@router.delete("/items/{item_key}/attachments/{attachment_id}", response_model=ItemDetailOut)
+def remove_attachment(project_key: str, item_key: str, attachment_id: str, user: User = Depends(current_user),
+                      db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "contributor")
+    item = service.get_item(db, project, item_key)
+    service.remove_attachment(db, project, user, item, attachment_id)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
+
+
+# --- comments -------------------------------------------------------------------------------
+
+
+@router.get("/items/{item_key}/comments", response_model=list[CommentOut])
+def list_comments(project_key: str, item_key: str, user: User = Depends(current_user),
+                  db: Session = Depends(get_db)) -> list[CommentOut]:
+    project = get_project(db, project_key, user)
+    item = service.get_item(db, project, item_key)
+    comments = db.execute(
+        select(Comment).where(Comment.item_id == item.id, Comment.deleted_at.is_(None)).order_by(Comment.created_at)
+    ).scalars().all()
+    users = UserDirectory(db)
+    users.preload({c.author_id for c in comments})
+    return [CommentOut(id=c.id, author=users.ref(c.author_id), body=c.body, created_at=c.created_at)
+            for c in comments]
+
+
+@router.post("/items/{item_key}/comments", response_model=CommentOut, status_code=201)
+def add_comment(project_key: str, item_key: str, body: CommentIn, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> CommentOut:
+    project = get_project(db, project_key, user, "contributor")
+    comment = service.add_comment(db, project, user, service.get_item(db, project, item_key), body.body)
+    db.commit()
+    return CommentOut(id=comment.id, author=UserDirectory(db).ref(user.id), body=comment.body,
+                      created_at=comment.created_at)
+
+
+@router.delete("/items/{item_key}/comments/{comment_id}", response_model=Ok)
+def delete_comment(project_key: str, item_key: str, comment_id: uuid.UUID, user: User = Depends(current_user),
+                   db: Session = Depends(get_db)) -> Ok:
+    project = get_project(db, project_key, user, "contributor")
+    service.delete_comment(db, project, user, service.get_item(db, project, item_key), comment_id)
+    db.commit()
+    return Ok()
+
+
+# --- structure / documents ---------------------------------------------------------------------
+
+
+@router.get("/items/{item_key}/tree")
+def tree(project_key: str, item_key: str, depth: int = Query(default=10, ge=1, le=30),
+         content: bool = False, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+    """The structural sub-tree below an item — a live document outline or a product structure."""
+    project = get_project(db, project_key, user)
+    root = service.get_item(db, project, item_key)
+    structural = project.model.structural_link_types()
+    users = UserDirectory(db)
+    projects: dict[uuid.UUID, Project] = {project.id: project}
+
+    def owner(item) -> Project:
+        # Structures may reuse elements from other projects (platform modules).
+        if item.project_id not in projects:
+            projects[item.project_id] = db.get(Project, item.project_id)
+        return projects[item.project_id]
+
+    def node(item, link, level: int, seen: frozenset) -> dict[str, Any]:
+        out = items_out(owner(item), [item], users)[0].model_dump(mode="json")
+        if content:
+            out["description"] = item.description
+        if link is not None:
+            out["link"] = {"id": str(link.id), "type": link.type_key, "position": link.position,
+                           "attributes": link.attributes, "applicability": link.applicability,
+                           "suspect": link.suspect}
+        kids = []
+        if level < depth:
+            for child_link, child in links_svc.children(db, item, structural):
+                if child.id not in seen:
+                    kids.append(node(child, child_link, level + 1, seen | {child.id}))
+        out["children"] = kids
+        return out
+
+    return node(root, None, 0, frozenset({root.id}))

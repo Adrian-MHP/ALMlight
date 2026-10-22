@@ -1,0 +1,10 @@
+.git
+backgroundKnowledge
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+frontend/dist
+e2e
+docs
+.env

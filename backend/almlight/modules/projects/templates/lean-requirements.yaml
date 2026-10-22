@@ -1,0 +1,93 @@
+# Lean starter template: requirements, tests, change requests and documents.
+# Good for teams that start with requirements and traceability before modelling architecture.
+key: lean_requirements
+label: Lean Requirements & Test
+description: Requirements with levels, test cases, change requests and controlled documents.
+version: 1
+revision_scheme: letters
+
+item_types:
+  - key: specification
+    label: Specification
+    prefix: SPEC
+    category: document
+    document: true
+    workflow: release
+  - key: heading
+    label: Heading
+    prefix: H
+    category: document
+  - key: requirement
+    label: Requirement
+    prefix: REQ
+    category: requirement
+    workflow: release
+    fields:
+      - {key: level, label: Level, type: enum, options: [stakeholder, system, component], default: system}
+      - {key: priority, label: Priority, type: enum, options: [must, should, could], default: should}
+      - {key: rationale, label: Rationale, type: text}
+  - key: test_case
+    label: Test Case
+    prefix: TC
+    category: verification
+    workflow: release
+    fields:
+      - {key: automation_id, label: Automation ID, type: string}
+      - {key: steps, label: Steps, type: text}
+      - {key: expected_result, label: Expected result, type: text}
+  - key: change_request
+    label: Change Request
+    prefix: CR
+    category: change
+    workflow: change
+    fields:
+      - {key: impact_analysis, label: Impact analysis, type: text}
+  - key: document
+    label: Document
+    prefix: DOC
+    category: document
+    workflow: release
+
+link_types:
+  - {key: contains, label: contains, reverse_label: contained in, structural: true, acyclic: true,
+     sources: [specification, heading, requirement], targets: [heading, requirement, test_case, document]}
+  - {key: derives_from, label: derives from, reverse_label: refined by, acyclic: true, suspect_on_target_change: true,
+     sources: [requirement], targets: [requirement]}
+  - {key: verifies, label: verifies, reverse_label: verified by, suspect_on_target_change: true,
+     sources: [test_case], targets: [requirement]}
+  - {key: affects, label: affects, reverse_label: affected by, sources: [change_request], targets: ["*"]}
+  - {key: documented_by, label: documented by, reverse_label: documents, sources: ["*"], targets: [document]}
+  - {key: relates_to, label: relates to, reverse_label: related to, editable_on_frozen_source: true}
+
+workflows:
+  - key: release
+    label: Draft / Review / Released
+    states:
+      - {key: draft, label: Draft, category: draft, initial: true, color: gray}
+      - {key: in_review, label: In Review, category: review, frozen: true, color: yellow}
+      - {key: released, label: Released, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: submit, label: Submit for review, from: [draft], to: in_review}
+      - {key: rework, label: Back to draft, from: [in_review], to: draft}
+      - key: release
+        label: Release
+        from: [in_review]
+        to: released
+        approval: {roles: [reviewer], count: 1, signature: false, reject_to: draft}
+      - {key: make_obsolete, label: Make obsolete, from: [released], to: obsolete, min_role: reviewer}
+  - key: change
+    label: Change request
+    states:
+      - {key: open, label: Open, category: open, initial: true, color: gray}
+      - {key: approved, label: Approved, category: released, frozen: true, released: true, color: green}
+      - {key: done, label: Done, category: closed, frozen: true, color: dark}
+      - {key: rejected, label: Rejected, category: closed, frozen: true, color: red}
+    transitions:
+      - key: approve
+        label: Approve
+        from: [open]
+        to: approved
+        approval: {roles: [manager], count: 1, reject_to: open}
+      - {key: reject, label: Reject, from: [open], to: rejected, min_role: manager, comment_required: true}
+      - {key: done, label: Mark done, from: [approved], to: done}

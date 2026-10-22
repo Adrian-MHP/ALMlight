@@ -1,0 +1,483 @@
+# Generic systems-engineering process template.
+#
+# Information model following common practice in leading ALM/PLM suites:
+#   * requirement levels: stakeholder -> system -> subsystem/module (ISO/IEC/IEEE 15288, V-model)
+#   * RFLP architecture: functions and system elements (product > system > subsystem > module > component)
+#   * verification: test cases verify requirements and elements, test runs record results
+#   * CMII-style closed-loop change: problem report -> change request -> change order
+#   * variability: a feature model and product variants (150% model, ISO/IEC 26580 style)
+#   * maturity: In Work -> Frozen -> Released -> Obsolete (with revisions A, B, C ...)
+#
+# Tailor a copy of this file per customer instead of changing code.
+key: systems_engineering
+label: Systems Engineering (generic)
+description: >
+  Requirements from stakeholder to module level, RFLP architecture, verification,
+  closed-loop change management, variants and maturity tracking.
+version: 1
+revision_scheme: letters
+
+item_types:
+  - key: specification
+    label: Specification
+    prefix: SPEC
+    category: document
+    document: true
+    workflow: document
+    description: A controlled document assembled from items (like a live document).
+    fields:
+      - key: doc_kind
+        label: Document kind
+        type: enum
+        options: [stakeholder_specification, system_specification, module_specification, test_specification, other]
+
+  - key: heading
+    label: Heading
+    prefix: H
+    category: document
+    description: Chapter heading inside a specification.
+
+  - key: stakeholder_requirement
+    label: Stakeholder Requirement
+    prefix: STK
+    category: requirement
+    workflow: requirement
+    change_controlled: true
+    description: Need of a customer, market or other stakeholder — the problem space.
+    fields:
+      - {key: priority, label: Priority, type: enum, options: [must, should, could, wont], default: should}
+      - {key: source, label: Source, type: string, help: "Customer, market study, regulation, ..."}
+      - {key: rationale, label: Rationale, type: text}
+
+  - key: system_requirement
+    label: System Requirement
+    prefix: SYS
+    category: requirement
+    workflow: requirement
+    change_controlled: true
+    description: What the system must do or be — solution-neutral and verifiable.
+    fields:
+      - {key: priority, label: Priority, type: enum, options: [must, should, could, wont], default: should}
+      - key: kind
+        label: Kind
+        type: enum
+        options: [functional, performance, interface, environmental, safety, security, regulatory, constraint]
+        default: functional
+      - key: verification_method
+        label: Verification method
+        type: enum
+        options: [test, analysis, inspection, demonstration]
+        default: test
+      - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
+      - {key: rationale, label: Rationale, type: text}
+
+  - key: element_requirement
+    label: Subsystem / Module Requirement
+    prefix: MRQ
+    category: requirement
+    workflow: requirement
+    change_controlled: true
+    description: Requirement allocated to a subsystem, module or component.
+    fields:
+      - {key: priority, label: Priority, type: enum, options: [must, should, could, wont], default: should}
+      - key: discipline
+        label: Discipline
+        type: enum
+        options: [mechatronic, hardware, software, mechanical, electrical]
+      - key: verification_method
+        label: Verification method
+        type: enum
+        options: [test, analysis, inspection, demonstration]
+        default: test
+      - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
+      - {key: rationale, label: Rationale, type: text}
+
+  - key: function
+    label: Function
+    prefix: FN
+    category: architecture
+    workflow: element
+    description: What the system does, independent of the solution (RFLP "F").
+
+  - key: system_element
+    label: System Element
+    prefix: SE
+    category: architecture
+    workflow: element
+    change_controlled: true
+    description: Logical or physical building block — product, system, subsystem, module or component.
+    fields:
+      - key: level
+        label: Level
+        type: enum
+        required: true
+        options: [product, system, subsystem, module, component]
+        default: module
+      - {key: perspective, label: Perspective, type: enum, options: [logical, physical], default: logical}
+      - key: discipline
+        label: Discipline
+        type: enum
+        options: [mechatronic, hardware, software, mechanical, electrical]
+      - key: reuse_strategy
+        label: Reuse strategy
+        type: enum
+        options: [new, modified, reused, standard, purchased]
+        help: Decision per element — develop new, modify, reuse unchanged, standard part or buy.
+      - {key: part_number, label: Part number, type: string}
+      - {key: supplier, label: Supplier, type: string}
+
+  - key: interface
+    label: Interface
+    prefix: IF
+    category: architecture
+    workflow: element
+    description: Mechanical, electrical, data or software interface between elements.
+    fields:
+      - {key: interface_kind, label: Interface kind, type: enum, options: [mechanical, electrical, data, software, fluid, thermal]}
+      - {key: standardized, label: Standardized, type: boolean, default: false}
+
+  - key: test_case
+    label: Test Case
+    prefix: TC
+    category: verification
+    workflow: test_case
+    description: How a requirement or element is verified or validated.
+    fields:
+      - key: test_level
+        label: Test level
+        type: enum
+        options: [unit, integration, system, acceptance, validation]
+        default: system
+      - {key: method, label: Method, type: enum, options: [manual, automated, hil, analysis, inspection], default: manual}
+      - {key: automation_id, label: Automation ID, type: string, help: "Test name in CI results (e.g. JUnit classname.name)"}
+      - {key: preconditions, label: Preconditions, type: text}
+      - {key: steps, label: Steps, type: text}
+      - {key: expected_result, label: Expected result, type: text}
+
+  - key: test_run
+    label: Test Run
+    prefix: TR
+    category: verification
+    workflow: test_run
+    description: Execution of a set of test cases against a build, variant or baseline.
+    fields:
+      - {key: environment, label: Environment, type: string}
+      - {key: build, label: Build / sample, type: string}
+      - {key: variant, label: Variant, type: string, help: Key of the variant under test}
+      - {key: planned_date, label: Planned date, type: date}
+
+  - key: problem_report
+    label: Problem Report
+    prefix: PR
+    category: change
+    workflow: problem_report
+    description: Observed problem or deviation (CMII problem report).
+    fields:
+      - {key: severity, label: Severity, type: enum, options: [minor, major, critical], default: major}
+      - {key: found_in, label: Found in, type: string}
+
+  - key: change_request
+    label: Change Request
+    prefix: CR
+    category: change
+    workflow: change_request
+    description: Proposed change with impact analysis and decision (ECR).
+    fields:
+      - key: reason
+        label: Reason
+        type: enum
+        options: [customer_request, defect, improvement, cost_reduction, regulatory, obsolescence]
+        default: improvement
+      - {key: priority, label: Priority, type: enum, options: [low, medium, high, critical], default: medium}
+      - {key: impact_analysis, label: Impact analysis, type: text}
+      - {key: decision, label: Decision, type: text}
+
+  - key: change_order
+    label: Change Order
+    prefix: CO
+    category: change
+    workflow: change_order
+    description: Authorised implementation of a change; releases the revised items (ECO/ECN).
+    fields:
+      - {key: planned_release, label: Planned release, type: date}
+      - {key: implementation_plan, label: Implementation plan, type: text}
+
+  - key: document
+    label: Document
+    prefix: DOC
+    category: document
+    workflow: element
+    change_controlled: true
+    description: Controlled file — drawing, CAD model, datasheet, certificate, report.
+    fields:
+      - key: doc_kind
+        label: Document kind
+        type: enum
+        options: [drawing, cad_model, datasheet, report, certificate, manual, other]
+      - {key: external_ref, label: External reference, type: string, help: "ID in PDM/CAD or another system"}
+      - {key: classification, label: Classification, type: enum, options: [public, internal, confidential], default: internal}
+
+  - key: feature
+    label: Feature
+    prefix: FEAT
+    category: variability
+    workflow: simple
+    description: Configurable characteristic of the product family (feature model).
+    fields:
+      - key: code
+        label: Code
+        type: string
+        required: true
+        pattern: "^[A-Za-z][A-Za-z0-9_]{0,39}$"
+        help: Identifier used in applicability expressions, e.g. OUT_HART
+      - {key: feature_kind, label: Kind, type: enum, options: [mandatory, optional], default: optional}
+      - key: group
+        label: Child group
+        type: enum
+        options: [none, alternative, or]
+        default: none
+        help: How the child features combine — alternative = exactly one, or = at least one.
+
+  - key: variant
+    label: Variant
+    prefix: VAR
+    category: variability
+    workflow: element
+    description: A product configuration — a selection of features.
+    fields:
+      - {key: selection, label: Selected features, type: tags, help: Feature codes}
+      - {key: market, label: Market / segment, type: string}
+
+link_types:
+  - key: contains
+    label: contains
+    reverse_label: contained in
+    description: Ordered hierarchy — document outline, system decomposition (with quantity) and feature tree.
+    structural: true
+    acyclic: true
+    sources: [specification, heading, system_element, function, feature]
+    targets: [heading, stakeholder_requirement, system_requirement, element_requirement, function, system_element,
+              interface, test_case, document, feature]
+    attributes:
+      - {key: quantity, label: Quantity, type: integer}
+
+  - key: derives_from
+    label: derives from
+    reverse_label: refined by
+    description: A lower-level requirement is derived from a higher-level one.
+    acyclic: true
+    suspect_on_target_change: true
+    sources: [system_requirement, element_requirement]
+    targets: [stakeholder_requirement, system_requirement, element_requirement]
+
+  - key: satisfies
+    label: satisfies
+    reverse_label: allocated to / satisfied by
+    description: Allocation — the element or function satisfies the requirement.
+    suspect_on_target_change: true
+    sources: [system_element, function, interface]
+    targets: [stakeholder_requirement, system_requirement, element_requirement]
+
+  - key: realizes
+    label: realizes
+    reverse_label: realized by
+    description: A logical or physical element realises a function (RFLP).
+    suspect_on_target_change: true
+    sources: [system_element]
+    targets: [function]
+
+  - key: connects
+    label: connects
+    reverse_label: connected by
+    sources: [interface]
+    targets: [system_element]
+
+  - key: verifies
+    label: verifies
+    reverse_label: verified by
+    suspect_on_target_change: true
+    sources: [test_case]
+    targets: [stakeholder_requirement, system_requirement, element_requirement, system_element, function, interface]
+
+  - key: documented_by
+    label: documented by
+    reverse_label: documents
+    suspect_on_target_change: true
+    sources: ["*"]
+    targets: [document]
+
+  - key: affects
+    label: affects
+    reverse_label: affected by
+    description: Items that a problem, request or order touches (affected / solution items).
+    sources: [problem_report, change_request, change_order]
+    targets: ["*"]
+    attributes:
+      - {key: action, label: Action, type: enum, options: [revise, add, obsolete, review], default: revise}
+
+  - key: implements
+    label: implements
+    reverse_label: implemented by
+    sources: [change_order]
+    targets: [change_request]
+
+  - key: escalates_to
+    label: escalates to
+    reverse_label: raised from
+    sources: [problem_report]
+    targets: [change_request]
+
+  - key: requires
+    label: requires
+    reverse_label: required by
+    description: Feature constraint — selecting the source requires the target.
+    sources: [feature]
+    targets: [feature]
+
+  - key: excludes
+    label: excludes
+    reverse_label: excluded by
+    description: Feature constraint — source and target cannot be selected together.
+    sources: [feature]
+    targets: [feature]
+
+  - key: relates_to
+    label: relates to
+    reverse_label: related to
+    editable_on_frozen_source: true
+
+workflows:
+  - key: requirement
+    label: Requirement lifecycle
+    states:
+      - {key: draft, label: Draft, category: draft, initial: true, color: gray}
+      - {key: in_review, label: In Review, category: review, frozen: true, color: yellow}
+      - {key: approved, label: Approved, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: submit, label: Submit for review, from: [draft], to: in_review}
+      - {key: rework, label: Back to draft, from: [in_review], to: draft, comment_required: true}
+      - key: approve
+        label: Approve
+        from: [in_review]
+        to: approved
+        approval: {roles: [reviewer], count: 1, signature: true, reject_to: draft}
+      - {key: make_obsolete, label: Make obsolete, from: [approved], to: obsolete, min_role: reviewer, comment_required: true}
+
+  - key: element
+    label: Maturity (In Work / Frozen / Released)
+    states:
+      - {key: in_work, label: In Work, category: draft, initial: true, color: gray}
+      - {key: frozen, label: Frozen, category: review, frozen: true, color: yellow}
+      - {key: released, label: Released, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: freeze, label: Freeze for review, from: [in_work], to: frozen}
+      - {key: unfreeze, label: Back to work, from: [frozen], to: in_work}
+      - key: release
+        label: Release
+        from: [frozen]
+        to: released
+        approval: {roles: [reviewer], count: 1, signature: true, reject_to: in_work}
+      - {key: make_obsolete, label: Make obsolete, from: [released], to: obsolete, min_role: reviewer, comment_required: true}
+
+  - key: document
+    label: Document release
+    states:
+      - {key: in_work, label: In Work, category: draft, initial: true, color: gray}
+      - {key: frozen, label: Frozen, category: review, frozen: true, color: yellow}
+      - {key: released, label: Released, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: freeze, label: Freeze for review, from: [in_work], to: frozen}
+      - {key: unfreeze, label: Back to work, from: [frozen], to: in_work}
+      - key: release
+        label: Release
+        from: [frozen]
+        to: released
+        guards: [contained_items_released]
+        approval: {roles: [reviewer], count: 1, signature: true, reject_to: in_work}
+      - {key: make_obsolete, label: Make obsolete, from: [released], to: obsolete, min_role: reviewer, comment_required: true}
+
+  - key: test_case
+    label: Test case lifecycle
+    states:
+      - {key: draft, label: Draft, category: draft, initial: true, color: gray}
+      - {key: ready, label: Ready, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: mark_ready, label: Mark ready, from: [draft], to: ready, min_role: reviewer}
+      - {key: make_obsolete, label: Make obsolete, from: [ready], to: obsolete, min_role: reviewer}
+
+  - key: test_run
+    label: Test run lifecycle
+    states:
+      - {key: planned, label: Planned, category: open, initial: true, color: gray}
+      - {key: in_progress, label: In Progress, category: in_progress, color: blue}
+      - {key: completed, label: Completed, category: closed, frozen: true, color: green}
+      - {key: aborted, label: Aborted, category: closed, frozen: true, color: dark}
+    transitions:
+      - {key: start, label: Start, from: [planned], to: in_progress}
+      - {key: complete, label: Complete, from: [in_progress], to: completed, guards: [all_records_executed]}
+      - {key: abort, label: Abort, from: [planned, in_progress], to: aborted, comment_required: true}
+
+  - key: problem_report
+    label: Problem report lifecycle
+    states:
+      - {key: open, label: Open, category: open, initial: true, color: red}
+      - {key: in_analysis, label: In Analysis, category: in_progress, color: yellow}
+      - {key: resolved, label: Resolved, category: closed, color: green}
+      - {key: rejected, label: Rejected, category: closed, frozen: true, color: dark}
+    transitions:
+      - {key: analyse, label: Start analysis, from: [open], to: in_analysis}
+      - {key: resolve, label: Resolve, from: [in_analysis], to: resolved, comment_required: true}
+      - {key: reject, label: Reject, from: [open, in_analysis], to: rejected, min_role: reviewer, comment_required: true}
+      - {key: reopen, label: Reopen, from: [resolved], to: open}
+
+  - key: change_request
+    label: Change request lifecycle (ECR)
+    states:
+      - {key: submitted, label: Submitted, category: open, initial: true, color: gray}
+      - {key: in_analysis, label: In Analysis, category: in_progress, color: blue}
+      - {key: approved, label: Approved, category: released, frozen: true, released: true, color: green}
+      - {key: rejected, label: Rejected, category: closed, frozen: true, color: red}
+      - {key: closed, label: Closed, category: closed, frozen: true, color: dark}
+    transitions:
+      - {key: analyse, label: Start impact analysis, from: [submitted], to: in_analysis}
+      - key: approve
+        label: Approve change
+        from: [in_analysis]
+        to: approved
+        guards: [has_affected_items]
+        approval: {roles: [manager], count: 1, signature: true, reject_to: in_analysis}
+      - {key: reject, label: Reject change, from: [submitted, in_analysis], to: rejected, min_role: manager, comment_required: true}
+      - {key: close, label: Close, from: [approved], to: closed, min_role: manager}
+
+  - key: change_order
+    label: Change order lifecycle (ECO)
+    states:
+      - {key: planned, label: Planned, category: open, initial: true, color: gray}
+      - {key: in_work, label: In Work, category: in_progress, implementation_open: true, color: blue}
+      - {key: in_approval, label: In Approval, category: review, frozen: true, color: yellow}
+      - {key: released, label: Released, category: released, frozen: true, released: true, color: green}
+      - {key: cancelled, label: Cancelled, category: closed, frozen: true, color: dark}
+    transitions:
+      - {key: start_work, label: Start implementation, from: [planned], to: in_work, guards: [has_affected_items]}
+      - {key: submit, label: Submit for approval, from: [in_work], to: in_approval, guards: [affected_items_revised]}
+      - {key: back_to_work, label: Back to work, from: [in_approval], to: in_work, comment_required: true}
+      - key: release
+        label: Release change
+        from: [in_approval]
+        to: released
+        effects: [release_affected_items]
+        approval: {roles: [manager], count: 1, signature: true, reject_to: in_work}
+      - {key: cancel, label: Cancel, from: [planned, in_work], to: cancelled, min_role: manager, comment_required: true}
+
+  - key: simple
+    label: Active / Obsolete
+    states:
+      - {key: active, label: Active, category: draft, initial: true, color: blue}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: make_obsolete, label: Make obsolete, from: [active], to: obsolete, min_role: reviewer}
+      - {key: reactivate, label: Reactivate, from: [obsolete], to: active, min_role: reviewer}

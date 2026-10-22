@@ -14,7 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useInbox, useMe, useProjects } from "@/api/hooks";
-import { Logo } from "@/components/Logo";
+import { Logo, LogoMark } from "@/components/Logo";
 import { useLive } from "@/live/LiveProvider";
 
 interface NavEntry { to: string; label: string; icon: Icon; hint: string }
@@ -141,7 +141,10 @@ export function AppLayout() {
           <Group gap={6} wrap="nowrap">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" color="white" />
             <AppLauncher projectKey={projectKey} />
-            <Link to="/" style={{ textDecoration: "none", color: "inherit" }} data-testid="home-link"><Logo inverted /></Link>
+            <Link to="/" style={{ textDecoration: "none", color: "inherit" }} data-testid="home-link">
+              <Box visibleFrom="sm"><Logo inverted /></Box>
+              <Box hiddenFrom="sm"><LogoMark /></Box>
+            </Link>
             {projectKey && (
               <>
                 <Text c="dimmed" visibleFrom="sm" className="header-sep">/</Text>
@@ -167,13 +170,15 @@ export function AppLayout() {
               </>
             )}
           </Group>
-          <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`); }}
+          <Box component="form" visibleFrom="sm" onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`); }}
             style={{ flex: "0 1 460px" }}>
             <TextInput placeholder="Search items and documents in all projects…" leftSection={<IconSearch size={16} />}
               value={q} onChange={(e) => setQ(e.currentTarget.value)} size="sm" classNames={{ input: "header-search" }}
               data-testid="global-search" />
-          </form>
+          </Box>
           <Group gap={4} wrap="nowrap">
+            <ActionIcon hiddenFrom="sm" variant="subtle" color="gray" size="lg" className="header-icon" component={Link} to="/search"
+              aria-label="Search"><IconSearch size={20} /></ActionIcon>
             <Tooltip label={live.connected ? "Live: changes and presence are pushed" : "Live connection lost — reconnecting"}>
               <Box className={`live-dot ${live.connected ? "is-on" : ""}`} data-testid="live-indicator" />
             </Tooltip>
@@ -185,7 +190,7 @@ export function AppLayout() {
               </Indicator>
             </Tooltip>
             <Tooltip label={scheme === "dark" ? "Light mode" : "Dark mode"}>
-              <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon"
+              <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" visibleFrom="sm"
                 onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")} aria-label="Toggle color scheme">
                 {scheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
               </ActionIcon>
@@ -201,6 +206,8 @@ export function AppLayout() {
                 <Menu.Item leftSection={<IconUser size={16} />} component={Link} to="/account">Account & API tokens</Menu.Item>
                 {me.is_admin && <Menu.Item leftSection={<IconShieldCheck size={16} />} component={Link} to="/admin">Administration</Menu.Item>}
                 <Menu.Item leftSection={<IconApi size={16} />} component="a" href="/api/v1/docs" target="_blank">REST API docs</Menu.Item>
+                <Menu.Item leftSection={scheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />} hiddenFrom="sm"
+                  onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")}>{scheme === "dark" ? "Light mode" : "Dark mode"}</Menu.Item>
                 <Menu.Divider />
                 <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout} data-testid="logout">Sign out</Menu.Item>
               </Menu.Dropdown>

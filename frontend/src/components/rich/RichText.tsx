@@ -38,8 +38,15 @@ function purifier() {
   return DOMPurify;
 }
 
+const cache = new Map<string, string>();
+
 export function sanitize(html: string): string {
-  return purifier().sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOW_DATA_ATTR: false });
+  const hit = cache.get(html);
+  if (hit !== undefined) return hit;
+  const clean = purifier().sanitize(html, { ALLOWED_TAGS, ALLOWED_ATTR, ALLOW_DATA_ATTR: false });
+  if (cache.size > 5000) cache.clear();
+  cache.set(html, clean);
+  return clean;
 }
 
 export function htmlToText(html: string): string {

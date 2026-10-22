@@ -105,12 +105,60 @@ class _Source(Protocol):
     def state(self, item_id: uuid.UUID) -> str | None: ...
     def children(self, item_id: uuid.UUID) -> list[_Edge]: ...
     def outgoing(self, item_id: uuid.UUID) -> list[tuple[str, uuid.UUID]]: ...
+    def preload(self, root_id: uuid.UUID) -> set[uuid.UUID]: ...
+
+
+def _walk_tree(db: Session, root_id: uuid.UUID, structural: list[str], condition: Any
+               ) -> tuple[dict[uuid.UUID, list[_Edge]], set[uuid.UUID]]:
+    """All structural edges below ``root_id``, one query per tree level (documents are shallow and wide)."""
+    kids: dict[uuid.UUID, list[_Edge]] = defaultdict(list)
+    seen = {root_id}
+    frontier = [root_id]
+    while frontier:
+        rows = db.execute(
+            select(Link).where(Link.source_id.in_(frontier), Link.type_key.in_(structural), condition)
+            .order_by(Link.position.nulls_last(), Link.created_at)
+        ).scalars().all()
+        frontier = []
+        for r in rows:
+            kids[r.source_id].append(_Edge(r.id, r.position, r.applicability, r.target_id))
+            if r.target_id not in seen:
+                seen.add(r.target_id)
+                frontier.append(r.target_id)
+    return kids, seen
+
+
+def _outgoing_bulk(db: Session, ids: set[uuid.UUID], structural: list[str], condition: Any
+                   ) -> tuple[dict[uuid.UUID, list[tuple[str, uuid.UUID]]], set[uuid.UUID]]:
+    out: dict[uuid.UUID, list[tuple[str, uuid.UUID]]] = defaultdict(list)
+    targets: set[uuid.UUID] = set()
+    if ids:
+        for t, src, tgt in db.execute(
+            select(Link.type_key, Link.source_id, Link.target_id)
+            .where(Link.source_id.in_(ids), Link.type_key.not_in(structural), condition)
+        ).all():
+            out[src].append((t, tgt))
+            targets.add(tgt)
+    return out, targets
 
 
 class _LiveSource:
     def __init__(self, db: Session, structural: list[str]):
         self.db, self.structural = db, structural
         self._items: dict[uuid.UUID, Item] = {}
+        self._versions: dict[uuid.UUID, ItemVersion | None] = {}
+        self._kids: dict[uuid.UUID, list[_Edge]] | None = None
+        self._out: dict[uuid.UUID, list[tuple[str, uuid.UUID]]] | None = None
+
+    def preload(self, root_id: uuid.UUID) -> set[uuid.UUID]:
+        self._kids, ids = _walk_tree(self.db, root_id, self.structural, Link.deleted_at.is_(None))
+        self._out, targets = _outgoing_bulk(self.db, ids, self.structural, Link.deleted_at.is_(None))
+        for it in self.db.execute(select(Item).where(Item.id.in_(ids | targets))).scalars():
+            self._items[it.id] = it
+        heads = {it.head_version_id: it.id for it in self._items.values() if it.head_version_id}
+        for v in self.db.execute(select(ItemVersion).where(ItemVersion.id.in_(list(heads)))).scalars():
+            self._versions[heads[v.id]] = v
+        return ids | targets
 
     def item(self, iid: uuid.UUID) -> Item | None:
         if iid not in self._items:
@@ -121,13 +169,17 @@ class _LiveSource:
         it = self.item(item_id)
         if it is None or it.deleted_at is not None:
             return None
-        return self.db.get(ItemVersion, it.head_version_id)
+        if item_id not in self._versions:
+            self._versions[item_id] = self.db.get(ItemVersion, it.head_version_id)
+        return self._versions[item_id]
 
     def state(self, item_id: uuid.UUID) -> str | None:
         it = self.item(item_id)
         return it.state if it else None
 
     def children(self, item_id: uuid.UUID) -> list[_Edge]:
+        if self._kids is not None:
+            return self._kids.get(item_id, [])
         rows = self.db.execute(
             select(Link).where(Link.source_id == item_id, Link.type_key.in_(self.structural),
                                Link.deleted_at.is_(None)).order_by(Link.position.nulls_last(), Link.created_at)
@@ -135,6 +187,8 @@ class _LiveSource:
         return [_Edge(r.id, r.position, r.applicability, r.target_id) for r in rows]
 
     def outgoing(self, item_id: uuid.UUID) -> list[tuple[str, uuid.UUID]]:
+        if self._out is not None:
+            return self._out.get(item_id, [])
         rows = self.db.execute(
             select(Link.type_key, Link.target_id).where(Link.source_id == item_id, Link.deleted_at.is_(None),
                                                         Link.type_key.not_in(self.structural))
@@ -150,8 +204,35 @@ class _AtSource:
         self._versions: dict[uuid.UUID, ItemVersion | None] = {}
         self._states: dict[uuid.UUID, str | None] = {}
 
+        self._kids: dict[uuid.UUID, list[_Edge]] | None = None
+        self._out: dict[uuid.UUID, list[tuple[str, uuid.UUID]]] | None = None
+
     def _valid(self):
         return (Link.created_at <= self.at) & ((Link.deleted_at.is_(None)) | (Link.deleted_at > self.at))
+
+    def preload(self, root_id: uuid.UUID) -> set[uuid.UUID]:
+        self._kids, ids = _walk_tree(self.db, root_id, self.structural, self._valid())
+        self._out, targets = _outgoing_bulk(self.db, ids, self.structural, self._valid())
+        every = list(ids | targets)
+        for iid in every:
+            self._versions.setdefault(iid, None)
+        for v in self.db.execute(
+            select(ItemVersion).where(ItemVersion.item_id.in_(every), ItemVersion.created_at <= self.at)
+            .order_by(ItemVersion.item_id, ItemVersion.version_no.desc()).distinct(ItemVersion.item_id)
+        ).scalars():
+            self._versions[v.item_id] = v
+        for iid, st in self.db.execute(
+            select(WorkflowEvent.item_id, WorkflowEvent.to_state)
+            .where(WorkflowEvent.item_id.in_(every), WorkflowEvent.created_at <= self.at)
+            .order_by(WorkflowEvent.item_id, WorkflowEvent.created_at.desc()).distinct(WorkflowEvent.item_id)
+        ).all():
+            self._states[iid] = st
+        missing = [i for i in every if i not in self._states]
+        if missing:
+            for iid, st in self.db.execute(select(ItemVersion.item_id, ItemVersion.state).where(
+                    ItemVersion.item_id.in_(missing), ItemVersion.version_no == 1)).all():
+                self._states[iid] = st
+        return ids | targets
 
     def version(self, item_id: uuid.UUID) -> ItemVersion | None:
         if item_id not in self._versions:
@@ -177,6 +258,8 @@ class _AtSource:
         return self._states[item_id]
 
     def children(self, item_id: uuid.UUID) -> list[_Edge]:
+        if self._kids is not None:
+            return self._kids.get(item_id, [])
         rows = self.db.execute(
             select(Link).where(Link.source_id == item_id, Link.type_key.in_(self.structural), self._valid())
             .order_by(Link.position.nulls_last(), Link.created_at)
@@ -184,6 +267,8 @@ class _AtSource:
         return [_Edge(r.id, r.position, r.applicability, r.target_id) for r in rows]
 
     def outgoing(self, item_id: uuid.UUID) -> list[tuple[str, uuid.UUID]]:
+        if self._out is not None:
+            return self._out.get(item_id, [])
         rows = self.db.execute(
             select(Link.type_key, Link.target_id).where(Link.source_id == item_id, self._valid(),
                                                         Link.type_key.not_in(self.structural))
@@ -223,6 +308,9 @@ class _BaselineSource:
 
     def outgoing(self, item_id: uuid.UUID) -> list[tuple[str, uuid.UUID]]:
         return self._out.get(item_id, [])
+
+    def preload(self, root_id: uuid.UUID) -> set[uuid.UUID]:
+        return set(self.entries) | {t for outs in self._out.values() for _, t in outs}
 
 
 # --- builder -----------------------------------------------------------------------------------
@@ -289,6 +377,10 @@ def build_snapshot(
         variant_info = {"key": variant.key, "title": variant.title, "selection": sorted(selection)}
 
     items: dict[uuid.UUID, Item] = {}
+    known = src.preload(root.id)
+    if known:
+        for it in db.execute(select(Item).where(Item.id.in_(known))).scalars():
+            items[it.id] = it
 
     def item(iid: uuid.UUID) -> Item | None:
         if iid not in items:

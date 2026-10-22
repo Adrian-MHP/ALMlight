@@ -100,7 +100,8 @@ def create_baseline(
                  project_id=project.id,
                  summary=f"Created baseline '{baseline.name}' ({revision_rule}, {baseline.item_count} items)",
                  details={"scope": scope_root.key if scope_root else None, "items": baseline.item_count,
-                          "links": count_links, "skipped": len(items) - len(version_ids)})
+                          "links": count_links, "skipped": len(items) - len(version_ids)},
+                 related_ids=[scope_root.id] if scope_root else [])
     emit(db, "baseline.created", project.id, {"project": project.key, "baseline_id": baseline.id,
                                               "name": baseline.name})
     return baseline

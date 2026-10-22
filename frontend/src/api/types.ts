@@ -636,3 +636,135 @@ export interface ReqifImportResult {
   warnings: string[];
   errors: string[];
 }
+
+// --- live documents: snapshots, history, compare, round trip, collections ------------------------
+
+export interface DocNode {
+  item_id: string;
+  key: string;
+  type_key: string;
+  type_label: string;
+  title: string;
+  display_title: string;
+  number: string | null;
+  description: string;
+  fields: { label: string; value: string }[];
+  fields_raw: Record<string, unknown>;
+  applicability: string | null;
+  state: string | null;
+  state_key: string | null;
+  state_color: string | null;
+  state_category: string | null;
+  frozen: boolean;
+  released: boolean;
+  version: string;
+  version_no: number;
+  is_heading: boolean;
+  link_id: string | null;
+  position: number | null;
+  comment_count: number;
+  reused_in: number;
+  suspect_links: number;
+  links: { label: string; key: string; title: string }[];
+  children: DocNode[];
+}
+
+export interface DocSnapshot {
+  project_key: string;
+  mode: "live" | "at" | "baseline";
+  source: string;
+  at: string | null;
+  baseline: { id: string; name: string; created_at: string } | null;
+  variant: { key: string; title: string; selection: string[] } | null;
+  generated_at: string;
+  root: DocNode;
+}
+
+export interface DocHistory {
+  document: string;
+  created_at: string;
+  entries: { id: number; ts: string; actor: string; action: string; summary: string; items: string[] }[];
+  baselines: { id: string; name: string; created_at: string; revision_rule: string; scope_is_document: boolean }[];
+}
+
+export interface DocStateRef {
+  project?: string | null;
+  document: string;
+  at?: string | null;
+  baseline?: string | null;
+  variant?: string | null;
+}
+
+export interface CompareNode {
+  item_id: string;
+  key: string;
+  type_key: string;
+  type_label: string;
+  title: string;
+  display_title: string;
+  number: string | null;
+  description: string;
+  state: string | null;
+  version: string;
+  applicability: string | null;
+  is_heading: boolean;
+  fields: { label: string; value: string }[];
+}
+
+export interface CompareResult {
+  left: { project: string; document: string; title: string; source: string; mode: string; version: string };
+  right: { project: string; document: string; title: string; source: string; mode: string; version: string };
+  summary: Record<"added" | "removed" | "changed" | "moved" | "unchanged", number>;
+  rows: {
+    status: "added" | "removed" | "changed" | "moved" | "unchanged";
+    left: CompareNode | null;
+    right: CompareNode | null;
+    moved: boolean;
+    changes: { field: string; old: unknown; new: unknown; diff?: { op: "equal" | "insert" | "delete"; text: string }[] }[];
+  }[];
+}
+
+export interface WordImportResult {
+  dry_run: boolean;
+  applied: boolean;
+  summary: Record<string, number>;
+  items: { key?: string; title?: string; status: string; base_version?: string; current_version?: string; new_version?: string;
+    conflicts?: string[]; error?: string; changes?: { field: string; old: string; new: string }[] }[];
+  comments: { item: string; author: string; text: string; reply: boolean }[];
+}
+
+export interface CommentThread {
+  id: string;
+  item_key: string | null;
+  author: UserRef | null;
+  external_author: string | null;
+  source: string;
+  body: string;
+  created_at: string;
+  resolved: boolean;
+  resolved_at: string | null;
+  resolved_by: UserRef | null;
+  document_key: string | null;
+  replies: CommentThread[];
+}
+
+export interface DocCollection {
+  id: string;
+  name: string;
+  description: string | null;
+  status: "open" | "closed";
+  created_at: string;
+  created_by: UserRef | null;
+  closed_at: string | null;
+  closed_by: UserRef | null;
+  entries: { id: string; document: string; title: string; baseline_id: string; baseline: string; baseline_created_at: string }[];
+}
+
+export interface RecycledItem {
+  key: string;
+  type_key: string;
+  title: string;
+  version: string;
+  deleted_at: string;
+  deleted_by: string | null;
+}

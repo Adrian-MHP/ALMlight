@@ -113,8 +113,10 @@ def test_link_attributes_and_delete(team, project):
     m = new_item(c, project, "system_element", "M", fields={"level": "module"})
     link = _link(c, project, "contains", p["key"], m["key"], attributes={"quantity": 2})
     c.patch(f"/projects/{project}/links/{link['id']}", {"attributes": {"quantity": "x"}}, expect=422)
-    c.patch(f"/projects/{project}/links/{link['id']}", {"attributes": {"quantity": 3}, "applicability": "HART"})
+    updated = c.patch(f"/projects/{project}/links/{link['id']}", {"attributes": {"quantity": 3}, "applicability": "HART"})
+    assert updated["id"] != link["id"]  # links are versioned: the old row is closed, a new one carries the change
     tree = c.get(f"/projects/{project}/items/{p['key']}/tree")
     assert tree["children"][0]["link"]["attributes"]["quantity"] == 3
-    c.delete(f"/projects/{project}/links/{link['id']}")
     c.delete(f"/projects/{project}/links/{link['id']}", expect=404)
+    c.delete(f"/projects/{project}/links/{updated['id']}")
+    c.delete(f"/projects/{project}/links/{updated['id']}", expect=404)

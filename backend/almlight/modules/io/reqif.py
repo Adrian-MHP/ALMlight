@@ -58,6 +58,17 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
             .order_by(Item.type_key, Item.seq)
         ).scalars().all()
     by_id = {i.id: i for i in items}
+    # Round trip: objects that came from a partner's ReqIF keep their original identifiers on export.
+    from almlight.modules.integrations.models import ExternalRef
+
+    partner_ids: dict[uuid.UUID, str] = {}
+    for ref in db.execute(select(ExternalRef).where(
+            ExternalRef.system == "reqif", ExternalRef.item_id.in_([*by_id, *([root.id] if root else [])]))).scalars():
+        partner_ids[ref.item_id] = ref.external_id.removeprefix("spec:")
+
+    def so_id(item_id: uuid.UUID) -> str:
+        return partner_ids.get(item_id) or _id("so", item_id)
+
     used_types = [t for t in model.item_types if any(i.type_key == t.key for i in items)]
 
     reqif = ET.Element(_q("REQ-IF"))
@@ -123,7 +134,7 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
 
     objects = _sub(content, "SPEC-OBJECTS")
     for it in items:
-        so = _sub(objects, "SPEC-OBJECT", identifier=_id("so", it.id), long_name=it.key,
+        so = _sub(objects, "SPEC-OBJECT", identifier=so_id(it.id), long_name=it.key,
                   last_change=it.updated_at.isoformat())
         _sub(_sub(so, "TYPE"), "SPEC-OBJECT-TYPE-REF").text = _id("st", it.type_key)
         values = _sub(so, "VALUES")
@@ -156,11 +167,12 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
     for lk in link_rows:
         rel = _sub(relations, "SPEC-RELATION", identifier=_id("rel", lk.id), last_change=lk.created_at.isoformat())
         _sub(_sub(rel, "TYPE"), "SPEC-RELATION-TYPE-REF").text = _id("rt", lk.type_key)
-        _sub(_sub(rel, "SOURCE"), "SPEC-OBJECT-REF").text = _id("so", lk.source_id)
-        _sub(_sub(rel, "TARGET"), "SPEC-OBJECT-REF").text = _id("so", lk.target_id)
+        _sub(_sub(rel, "SOURCE"), "SPEC-OBJECT-REF").text = so_id(lk.source_id)
+        _sub(_sub(rel, "TARGET"), "SPEC-OBJECT-REF").text = so_id(lk.target_id)
 
     specs = _sub(content, "SPECIFICATIONS")
-    spec = _sub(specs, "SPECIFICATION", identifier=_id("spec", root.id if root else project.id),
+    spec_identifier = (partner_ids.get(root.id) if root else None) or _id("spec", root.id if root else project.id)
+    spec = _sub(specs, "SPECIFICATION", identifier=spec_identifier,
                 long_name=root.title if root else project.name, last_change=now)
     _sub(_sub(spec, "TYPE"), "SPECIFICATION-TYPE-REF").text = spec_type_id
     children_el = _sub(spec, "CHILDREN")
@@ -170,7 +182,7 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
             if child.id not in by_id or child.id in seen:
                 continue
             h = _sub(parent_el, "SPEC-HIERARCHY", identifier=_id("sh", link.id), last_change=now)
-            _sub(_sub(h, "OBJECT"), "SPEC-OBJECT-REF").text = _id("so", child.id)
+            _sub(_sub(h, "OBJECT"), "SPEC-OBJECT-REF").text = so_id(child.id)
             sub = _sub(h, "CHILDREN")
             add_children(sub, child.id, seen | {child.id})
             if not len(sub):
@@ -181,5 +193,5 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
     else:
         for it in items:
             h = _sub(children_el, "SPEC-HIERARCHY", identifier=_id("sh", it.id), last_change=now)
-            _sub(_sub(h, "OBJECT"), "SPEC-OBJECT-REF").text = _id("so", it.id)
+            _sub(_sub(h, "OBJECT"), "SPEC-OBJECT-REF").text = so_id(it.id)
     return ET.tostring(reqif, encoding="utf-8", xml_declaration=True)

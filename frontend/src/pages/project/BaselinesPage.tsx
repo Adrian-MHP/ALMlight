@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Card, Grid, Group, Modal, Select, SegmentedControl, Stack, Table, Text, Textarea, TextInput, Title } from "@mantine/core";
+import { Badge, Button, Card, Grid, Group, Modal, Select, SegmentedControl, Stack, Table, Tabs, Text, Textarea, TextInput, Title } from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
 import { api } from "@/api/client";
 import { useBaseline, useBaselineCompare, useBaselines, useProjectMutation } from "@/api/hooks";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "./ProjectLayout";
 import { ChangeView } from "./item/HistoryTab";
+import { CollectionsPanel } from "./CollectionsPanel";
 
 export function BaselinesPage() {
   const { key, can } = useProjectCtx();
@@ -19,10 +20,18 @@ export function BaselinesPage() {
   const detail = useBaseline(key, selected);
   const compare = useBaselineCompare(key, selected, compareTo === "current" ? null : compareTo);
   const [view, setView] = useState("compare");
+  const [tab, setTab] = useState<string | null>("baselines");
   return (
     <>
-      <PageHeader title="Baselines" subtitle="Frozen configurations of the project (or of a document / sub-structure) for reviews, releases and audits"
-        actions={can("reviewer") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-baseline">New baseline</Button>} />
+      <PageHeader title="Baselines & collections" subtitle="Frozen configurations of the project (or of a document / sub-structure) for reviews, releases and audits — and collections that bundle document baselines into a release"
+        actions={can("reviewer") && tab === "baselines" && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-baseline">New baseline</Button>} />
+      <Tabs value={tab} onChange={setTab} mb="md">
+        <Tabs.List>
+          <Tabs.Tab value="baselines">Baselines</Tabs.Tab>
+          <Tabs.Tab value="collections" data-testid="tab-collections">Collections</Tabs.Tab>
+        </Tabs.List>
+      </Tabs>
+      {tab === "collections" ? <CollectionsPanel /> : (
       <Grid>
         <Grid.Col span={{ base: 12, md: 4 }}>
           <Stack gap="xs">
@@ -93,6 +102,7 @@ export function BaselinesPage() {
           ) : <Text c="dimmed">Select a baseline to inspect or compare it.</Text>}
         </Grid.Col>
       </Grid>
+      )}
       <CreateBaseline opened={creating} onClose={() => setCreating(false)} onCreated={setSelected} />
     </>
   );

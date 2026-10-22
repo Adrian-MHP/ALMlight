@@ -140,7 +140,16 @@ trend, coverage, matrix, maturity, text, and the KPIs reuse rate, change lead ti
 ratio). Widgets select items with the same filters as the item list (types, states, fields, text, owner, suspect,
 variant) and are evaluated on demand (see ADR-0014).
 
-## 4.12 Audit trail
+## 4.12 Document history, comments and collections
+
+- **Time travel**: a document can be opened as of any instant or baseline; links are versioned (closed and re-created
+  on change), so the outline at any time is exact (ADR-0016).
+- **Comments** are threads (root + replies) on items, optionally in a document context; threads can be resolved and
+  reopened; Word round-trip comments keep the reviewer's name.
+- **Collections** bundle document baselines (one per document) for a release; closing freezes them.
+- **Recycle bin**: deleted items keep their links (soft delete) and can be restored together with them.
+
+## 4.13 Audit trail
 
 Every mutation writes an audit entry (actor, action, entity, summary, details, related item ids). Each entry stores
 the SHA-256 of its canonical content and the previous entry's hash; `GET /admin/audit/verify` recomputes the chain

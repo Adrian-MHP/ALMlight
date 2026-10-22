@@ -106,20 +106,20 @@ def create_link(project_key: str, body: LinkIn, user: User = Depends(current_use
     return {"id": str(link.id), "type": link.type_key, "source": source.key, "target": target.key}
 
 
-@router.patch("/links/{link_id}", response_model=Ok)
+@router.patch("/links/{link_id}", summary="Change a link; returns the id of the new link version")
 def update_link(project_key: str, link_id: uuid.UUID, body: LinkPatch, user: User = Depends(current_user),
-                db: Session = Depends(get_db)) -> Ok:
+                db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user, "contributor")
     link = service.get_link(db, project, link_id)
     sent = body.model_fields_set
-    service.update_link(
+    link = service.update_link(
         db, project, user, link,
         position=body.position if "position" in sent else service._UNSET,
         attributes=body.attributes if "attributes" in sent else service._UNSET,
         applicability=(body.applicability or None) if "applicability" in sent else service._UNSET,
     )
     db.commit()
-    return Ok()
+    return {"id": str(link.id)}
 
 
 @router.delete("/links/{link_id}", response_model=Ok)

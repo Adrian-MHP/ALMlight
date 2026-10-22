@@ -6,6 +6,7 @@ import difflib
 import re
 import uuid
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any, BinaryIO
 
 from sqlalchemy import Select, func, or_, select
@@ -380,11 +381,40 @@ def delete_item(db: Session, project: Project, actor: User | None, item: Item) -
     if item.released_version_id is not None:
         raise Conflict(f"{item.key} has been released and cannot be deleted — make it obsolete instead")
     item.deleted_at = utcnow()
-    removed = links.soft_delete_links_of(db, item, actor)
+    removed = links.soft_delete_links_of(db, item, actor, at=item.deleted_at)
     audit.record(db, actor=actor, action="item.deleted", entity_type="item", entity_id=item.id,
                  project_id=project.id, summary=f"Deleted {item.key}: {item.title}",
                  details={"links_removed": removed}, related_ids=[item.id])
     emit(db, "item.deleted", project.id, _payload(project, item))
+
+
+def undelete_item(db: Session, project: Project, actor: User | None, item: Item) -> int:
+    """Restore an item from the recycle bin together with the links removed with it."""
+    if item.deleted_at is None:
+        raise Conflict(f"{item.key} is not deleted")
+    deleted_at = item.deleted_at
+    item.deleted_at = None
+    restored = 0
+    window = (deleted_at - timedelta(seconds=2), deleted_at + timedelta(seconds=2))
+    for link in db.execute(
+        select(Link).where((Link.source_id == item.id) | (Link.target_id == item.id),
+                           Link.deleted_at.between(*window))
+    ).scalars():
+        other_id = link.target_id if link.source_id == item.id else link.source_id
+        other = db.get(Item, other_id)
+        duplicate = db.execute(select(Link.id).where(
+            Link.type_key == link.type_key, Link.source_id == link.source_id, Link.target_id == link.target_id,
+            Link.deleted_at.is_(None))).scalar()
+        if other is None or other.deleted_at is not None or duplicate:
+            continue
+        link.deleted_at = None
+        link.deleted_by = None
+        restored += 1
+    audit.record(db, actor=actor, action="item.restored", entity_type="item", entity_id=item.id,
+                 project_id=project.id, summary=f"Restored {item.key} from the recycle bin ({restored} links)",
+                 related_ids=[item.id])
+    emit(db, "item.created", project.id, _payload(project, item))
+    return restored
 
 
 # --- attachments --------------------------------------------------------------------------
@@ -446,28 +476,66 @@ def find_attachment(db: Session, item: Item, attachment_id: str, version_no: int
 # --- comments -----------------------------------------------------------------------------
 
 
-def add_comment(db: Session, project: Project, actor: User, item: Item, body: str) -> Comment:
+def add_comment(db: Session, project: Project, actor: User, item: Item, body: str, *,
+                parent_id: uuid.UUID | None = None, document: Item | None = None) -> Comment:
     body = (body or "").strip()
     if not body:
         raise ValidationFailed("Comment must not be empty")
-    comment = Comment(item_id=item.id, author_id=actor.id, body=body[:20_000])
+    parent = None
+    if parent_id:
+        parent = db.get(Comment, parent_id)
+        if parent is None or parent.item_id != item.id or parent.deleted_at:
+            raise NotFound("Comment to reply to not found")
+        while parent.parent_id:  # replies attach to the thread root
+            parent = db.get(Comment, parent.parent_id)
+    comment = Comment(item_id=item.id, author_id=actor.id, body=body[:20_000], parent_id=parent.id if parent else None,
+                      document_id=(document.id if document else (parent.document_id if parent else None)))
     db.add(comment)
     db.flush()
+    if parent and parent.resolved_at:  # replying reopens a resolved thread
+        parent.resolved_at, parent.resolved_by = None, None
     audit.record(db, actor=actor, action="comment.added", entity_type="comment", entity_id=comment.id,
-                 project_id=project.id, summary=f"Commented on {item.key}", related_ids=[item.id])
+                 project_id=project.id, summary=f"{'Replied to a comment' if parent else 'Commented'} on {item.key}",
+                 related_ids=[item.id] + ([document.id] if document else []))
     emit(db, "comment.added", project.id, {"project": project.key, "item": item.key, "comment_id": comment.id})
     return comment
 
 
-def delete_comment(db: Session, project: Project, actor: User, item: Item, comment_id: uuid.UUID) -> None:
+def _comment(db: Session, item: Item, comment_id: uuid.UUID) -> Comment:
     comment = db.get(Comment, comment_id)
     if comment is None or comment.item_id != item.id or comment.deleted_at:
         raise NotFound("Comment not found")
+    return comment
+
+
+def resolve_comment(db: Session, project: Project, actor: User, item: Item, comment_id: uuid.UUID,
+                    resolved: bool = True) -> Comment:
+    comment = _comment(db, item, comment_id)
+    if comment.parent_id:
+        raise ValidationFailed("Resolve the thread, not a reply")
+    comment.resolved_at = utcnow() if resolved else None
+    comment.resolved_by = actor.id if resolved else None
+    audit.record(db, actor=actor, action="comment.resolved" if resolved else "comment.reopened",
+                 entity_type="comment", entity_id=comment.id, project_id=project.id,
+                 summary=f"{'Resolved' if resolved else 'Reopened'} a comment thread on {item.key}",
+                 related_ids=[item.id])
+    return comment
+
+
+def delete_comment(db: Session, project: Project, actor: User, item: Item, comment_id: uuid.UUID) -> None:
+    comment = _comment(db, item, comment_id)
     if comment.author_id != actor.id and not has_role(db, project, actor, "manager"):
         raise Forbidden("Only the author or a project manager can delete a comment")
-    comment.deleted_at = utcnow()
+    now = utcnow()
+    comment.deleted_at = now
+    replies = 0
+    for reply in db.execute(select(Comment).where(Comment.parent_id == comment.id,
+                                                  Comment.deleted_at.is_(None))).scalars():
+        reply.deleted_at = now
+        replies += 1
     audit.record(db, actor=actor, action="comment.deleted", entity_type="comment", entity_id=comment.id,
-                 project_id=project.id, summary=f"Deleted a comment on {item.key}", related_ids=[item.id])
+                 project_id=project.id, summary=f"Deleted a comment on {item.key}"
+                 + (f" with {replies} replies" if replies else ""), related_ids=[item.id])
 
 
 # --- queries ------------------------------------------------------------------------------

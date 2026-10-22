@@ -1,15 +1,15 @@
 import { useState } from "react";
 import {
-  Anchor, Badge, Breadcrumbs, Button, Card, Center, Grid, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Title,
+  Alert, Anchor, Badge, Breadcrumbs, Button, Card, Center, Grid, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Title,
   Tooltip,
 } from "@mantine/core";
 import {
-  IconArrowBackUp, IconDots, IconDownload, IconEdit, IconFileText, IconGitBranch, IconLock, IconSitemap, IconTrash,
+  IconArrowBackUp, IconDots, IconHistory, IconDownload, IconEdit, IconFileText, IconGitBranch, IconLock, IconSitemap, IconTrash,
 } from "@tabler/icons-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, downloadUrl } from "@/api/client";
-import { useItem, useItemApprovals, useLinks, useProjectMutation, useTransitions } from "@/api/hooks";
-import type { ItemDetail, TransitionOption } from "@/api/types";
+import { useItem, useItemApprovals, useLinks, useProjectMutation, useTransitions, useVersion } from "@/api/hooks";
+import type { ItemDetail, TransitionOption, Version } from "@/api/types";
 import { ApprovalCard } from "@/components/ApprovalCard";
 import { StateBadge, TypeBadge } from "@/components/badges";
 import { FieldsView } from "@/components/FieldsForm";
@@ -34,11 +34,15 @@ export function ItemPage() {
   const { itemKey = "" } = useParams();
   const { key, model } = useProjectCtx();
   const { data: item, isLoading, isError } = useItem(key, itemKey.toUpperCase());
+  const [vparams] = useSearchParams();
+  const requested = vparams.get("version") ? Number(vparams.get("version")) : null;
+  const viewVersion = useVersion(key, itemKey.toUpperCase(), requested).data ?? null;
   const [params, setParams] = useSearchParams();
   if (isLoading) return <Center mt={80}><Loader /></Center>;
   if (isError || !item) return <NotFound message={`Item ${itemKey} not found.`} />;
   const typeDef = model.type(item.type_key);
   const tab = params.get("tab") ?? "overview";
+  const versionNo = params.get("version") && Number(params.get("version")) !== item.version_no ? Number(params.get("version")) : null;
   const sem = model.config.semantics;
   const verifiable = model.link(sem.verifies_link)?.targets.some((t) => t === "*" || t === item.type_key) ?? false;
   const isRun = sem.test_run_type === item.type_key;
@@ -73,7 +77,7 @@ export function ItemPage() {
               </Badge>
             )}
           </Group>
-          <Title order={2} size="h3" data-testid="item-title-heading">{item.title}</Title>
+          <Title order={2} size="h3" data-testid="item-title-heading">{versionNo !== null && viewVersion ? viewVersion.title : item.title}</Title>
           <Text size="xs" c="dimmed">
             Owner {item.owner?.display_name ?? "–"} · created {fmtDateTime(item.created_at)} by {item.created_by?.display_name ?? "–"} ·
             updated {fmtDateTime(item.updated_at)} by {item.updated_by?.display_name ?? "–"}
@@ -81,6 +85,7 @@ export function ItemPage() {
         </Stack>
         <WorkflowBar item={item} />
       </Group>
+      {versionNo !== null && <VersionBanner item={item} versionNo={versionNo} version={viewVersion} />}
       <PendingApprovals itemKey={item.key} />
       <Tabs value={tab} onChange={(v) => { const p = new URLSearchParams(params); p.set("tab", v ?? "overview"); setParams(p, { replace: true }); }} keepMounted={false}>
         <Tabs.List mb="md">
@@ -96,7 +101,7 @@ export function ItemPage() {
           <Tabs.Tab value="comments">Comments</Tabs.Tab>
           <Tabs.Tab value="development">Development</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="overview"><Overview item={item} /></Tabs.Panel>
+        <Tabs.Panel value="overview"><Overview item={item} version={viewVersion} /></Tabs.Panel>
         <Tabs.Panel value="links"><LinksTab item={item} /></Tabs.Panel>
         <Tabs.Panel value="impact"><ImpactTab item={item} /></Tabs.Panel>
         {hasStructure && <Tabs.Panel value="structure"><Card withBorder><StructureTree rootKey={item.key} /></Card></Tabs.Panel>}
@@ -125,9 +130,10 @@ function LinksTabLabel({ itemKey }: { itemKey: string }) {
   );
 }
 
-function Overview({ item }: { item: ItemDetail }) {
+function Overview({ item, version }: { item: ItemDetail; version?: Version | null }) {
   const { model } = useProjectCtx();
   const defs = model.type(item.type_key)?.fields ?? [];
+  if (version) item = { ...item, title: version.title, description: version.description, fields: version.fields, applicability: version.applicability };
   const texts = defs.filter((f) => f.type === "text" && item.fields[f.key]);
   return (
     <Grid>
@@ -273,5 +279,29 @@ function ReviseModal({ opened, onClose, item }: { opened: boolean; onClose: () =
         </Group>
       </Stack>
     </Modal>
+  );
+}
+
+/** Read-only view of an older version (time travel for a single item). */
+function VersionBanner({ item, versionNo, version }: { item: ItemDetail; versionNo: number; version: Version | null }) {
+  const { key, can } = useProjectCtx();
+  const navigate = useNavigate();
+  const restore = useProjectMutation(key, () => api.post(`/projects/${key}/items/${item.key}/restore`, { version_no: versionNo, expected_version: item.version_no }),
+    { success: "Restored as a new version", onSuccess: () => navigate(`/p/${key}/items/${item.key}?tab=history`) });
+  const go = (n: number) => navigate(`/p/${key}/items/${item.key}?version=${n}`);
+  return (
+    <Alert color="violet" mb="md" icon={<IconHistory size={18} />} data-testid="version-banner"
+      title={`Version ${version?.version ?? versionNo} — read-only (current: ${item.version})`}>
+      <Group justify="space-between">
+        <Text size="sm">{version ? `${version.kind} by ${version.created_by?.display_name ?? "?"} on ${fmtDateTime(version.created_at)}${version.change_note ? ` — ${version.change_note}` : ""}` : "Loading…"}</Text>
+        <Group gap="xs">
+          <Button size="xs" variant="default" disabled={versionNo <= 1} onClick={() => go(versionNo - 1)} data-testid="version-prev">← Older</Button>
+          <Button size="xs" variant="default" disabled={versionNo >= item.version_no - 1} onClick={() => go(versionNo + 1)} data-testid="version-next">Newer →</Button>
+          <Button size="xs" variant="light" onClick={() => navigate(`/p/${key}/items/${item.key}?tab=history&from=${versionNo}`)}>Compare with current</Button>
+          {can("contributor") && !item.lifecycle.frozen && <Button size="xs" variant="light" color="orange" onClick={() => restore.mutate(undefined)} loading={restore.isPending}>Restore</Button>}
+          <Button size="xs" onClick={() => navigate(`/p/${key}/items/${item.key}`)} data-testid="version-current">Current version</Button>
+        </Group>
+      </Group>
+    </Alert>
   );
 }

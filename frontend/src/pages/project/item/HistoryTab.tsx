@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Badge, Button, Card, Grid, Group, Radio, Stack, Table, Text, Timeline, Title } from "@mantine/core";
 import { api } from "@/api/client";
 import { useDiff, useHistory, useProjectMutation, useVersions } from "@/api/hooks";
@@ -10,7 +11,8 @@ export function HistoryTab({ item }: { item: ItemDetail }) {
   const { key, can } = useProjectCtx();
   const versions = useVersions(key, item.key).data ?? [];
   const history = useHistory(key, item.key).data ?? [];
-  const [from, setFrom] = useState<number | null>(null);
+  const [params] = useSearchParams();
+  const [from, setFrom] = useState<number | null>(params.get("from") ? Number(params.get("from")) : null);
   const [to, setTo] = useState<number | null>(null);
   const diff = useDiff(key, item.key, from, to ?? item.version_no);
   const restore = useProjectMutation(key, (n: number) => api.post(`/projects/${key}/items/${item.key}/restore`,
@@ -41,9 +43,15 @@ export function HistoryTab({ item }: { item: ItemDetail }) {
                   </Table.Td>
                   <Table.Td><Text size="xs">{v.created_by?.display_name}<br />{fmtDateTime(v.created_at)}</Text></Table.Td>
                   <Table.Td>
-                    {can("contributor") && !item.lifecycle.frozen && v.version_no !== item.version_no && (
-                      <Button size="xs" variant="subtle" onClick={() => restore.mutate(v.version_no)}>Restore</Button>
-                    )}
+                    <Group gap={2} wrap="nowrap">
+                      {v.version_no !== item.version_no && (
+                        <Button size="xs" variant="subtle" component={Link} to={`/p/${key}/items/${item.key}?version=${v.version_no}`}
+                          data-testid={`open-version-${v.version_no}`}>Open</Button>
+                      )}
+                      {can("contributor") && !item.lifecycle.frozen && v.version_no !== item.version_no && (
+                        <Button size="xs" variant="subtle" onClick={() => restore.mutate(v.version_no)}>Restore</Button>
+                      )}
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))}

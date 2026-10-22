@@ -124,14 +124,27 @@ class Blob(Base):
 
 
 class Comment(Base):
+    """A comment on an item, optionally made in the context of a document; replies form threads.
+
+    Comments imported from a Word round trip keep the reviewer's name in ``external_author`` and the
+    Word comment identity in ``external_ref`` (so a second import of the same file adds no duplicates).
+    """
+
     __tablename__ = "comments"
 
     id: Mapped[uuid.UUID] = uuid_pk()
     item_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("items.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    document_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("items.id"), index=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("comments.id"), index=True)
     author_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    external_author: Mapped[str | None] = mapped_column(String(200))
+    external_ref: Mapped[str | None] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="ui")  # ui | word | reqif
     body: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

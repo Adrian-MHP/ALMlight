@@ -17,5 +17,7 @@
 | [0013](0013-hash-chained-audit.md) | Hash-chained, append-only audit trail | accepted |
 | [0014](0014-user-defined-reports.md) | User-defined reports as widget lists evaluated on the server | accepted |
 | [0015](0015-document-rendering-and-reqif-import.md) | Document rendering (Word/PDF) and ReqIF import identity | accepted |
+| [0016](0016-document-time-travel.md) | Exact document time travel through versioned links | accepted |
+| [0017](0017-word-round-trip.md) | Word round trip with content controls and 3-way detection | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

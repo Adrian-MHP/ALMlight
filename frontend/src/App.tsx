@@ -13,6 +13,7 @@ import { ItemsPage } from "./pages/project/ItemsPage";
 import { ItemPage } from "./pages/project/ItemPage";
 import { DocumentsPage } from "./pages/project/DocumentsPage";
 import { DocumentView } from "./pages/project/DocumentView";
+import { CompareView } from "./pages/project/document/CompareView";
 import { StructurePage } from "./pages/project/StructurePage";
 import { TraceabilityPage } from "./pages/project/TraceabilityPage";
 import { ChangesPage } from "./pages/project/ChangesPage";
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
           { path: "items/:itemKey", element: <ItemPage /> },
           { path: "documents", element: <DocumentsPage /> },
           { path: "documents/:specKey", element: <DocumentView /> },
+          { path: "documents/:specKey/compare", element: <CompareView /> },
           { path: "structure", element: <StructurePage /> },
           { path: "traceability", element: <TraceabilityPage /> },
           { path: "changes", element: <ChangesPage /> },

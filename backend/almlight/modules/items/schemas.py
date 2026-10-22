@@ -111,13 +111,23 @@ class RestoreIn(BaseModel):
 
 class CommentIn(BaseModel):
     body: str
+    parent_id: uuid.UUID | None = None
+    document: str | None = Field(default=None, description="Key of the document the comment is made in")
 
 
 class CommentOut(BaseModel):
     id: uuid.UUID
+    item_key: str | None = None
     author: UserRef | None
+    external_author: str | None = None
+    source: str = "ui"
     body: str
     created_at: datetime
+    resolved: bool = False
+    resolved_at: datetime | None = None
+    resolved_by: UserRef | None = None
+    document_key: str | None = None
+    replies: list[CommentOut] = Field(default_factory=list)
 
 
 def lifecycle(project: Project, item: Item) -> Lifecycle:
@@ -166,3 +176,6 @@ def version_out(db: Session, item: Item, v: ItemVersion, users: UserDirectory,
                       applicability=v.applicability, attachments=[Attachment(**a) for a in v.attachments],
                       state=v.state, change_note=v.change_note, change_order=co, created_by=users.ref(v.created_by),
                       created_at=v.created_at, released=v.id == item.released_version_id)
+
+
+CommentOut.model_rebuild()

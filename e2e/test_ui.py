@@ -119,6 +119,7 @@ def test_document_view_and_add(page: Page):
     expect(page.get_by_test_id("document").get_by_text("1 Measurement")).to_be_visible()
     shot(page, "10-document")
     page.get_by_test_id("doc-add").click()
+    page.get_by_test_id("doc-add-new").click()
     choose(page, "item-type", "System Requirement")
     page.get_by_test_id("item-title").fill("Provide a local display")
     page.get_by_test_id("item-save").click()
@@ -215,15 +216,16 @@ def test_admin_audit_chain(page: Page):
 def test_branch_and_merge_document(page: Page):
     login(page, "alex", DEMO_PW)
     page.goto("/p/DEMO/documents/SPEC-2")
+    page.get_by_test_id("doc-more").click()
     page.get_by_test_id("create-branch").click()
     page.get_by_test_id("branch-name").fill("Customer variant")
     page.get_by_test_id("branch-create").click()
     expect(page.get_by_test_id("branch-banner")).to_be_visible()
     branch_doc = page.url.rstrip("/").split("/")[-1]
     tree = page.request.get(f"/api/v1/projects/DEMO/items/{branch_doc}/tree").json()
-    heading_copy = tree["children"][0]  # copy of H-1 "1 Measurement" (headings have no lifecycle)
-    assert heading_copy["title"] == "1 Measurement"
-    resp = page.request.patch(f"/api/v1/projects/DEMO/items/{heading_copy['key']}", data={"title": "1 Measurement and accuracy"})
+    heading_copy = tree["children"][0]  # copy of H-1 "Measurement" (headings have no lifecycle)
+    assert heading_copy["title"] == "Measurement"
+    resp = page.request.patch(f"/api/v1/projects/DEMO/items/{heading_copy['key']}", data={"title": "Measurement and accuracy"})
     assert resp.ok, resp.text()
     page.reload()
     page.get_by_test_id("open-merge").click()
@@ -231,7 +233,7 @@ def test_branch_and_merge_document(page: Page):
     shot(page, "17-merge")
     page.get_by_test_id("merge-to-source").click()
     expect(page.get_by_text("Branch and source are in sync")).to_be_visible()
-    assert page.request.get("/api/v1/projects/DEMO/items/H-1").json()["title"] == "1 Measurement and accuracy"
+    assert page.request.get("/api/v1/projects/DEMO/items/H-1").json()["title"] == "Measurement and accuracy"
 
 
 def test_reports_view_and_build(page: Page):

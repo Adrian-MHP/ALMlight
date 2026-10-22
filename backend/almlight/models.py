@@ -4,6 +4,7 @@ from almlight.core.db import Base
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
 from almlight.modules.branches.models import Branch, BranchItem
+from almlight.modules.doc_collections.models import Collection, CollectionEntry
 from almlight.modules.identity.models import ApiToken, User
 from almlight.modules.integrations.models import (
     ExternalRef,
@@ -31,6 +32,8 @@ __all__ = [
     "Blob",
     "Branch",
     "BranchItem",
+    "Collection",
+    "CollectionEntry",
     "Comment",
     "ExternalRef",
     "IntegrationSetting",

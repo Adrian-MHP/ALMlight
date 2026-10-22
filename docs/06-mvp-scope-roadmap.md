@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP and the 0.2 increment)
+## 6.1 Implemented (v0.1 MVP, 0.2 and 0.3 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -54,6 +54,13 @@ variant, module variants vs. offered variants; KPI JSON endpoints for BI tools
 table of contents, attributes and traces; ReqIF import (.reqif/.reqifz) with mapping analysis, DOORS-style headings,
 enumeration mapping, relations, and update-on-reimport identity (incl. round trips of own exports)
 
+**Live documents (0.3)**: document history and time travel (open any change point or baseline, read-only, exact),
+item version view, document comparison (revisions, baselines, branches, other documents, cross-project; word-level
+diff, moves), Word round trip (review copy edit/comments-only, re-import with conflict detection and Word comments),
+ReqIF export with partner identifiers, threaded document comments with resolve, document filter and variant
+specifications, automatic heading numbering, reuse of existing items, recycle bin, collections of document baselines
+(close/reopen, zip export). See [10-live-documents](10-live-documents.md).
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check
 
 ## 6.2 Prepared but not built (extension points)
@@ -69,19 +76,19 @@ enumeration mapping, relations, and update-on-reimport identity (incl. round tri
 
 ## 6.3 Roadmap
 
-**Next increment (0.3) — enterprise readiness for SMEs**
+**Next increment (0.4) — enterprise readiness for SMEs**
 - SSO via OIDC (Microsoft Entra ID, Keycloak), groups → roles
 - E-mail notifications (assignments, approvals), saved queries, scheduled report e-mails
 - Effectivity on change orders (date / serial number)
 - Visual template editor; template versioning and migration helpers
 - S3-compatible file storage; scheduled backups
 
-**0.4 — digital thread**
+**0.5 — digital thread**
 - SysML v2 API connector (link items to model elements, e.g. SysON)
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**0.5 — assisted engineering (governed AI)**
+**0.6 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

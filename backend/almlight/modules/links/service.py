@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select, text, update
@@ -154,38 +155,56 @@ def update_link(
     attributes: dict[str, Any] | None = _UNSET,
     applicability: str | None = _UNSET,
 ) -> Link:
+    """Change position, attributes or applicability.
+
+    Links are versioned like items: the current row is closed (``deleted_at``) and a new row carries the new
+    values, so the structure of a document can be reconstructed for any point in time.
+    """
     lt = _link_type(project, link.type_key)
     source = db.get(Item, link.source_id)
     assert source is not None
     _ensure_source_editable(project, lt, source)
     changes: dict[str, Any] = {}
+    new_position, new_attrs, new_expr = link.position, link.attributes, link.applicability
     if position is not _UNSET and position != link.position:
         changes["position"] = [link.position, position]
-        link.position = position
+        new_position = position
     if attributes is not _UNSET:
         attrs = normalize_fields(db, lt.attributes, attributes or {}, base=link.attributes, what="link attribute")
         if attrs != link.attributes:
             changes["attributes"] = [link.attributes, attrs]
-            link.attributes = attrs
+            new_attrs = attrs
     if applicability is not _UNSET:
         expr = normalize_expr(applicability)
         if expr != link.applicability:
             changes["applicability"] = [link.applicability, expr]
-            link.applicability = expr
-    if changes:
-        target = db.get(Item, link.target_id)
-        audit.record(
-            db,
-            actor=actor,
-            action="link.updated",
-            entity_type="link",
-            entity_id=link.id,
-            project_id=project.id,
-            summary=f"Updated link {source.key} {lt.label} {target.key if target else ''}",
-            details=changes,
-            related_ids=[link.source_id, link.target_id],
-        )
-    return link
+            new_expr = expr
+    if not changes:
+        return link
+    now = utcnow()
+    link.deleted_at = now
+    link.deleted_by = actor.id if actor else None
+    db.flush()
+    successor = Link(project_id=link.project_id, type_key=link.type_key, source_id=link.source_id,
+                     target_id=link.target_id, position=new_position, attributes=new_attrs, applicability=new_expr,
+                     suspect=link.suspect, suspect_since=link.suspect_since, suspect_reason=link.suspect_reason,
+                     confirmed_by=link.confirmed_by, confirmed_at=link.confirmed_at,
+                     created_by=actor.id if actor else None, created_at=now)
+    db.add(successor)
+    db.flush()
+    target = db.get(Item, link.target_id)
+    audit.record(
+        db,
+        actor=actor,
+        action="link.updated",
+        entity_type="link",
+        entity_id=successor.id,
+        project_id=project.id,
+        summary=f"Updated link {source.key} {lt.label} {target.key if target else ''}",
+        details={**changes, "previous_link_id": link.id},
+        related_ids=[link.source_id, link.target_id],
+    )
+    return successor
 
 
 def delete_link(db: Session, project: Project, actor: User | None, link: Link) -> None:
@@ -254,11 +273,11 @@ def mark_suspects(db: Session, project: Project, item: Item, reason: str) -> int
     return result.rowcount or 0
 
 
-def soft_delete_links_of(db: Session, item: Item, actor: User | None) -> int:
+def soft_delete_links_of(db: Session, item: Item, actor: User | None, at: datetime | None = None) -> int:
     result = db.execute(
         update(Link)
         .where(Link.deleted_at.is_(None), (Link.source_id == item.id) | (Link.target_id == item.id))
-        .values(deleted_at=utcnow(), deleted_by=actor.id if actor else None)
+        .values(deleted_at=at or utcnow(), deleted_by=actor.id if actor else None)
     )
     return result.rowcount or 0
 

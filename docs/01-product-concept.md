@@ -78,8 +78,8 @@ Product consequences:
 | Requirements & specifications | ✔ levels, live documents, ordering, headings, Word/PDF export (live or from a baseline) | Rich-text editor |
 | Documents & files | ✔ controlled documents, versioned attachments (SHA-256 store) | S3 storage, viewer for CAD/PDF |
 | Relations & traceability | ✔ typed links, rules, cycles, suspect links, matrix, impact analysis | Graph visualisation |
-| Versioning & history | ✔ revisions/iterations, diff, restore, timeline | — |
-| Baselines | ✔ project or sub-tree, latest/released rule, compare | Baseline-based exports/reports |
+| Versioning & history | ✔ revisions/iterations, diff, restore, timeline; open any item version or any document state (time travel) | — |
+| Baselines | ✔ project or document, latest/released rule, compare, open, export; collections of document baselines | Collection hierarchies |
 | Branching & merging | ✔ revisions under change orders; document branches with field-level 3-way merge (both directions) | Structural move/delete merge |
 | Status, workflows, approvals | ✔ configurable workflows, guards, effects, approvals, four-eyes, e-signature | Parallel approval steps, delegation |
 | Configuration & change management | ✔ PR → CR → CO, change-controlled revisions, release via CO | Effectivity (date/serial) |
@@ -89,5 +89,5 @@ Product consequences:
 | Reports & KPIs | ✔ user-built reports (KPI, chart, table, trend, coverage, matrix, maturity), KPIs reuse rate, change lead time, re-test effort, module/variant ratio, Excel export, templates | Scheduled report mails |
 | Users & roles | ✔ local users, project roles, API tokens | SSO (OIDC/Entra ID), groups |
 | Audit & compliance | ✔ hash-chained audit trail, signatures, status accounting | Compliance report templates |
-| Import / export | ✔ CSV/Excel (dry run), ReqIF export and import (mapping, round-trip identity), Word/PDF, project archive | OSLC |
+| Import / export | ✔ CSV/Excel (dry run), ReqIF round trip (mapping, partner identifiers kept), Word round trip (edits + comments), Word/PDF, project archive | OSLC |
 | Integrations | ✔ GitHub & Azure DevOps hooks, external refs, outbound webhooks, CI | GitLab, SysML v2 API, PDM/CAD, AI assistant |

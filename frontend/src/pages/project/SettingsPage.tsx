@@ -6,7 +6,7 @@ import {
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, downloadUrl } from "@/api/client";
-import { useDirectory, useIntegrations, useMembers, useProjectMutation } from "@/api/hooks";
+import { useDirectory, useIntegrations, useMembers, useProjectMutation, useRecycleBin } from "@/api/hooks";
 import type { ImportResult, Role } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { CATEGORY_LABELS, stateColor } from "@/lib/model";
@@ -24,11 +24,13 @@ export function SettingsPage() {
           <Tabs.Tab value="model" data-testid="tab-model">Information model</Tabs.Tab>
           {can("manager") && <Tabs.Tab value="integrations">Integrations</Tabs.Tab>}
           <Tabs.Tab value="io" data-testid="tab-io">Import / Export</Tabs.Tab>
+          {can("manager") && <Tabs.Tab value="recycle" data-testid="tab-recycle">Recycle bin</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="members"><Members /></Tabs.Panel>
         <Tabs.Panel value="model"><InformationModel /></Tabs.Panel>
         {can("manager") && <Tabs.Panel value="integrations"><IntegrationsView /></Tabs.Panel>}
         <Tabs.Panel value="io"><ImportExport /></Tabs.Panel>
+        {can("manager") && <Tabs.Panel value="recycle"><RecycleBin /></Tabs.Panel>}
       </Tabs>
     </>
   );
@@ -292,5 +294,31 @@ function ImportExport() {
       )}
       {can("contributor") && <ReqifImport />}
     </SimpleGrid>
+  );
+}
+
+
+function RecycleBin() {
+  const { key } = useProjectCtx();
+  const items = useRecycleBin(key).data ?? [];
+  const restore = useProjectMutation(key, (itemKey: string) => api.post(`/projects/${key}/items/${itemKey}/undelete`),
+    { success: "Item restored with its links and document position" });
+  if (!items.length) return <Text c="dimmed">The recycle bin is empty. Deleted items appear here and can be restored with their links.</Text>;
+  return (
+    <Card withBorder padding={0}>
+      <Table data-testid="recycle-table">
+        <Table.Thead><Table.Tr><Table.Th>Item</Table.Th><Table.Th>Version</Table.Th><Table.Th>Deleted</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {items.map((i) => (
+            <Table.Tr key={i.key}>
+              <Table.Td><Text className="item-key" span>{i.key}</Text> <Text span size="sm">{i.title}</Text></Table.Td>
+              <Table.Td><Text size="sm" className="mono">{i.version}</Text></Table.Td>
+              <Table.Td><Text size="xs">{new Date(i.deleted_at).toLocaleString()} by {i.deleted_by ?? "?"}</Text></Table.Td>
+              <Table.Td w={100}><Button size="xs" variant="light" onClick={() => restore.mutate(i.key)} data-testid={`restore-${i.key}`}>Restore</Button></Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Card>
   );
 }

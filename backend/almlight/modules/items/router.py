@@ -15,7 +15,7 @@ from almlight.core.schemas import Ok, Page, UserDirectory
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.identity.models import User
 from almlight.modules.items import service, storage
-from almlight.modules.items.models import Comment, ItemVersion
+from almlight.modules.items.models import Comment, Item, ItemVersion
 from almlight.modules.items.schemas import (
     CommentIn,
     CommentOut,
@@ -229,28 +229,63 @@ def remove_attachment(project_key: str, item_key: str, attachment_id: str, user:
 # --- comments -------------------------------------------------------------------------------
 
 
+def comment_threads(db: Session, comments: list[Comment], users: UserDirectory,
+                    keys: dict[uuid.UUID, str] | None = None) -> list[CommentOut]:
+    """Group comments into threads (root comments with their replies, oldest first)."""
+    users.preload({c.author_id for c in comments} | {c.resolved_by for c in comments if c.resolved_by})
+    doc_ids = {c.document_id for c in comments if c.document_id}
+    doc_keys = dict(db.execute(select(Item.id, Item.key).where(Item.id.in_(doc_ids))).all()) if doc_ids else {}
+
+    def out(c: Comment) -> CommentOut:
+        return CommentOut(id=c.id, item_key=(keys or {}).get(c.item_id), author=users.ref(c.author_id),
+                          external_author=c.external_author, source=c.source, body=c.body, created_at=c.created_at,
+                          resolved=c.resolved_at is not None, resolved_at=c.resolved_at,
+                          resolved_by=users.ref(c.resolved_by), document_key=doc_keys.get(c.document_id))
+
+    roots = [c for c in comments if c.parent_id is None]
+    replies: dict[uuid.UUID, list[Comment]] = {}
+    for c in comments:
+        if c.parent_id:
+            replies.setdefault(c.parent_id, []).append(c)
+    result = []
+    for r in sorted(roots, key=lambda c: c.created_at):
+        o = out(r)
+        o.replies = [out(x) for x in sorted(replies.get(r.id, []), key=lambda c: c.created_at)]
+        result.append(o)
+    return result
+
+
 @router.get("/items/{item_key}/comments", response_model=list[CommentOut])
-def list_comments(project_key: str, item_key: str, user: User = Depends(current_user),
+def list_comments(project_key: str, item_key: str, resolved: bool = True, user: User = Depends(current_user),
                   db: Session = Depends(get_db)) -> list[CommentOut]:
     project = get_project(db, project_key, user)
     item = service.get_item(db, project, item_key)
     comments = db.execute(
         select(Comment).where(Comment.item_id == item.id, Comment.deleted_at.is_(None)).order_by(Comment.created_at)
     ).scalars().all()
-    users = UserDirectory(db)
-    users.preload({c.author_id for c in comments})
-    return [CommentOut(id=c.id, author=users.ref(c.author_id), body=c.body, created_at=c.created_at)
-            for c in comments]
+    threads = comment_threads(db, list(comments), UserDirectory(db), {item.id: item.key})
+    return threads if resolved else [t for t in threads if not t.resolved]
 
 
 @router.post("/items/{item_key}/comments", response_model=CommentOut, status_code=201)
 def add_comment(project_key: str, item_key: str, body: CommentIn, user: User = Depends(current_user),
                 db: Session = Depends(get_db)) -> CommentOut:
     project = get_project(db, project_key, user, "contributor")
-    comment = service.add_comment(db, project, user, service.get_item(db, project, item_key), body.body)
+    document = service.get_item(db, project, body.document) if body.document else None
+    comment = service.add_comment(db, project, user, service.get_item(db, project, item_key), body.body,
+                                  parent_id=body.parent_id, document=document)
     db.commit()
     return CommentOut(id=comment.id, author=UserDirectory(db).ref(user.id), body=comment.body,
                       created_at=comment.created_at)
+
+
+@router.post("/items/{item_key}/comments/{comment_id}/resolve", response_model=Ok)
+def resolve_comment(project_key: str, item_key: str, comment_id: uuid.UUID, resolved: bool = True,
+                    user: User = Depends(current_user), db: Session = Depends(get_db)) -> Ok:
+    project = get_project(db, project_key, user, "contributor")
+    service.resolve_comment(db, project, user, service.get_item(db, project, item_key), comment_id, resolved)
+    db.commit()
+    return Ok()
 
 
 @router.delete("/items/{item_key}/comments/{comment_id}", response_model=Ok)
@@ -260,6 +295,33 @@ def delete_comment(project_key: str, item_key: str, comment_id: uuid.UUID, user:
     service.delete_comment(db, project, user, service.get_item(db, project, item_key), comment_id)
     db.commit()
     return Ok()
+
+
+# --- recycle bin ----------------------------------------------------------------------------
+
+
+@router.get("/recycle-bin", summary="Deleted items that can be restored")
+def recycle_bin(project_key: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[dict]:
+    project = get_project(db, project_key, user)
+    items = db.execute(select(Item).where(Item.project_id == project.id, Item.deleted_at.is_not(None))
+                       .order_by(Item.deleted_at.desc()).limit(500)).scalars().all()
+    deleters = {}
+    if items:
+        for e in db.execute(select(AuditEntry).where(AuditEntry.action == "item.deleted",
+                                                     AuditEntry.entity_id.in_([str(i.id) for i in items]))).scalars():
+            deleters[e.entity_id] = e.actor_name
+    return [{"key": i.key, "type_key": i.type_key, "title": i.title, "version": i.version_label,
+             "deleted_at": i.deleted_at.isoformat(), "deleted_by": deleters.get(str(i.id))} for i in items]
+
+
+@router.post("/items/{item_key}/undelete", response_model=ItemDetailOut, summary="Restore an item from the recycle bin")
+def undelete(project_key: str, item_key: str, user: User = Depends(current_user),
+             db: Session = Depends(get_db)) -> ItemDetailOut:
+    project = get_project(db, project_key, user, "manager")
+    item = service.get_item(db, project, item_key, include_deleted=True)
+    service.undelete_item(db, project, user, item)
+    db.commit()
+    return item_detail(db, project, item, UserDirectory(db))
 
 
 # --- structure / documents ---------------------------------------------------------------------

@@ -102,9 +102,9 @@ def seed_demo(db: Session) -> None:
 
     # --- system requirements in a live document --------------------------------------------------
     sys_spec = new("specification", "System Requirements Specification", fields={"doc_kind": "system_specification"})
-    h_meas = new("heading", "1 Measurement", parent=sys_spec)
-    h_if = new("heading", "2 Interfaces", parent=sys_spec)
-    h_env = new("heading", "3 Environment and safety", parent=sys_spec)
+    h_meas = new("heading", "Measurement", parent=sys_spec)
+    h_if = new("heading", "Interfaces", parent=sys_spec)
+    h_env = new("heading", "Environment and safety", parent=sys_spec)
     sysr = {
         "range": new("system_requirement", "Measure process pressure over the configured range", parent=h_meas,
                      description="The transmitter shall measure gauge pressure over the full configured measuring "
@@ -286,6 +286,27 @@ def seed_demo(db: Session) -> None:
     _backdate(db, cr2, created=45, events={"in_analysis": 41, "approved": 33})
     _backdate(db, co1, created=31, events={"in_work": 29, "in_approval": 16, "released": 14})
     _backdate(db, cr, created=9, events={"in_analysis": 8})
+
+    # --- document review: baseline, later changes, comments and a release collection ---------------------
+    review = baselines.create_baseline(db, project, rita, name="System spec — review 1", scope_root=sys_spec,
+                                       description="Frozen for the first design review")
+    items.update_item(db, project, alex, sysr["iolink"], items.ContentChange(
+        description="The transmitter shall act as an IO-Link device (COM3, IO-Link 1.1.3)."),
+        change_note="Review finding: COM3")
+    new("system_requirement", "Provide NAMUR NE 107 diagnostics", parent=h_if,
+        description="Device status shall be signalled according to NAMUR NE 107 (failure, check, out of spec).",
+        fields={"priority": "should", "kind": "interface"})
+    thread = items.add_comment(db, project, rita, sysr["accuracy"],
+                               "Is 0.1 % achievable over the full temperature range?", document=sys_spec)
+    items.add_comment(db, project, alex, sysr["accuracy"],
+                      f"Yes, with the firmware compensation ({mrq_comp.key}); see test {tcs['temp'].key}.",
+                      parent_id=thread.id)
+    from almlight.modules.doc_collections import service as collections
+
+    release = collections.create(db, project, max_, "Release 1.0 (pilot customers)",
+                                 "Specifications delivered with the first pilot release")
+    collections.add_document(db, project, max_, release, stk_spec, None)
+    collections.add_document(db, project, max_, release, sys_spec, review)
 
     # --- shared reports ---------------------------------------------------------------------------------
     from almlight.modules.reports import service as reports

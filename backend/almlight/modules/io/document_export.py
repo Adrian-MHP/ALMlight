@@ -26,7 +26,9 @@ def _tokens(text: str):
 # ============================== Word ==========================================================
 
 
-def render_docx(snap: DocSnapshot, *, include_fields: bool = True, include_links: bool = True) -> bytes:
+def render_docx(snap: DocSnapshot, *, include_fields: bool = True, include_links: bool = True,
+                roundtrip: str | None = None) -> bytes:
+    """Word export. ``roundtrip`` = ``edit`` or ``comments`` prepares the file for the Word round trip."""
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
@@ -71,13 +73,44 @@ def render_docx(snap: DocSnapshot, *, include_fields: bool = True, include_links
     settings = doc.settings.element
     upd = OxmlElement("w:updateFields")
     upd.set(qn("w:val"), "true")
-    settings.append(upd)
+    _insert_setting(settings, upd, before=("w:hdrShapeDefaults", "w:footnotePr", "w:endnotePr", "w:compat",
+                                           "w:docVars", "w:rsids"))
+    if roundtrip:
+        from almlight.modules.documents.word_roundtrip import identifier
+
+        props = doc.core_properties
+        props.identifier = identifier(snap.project_key, root.key)
+        props.keywords = "almlight-roundtrip"
+        props.title = root.title
+        props.subject = f"{root.key} {root.version} — round trip ({roundtrip})"
+        if roundtrip == "comments":
+            prot = OxmlElement("w:documentProtection")
+            prot.set(qn("w:edit"), "comments")
+            prot.set(qn("w:enforcement"), "1")
+            _insert_setting(settings, prot, before=(
+                "w:autoFormatOverride", "w:styleLockTheme", "w:styleLockQFSet", "w:defaultTabStop",
+                "w:autoHyphenation", "w:characterSpacingControl", "w:compat", "w:rsids"))
+        hint = doc.add_paragraph()
+        hr = hint.add_run("Review copy for ALMlight round trip — " + (
+            "edit text only inside the marked fields; add comments anywhere. Do not delete the fields."
+            if roundtrip == "edit" else "add comments anywhere; the text is protected."))
+        hr.italic = True
+        hr.font.size = Pt(9)
+
+    def tag_of(node: DocNode, part: str) -> str:
+        return f"alm:{node.item_id}:{node.version_no}:{part}"
 
     grey = RGBColor(0x6B, 0x72, 0x80)
 
     def add_node(node: DocNode, depth: int) -> None:
         if node.is_heading:
-            doc.add_heading(node.title, level=min(depth, 9))
+            if roundtrip:
+                hp = doc.add_paragraph(style=f"Heading {min(depth, 9)}")
+                if node.number and node.display_title != node.title:
+                    hp.add_run(f"{node.number} ")
+                _inline_sdt(hp, node.title, tag_of(node, "title"), f"{node.key} title")
+            else:
+                doc.add_heading(node.display_title, level=min(depth, 9))
         else:
             para = doc.add_paragraph()
             para.paragraph_format.space_before = Pt(8)
@@ -85,12 +118,25 @@ def render_docx(snap: DocSnapshot, *, include_fields: bool = True, include_links
             r = para.add_run(f"{node.key}  ")
             r.bold = True
             r.font.color.rgb = RGBColor(0x36, 0x4F, 0xC7)
-            r = para.add_run(node.title)
-            r.bold = True
+            if roundtrip:
+                _inline_sdt(para, node.title, tag_of(node, "title"), f"{node.key} title", bold=True)
+            else:
+                r = para.add_run(node.title)
+                r.bold = True
             r = para.add_run(f"   {node.type_label} · {node.state or '–'} · {node.version}")
             r.font.size = Pt(8.5)
             r.font.color.rgb = grey
-            if node.description.strip():
+            if roundtrip:
+                start = len(doc.element.body)
+                if node.raw_description.strip():
+                    _md_to_docx(doc, node.raw_description)
+                else:
+                    doc.add_paragraph()
+                _wrap_blocks(doc, start, tag_of(node, "desc"), f"{node.key} text")
+                extra = node.description[len(node.raw_description):].strip()
+                if extra:
+                    _md_to_docx(doc, extra)
+            elif node.description.strip():
                 _md_to_docx(doc, node.description)
             if node.applicability:
                 q = doc.add_paragraph()
@@ -117,6 +163,58 @@ def render_docx(snap: DocSnapshot, *, include_fields: bool = True, include_links
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def _insert_setting(settings: Any, el: Any, before: tuple[str, ...]) -> None:
+    """Insert into settings.xml respecting the schema order Word insists on."""
+    from docx.oxml.ns import qn
+
+    for name in before:
+        anchor = settings.find(qn(name))
+        if anchor is not None:
+            anchor.addprevious(el)
+            return
+    settings.append(el)
+
+
+def _sdt(tag: str, alias: str) -> tuple[Any, Any]:
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    sdt = OxmlElement("w:sdt")
+    pr = OxmlElement("w:sdtPr")
+    a = OxmlElement("w:alias")
+    a.set(qn("w:val"), alias)
+    t = OxmlElement("w:tag")
+    t.set(qn("w:val"), tag)
+    lock = OxmlElement("w:lock")
+    lock.set(qn("w:val"), "sdtLocked")
+    pr.extend([a, t, lock])
+    content = OxmlElement("w:sdtContent")
+    sdt.extend([pr, content])
+    return sdt, content
+
+
+def _inline_sdt(paragraph: Any, text: str, tag: str, alias: str, bold: bool = False) -> None:
+    run = paragraph.add_run(text)
+    run.bold = bold or None
+    r = run._r
+    paragraph._p.remove(r)
+    sdt, content = _sdt(tag, alias)
+    content.append(r)
+    paragraph._p.append(sdt)
+
+
+def _wrap_blocks(doc: Any, start: int, tag: str, alias: str) -> None:
+    """Move the block elements added since ``start`` (body length before) into a block-level content control."""
+    body = doc.element.body
+    children = list(body)
+    new = children[start - 1:-1]  # new blocks sit before the final sectPr
+    sdt, content = _sdt(tag, alias)
+    for el in new:
+        body.remove(el)
+        content.append(el)
+    body.insert(len(body) - 1, sdt)
 
 
 def _md_to_docx(doc: Any, text: str) -> None:
@@ -290,7 +388,7 @@ def render_pdf(snap: DocSnapshot, *, include_fields: bool = True, include_links:
 
     def add_node(node: DocNode, depth: int) -> None:
         if node.is_heading:
-            story.append(heading(node.title, depth))
+            story.append(heading(node.display_title, depth))
         else:
             block: list[Any] = [
                 Paragraph(f'<font color="#364fc7">{escape(node.key)}</font>&nbsp;&nbsp;{escape(node.title)}', s["req"]),

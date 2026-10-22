@@ -11,6 +11,8 @@ them in two containers, without enterprise licence and operating costs.
 
 ![KPI report](docs/images/report.png)
 
+![Compare a baseline with the live document](docs/images/compare.png)
+
 ## Highlights
 
 - **Configurable information model**: item types, fields, link types and workflows are defined in process templates
@@ -27,6 +29,10 @@ them in two containers, without enterprise licence and operating costs.
 - **Baselines**: of a whole project or one document or structure, using latest or released revisions, with compare.
 - **Branching & merging**: branch a document for a variant or release and merge it back with a field-level 3-way
   merge in either direction.
+- **Live documents with time travel**: open any document exactly as it was at any change point or baseline, open any
+  item version, and compare revisions, baselines, branches or other documents side by side with word-level
+  differences. Also: Word round trip (reviewers edit and comment in Word, changes and comments come back), threaded
+  comments, variant-specific views, automatic numbering, reuse, recycle bin and release collections.
 - **Variants**: feature model with constraints, product variants, and applicability expressions on items and links,
   plus a configurator.
 - **Verification**: test runs pinned to versions, JUnit import from CI, re-test detection, and maturity per system
@@ -69,7 +75,8 @@ API documentation: <http://localhost:48080/api/v1/docs>
 | [Configuration guide](docs/07-configuration-guide.md) | Tailoring process templates per customer |
 | [Operations](docs/08-operations.md) | Install, configure, back up, upgrade, develop |
 | [API & integrations](docs/09-api-and-integrations.md) | REST API, CI, GitHub, Azure DevOps, webhooks, formats |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0015 |
+| [Live documents](docs/10-live-documents.md) | Feature parity with enterprise live documents, time travel |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0017 |
 
 ## Technology
 
@@ -94,4 +101,4 @@ docker compose -f compose.test.yaml down
 
 ## Status
 
-Version 0.2: the MVP foundation plus document branches, reports & KPIs, Word/PDF export and ReqIF import. See the [roadmap](docs/06-mvp-scope-roadmap.md) for planned increments.
+Version 0.3: the MVP foundation plus document branches, reports & KPIs, Word/PDF export, ReqIF and Word round trips, and live documents with history, time travel, comparison, comments and collections. See the [roadmap](docs/06-mvp-scope-roadmap.md) for planned increments.

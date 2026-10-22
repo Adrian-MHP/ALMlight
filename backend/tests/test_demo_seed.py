@@ -13,9 +13,9 @@ def test_demo_seed_is_consistent_and_idempotent(db, admin):
     model = admin.get("/projects/DEMO/variants/feature-model")
     assert all(v["errors"] == [] for v in model["variants"]) and model["unknown_codes"] == []
     cov = admin.get("/projects/DEMO/coverage?type=system_requirement")
-    assert cov["total"] == 7 and cov["allocated_pct"] == 100
+    assert cov["total"] == 8 and cov["allocated_pct"] == 88  # the NAMUR requirement is not allocated yet
     assert admin.get("/admin/audit/verify")["ok"] is True
-    assert len(admin.get("/projects/DEMO/baselines")) == 1
+    assert len(admin.get("/projects/DEMO/baselines")) == 3  # concept, document review, collection
     hart = admin.get("/projects/DEMO/variants/VAR-2/resolve")
     titles = {i["title"] for i in hart["included"]}
     assert "Provide HART communication" in titles and "Provide an IO-Link interface" not in titles

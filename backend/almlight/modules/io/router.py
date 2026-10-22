@@ -15,7 +15,6 @@ from almlight.core.errors import ValidationFailed
 from almlight.modules.identity.models import User
 from almlight.modules.io import archive, reqif, reqif_import, tabular
 from almlight.modules.io.document_export import render_docx, render_pdf
-from almlight.modules.io.document_snapshot import baseline_snapshot, live_snapshot
 from almlight.modules.items import service as items_svc
 from almlight.modules.projects.access import get_project
 
@@ -112,25 +111,36 @@ def import_reqif(project_key: str, file: UploadFile = File(...), dry_run: bool =
     return result
 
 
-def _snapshot(db: Session, project, item_key: str, baseline: uuid.UUID | None):
+def _snapshot(db: Session, project, item_key: str, baseline: uuid.UUID | None, at: str | None = None,
+              variant: str | None = None, numbering: bool = True):
+    from almlight.modules.documents.service import parse_at
+    from almlight.modules.io.document_snapshot import build_snapshot
+
     root = items_svc.get_item(db, project, item_key)
-    return baseline_snapshot(db, project, root, baseline) if baseline else live_snapshot(db, project, root)
+    return build_snapshot(db, project, root, at=parse_at(at), baseline_id=baseline, variant_key=variant,
+                          numbering=numbering)
 
 
 @router.get("/projects/{project_key}/items/{item_key}/export.docx", summary="Word export of a document")
-def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = None, fields: bool = True,
-                links: bool = True, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = None, at: str | None = None,
+                variant: str | None = None, fields: bool = True, links: bool = True, numbering: bool = True,
+                roundtrip: str | None = Query(default=None, description="edit | comments: prepare for Word round trip"),
+                user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    snap = _snapshot(db, project, item_key, baseline)
-    return _download(render_docx(snap, include_fields=fields, include_links=links),
-                     f"{snap.root.key}-{snap.root.version}.docx",
+    if roundtrip and (roundtrip not in ("edit", "comments") or baseline or at or variant):
+        raise ValidationFailed("Round trip export: roundtrip=edit|comments, only for the live, unfiltered document")
+    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering)
+    suffix = f"-review-{roundtrip}" if roundtrip else ""
+    return _download(render_docx(snap, include_fields=fields, include_links=links, roundtrip=roundtrip),
+                     f"{snap.root.key}-{snap.root.version}{suffix}.docx",
                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
 
 @router.get("/projects/{project_key}/items/{item_key}/export.pdf", summary="PDF export of a document")
-def export_pdf(project_key: str, item_key: str, baseline: uuid.UUID | None = None, fields: bool = True,
-               links: bool = True, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def export_pdf(project_key: str, item_key: str, baseline: uuid.UUID | None = None, at: str | None = None,
+               variant: str | None = None, fields: bool = True, links: bool = True, numbering: bool = True,
+               user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    snap = _snapshot(db, project, item_key, baseline)
+    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering)
     return _download(render_pdf(snap, include_fields=fields, include_links=links),
                      f"{snap.root.key}-{snap.root.version}.pdf", "application/pdf")

@@ -117,3 +117,27 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@customer.reqifz -F dry_r
   -F 'mapping={"types":{"Customer Requirement":"stakeholder_requirement"},"relations":{"refines":"relates_to"}}' \
   $ALM/projects/DEMO/import-reqif
 ```
+
+## 9.9 Live documents
+
+```bash
+# a document live, as of a point in time, from a baseline, for a variant
+curl ... "$ALM/projects/DEMO/items/SPEC-2/document?at=2026-10-22T12:00:00Z"
+curl ... "$ALM/projects/DEMO/items/SPEC-2/document?baseline=<id>&variant=VAR-2"
+curl ... $ALM/projects/DEMO/items/SPEC-2/document-history
+
+# compare two states (also another document / project)
+curl -X POST ... $ALM/projects/DEMO/compare-documents \
+  -d '{"left":{"document":"SPEC-2","baseline":"<id>"},"right":{"document":"SPEC-2"}}'
+
+# Word round trip
+curl ... "$ALM/projects/DEMO/items/SPEC-2/export.docx?roundtrip=edit" -o review.docx
+curl -X POST ... -F file=@review.docx -F dry_run=false $ALM/projects/DEMO/items/SPEC-2/import-docx
+
+# collections
+curl -X POST ... $ALM/projects/DEMO/collections -d '{"name":"Release 2.0"}'
+curl -X POST ... $ALM/projects/DEMO/collections/<id>/documents -d '{"document":"SPEC-2"}'   # new baseline
+curl -X POST ... $ALM/projects/DEMO/collections/<id>/status -d '{"status":"closed"}'
+```
+
+Note: links are versioned — `PATCH /links/{id}` returns the id of the new link version.

@@ -9,7 +9,7 @@ import type {
   ExternalRef, FeatureModel, HistoryEntry, ImpactResult, Integrations, Item, ItemDetail, LinkView, MaturityRow, Me,
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
   TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview, Report, ReportSummary, ReportTemplate,
-  ReportWidget, WidgetData,
+  ReportWidget, WidgetData, DocSnapshot, DocHistory, DocStateRef, CompareResult, CommentThread, DocCollection, RecycledItem,
 } from "./types";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -283,5 +283,56 @@ export function useWidgetPreview(key: string, widget: ReportWidget | null) {
     queryFn: () => api.post(`/projects/${key}/reports/preview-widget`, widget),
     enabled: !!widget,
     placeholderData: (prev) => prev,
+  });
+}
+
+export interface DocViewParams { at?: string | null; baseline?: string | null; variant?: string | null; numbering?: boolean }
+
+export function useDocument(key: string, docKey: string, p: DocViewParams) {
+  const query = qs({ at: p.at, baseline: p.baseline, variant: p.variant, numbering: p.numbering === false ? "false" : undefined });
+  return useQuery<DocSnapshot, ApiError>({
+    queryKey: pk(key, "document", docKey, query),
+    queryFn: () => api.get(`/projects/${key}/items/${docKey}/document${query}`),
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function useDocumentHistory(key: string, docKey: string, enabled = true) {
+  return useQuery<DocHistory>({
+    queryKey: pk(key, "document-history", docKey),
+    queryFn: () => api.get(`/projects/${key}/items/${docKey}/document-history`),
+    enabled,
+  });
+}
+
+export function useCompare(key: string, left: DocStateRef | null, right: DocStateRef | null, fields?: string[] | null) {
+  return useQuery<CompareResult, ApiError>({
+    queryKey: pk(key, "compare-docs", left, right, fields),
+    queryFn: () => api.post(`/projects/${key}/compare-documents`, { left, right, fields: fields?.length ? fields : null }),
+    enabled: !!left && !!right,
+  });
+}
+
+export function useThreads(key: string, itemKey: string | null, document = false) {
+  return useQuery<CommentThread[]>({
+    queryKey: pk(key, "threads", itemKey, document),
+    queryFn: () => api.get(`/projects/${key}/items/${itemKey}/${document ? "document-comments" : "comments"}`),
+    enabled: !!itemKey,
+  });
+}
+
+export function useCollections(key: string) {
+  return useQuery<DocCollection[]>({ queryKey: pk(key, "collections"), queryFn: () => api.get(`/projects/${key}/collections`) });
+}
+
+export function useRecycleBin(key: string, enabled = true) {
+  return useQuery<RecycledItem[]>({ queryKey: pk(key, "recycle-bin"), queryFn: () => api.get(`/projects/${key}/recycle-bin`), enabled });
+}
+
+export function useVersion(key: string, itemKey: string, versionNo: number | null) {
+  return useQuery<import("./types").Version>({
+    queryKey: pk(key, "item", itemKey, "version", versionNo),
+    queryFn: () => api.get(`/projects/${key}/items/${itemKey}/versions/${versionNo}`),
+    enabled: versionNo !== null,
   });
 }

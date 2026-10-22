@@ -13,10 +13,12 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from almlight.core import richtext
 from almlight.core.db import utcnow
 from almlight.core.errors import Conflict, Forbidden, NotFound, ValidationFailed
 from almlight.modules.audit import service as audit
 from almlight.modules.identity.models import User
+from almlight.modules.images.service import ProjectImages
 from almlight.modules.integrations.outbox import emit
 from almlight.modules.items import storage
 from almlight.modules.items.fields import normalize_fields
@@ -143,7 +145,7 @@ def create_item(
         key=key,
         seq=seq,
         title=_clean_title(title),
-        description=description or "",
+        description=richtext.normalize_input(description, ProjectImages(db, project, actor)),
         fields=normalize_fields(db, t.fields, fields or {}, apply_defaults=True),
         applicability=normalize_expr(applicability),
         attachments=[],
@@ -221,7 +223,8 @@ def update_item(
                      details={"from": old, "to": owner_id}, related_ids=[item.id])
 
     new_title = _clean_title(change.title) if change.title is not None else item.title
-    new_desc = change.description if change.description is not None else item.description
+    new_desc = (richtext.normalize_input(change.description, ProjectImages(db, project, actor))
+                if change.description is not None else item.description)
     new_fields = (
         normalize_fields(db, t.fields, change.fields, base=item.fields) if change.fields is not None else item.fields
     )
@@ -244,6 +247,8 @@ def update_item(
 
     item.title, item.description, item.fields, item.applicability = new_title, new_desc, new_fields, new_appl
     _new_iteration(db, project, actor, item, kind="edit", change_note=change_note)
+    if "title" in diff or "description" in diff:
+        text_changed(db, item)
     suspects = links.mark_suspects(db, project, item, f"{item.key} changed to {item.version_label}")
     summary_fields = [k for k in diff if k != "fields"] + [f"fields.{k}" for k in changed_fields]
     audit.record(
@@ -315,6 +320,7 @@ def revise_item(
     item.state = wf.initial_state.key
     _new_iteration(db, project, actor, item, kind="revise", change_note=change_note,
                    change_order_id=change_order.id if change_order else None)
+    db.info.setdefault("access_changed", set()).add(item.id)
     db.add(WorkflowEvent(item_id=item.id, transition_key=None, from_state=old_state, to_state=item.state,
                          via="revise", actor_id=actor.id if actor else None, comment=change_note,
                          version_no=item.version_no, change_order_id=change_order.id if change_order else None))
@@ -606,6 +612,16 @@ def query_items(db: Session, project: Project, query: ItemQuery) -> tuple[list[I
     return list(rows), total
 
 
+def text_changed(db: Session, item: Item) -> None:
+    """Title/text changed outside a live editing session: open sessions must restart from the new text.
+
+    Collected per transaction and acted on after commit (see ``collab.hooks``); a session saving its own
+    content marks the transaction with ``db.info["collab_source"]`` so it is not reset.
+    """
+    if db.info.get("collab_source") != item.id:
+        db.info.setdefault("text_changed", set()).add(item.id)
+
+
 def text_diff(old: str, new: str) -> list[str]:
     return list(difflib.unified_diff(old.splitlines(), new.splitlines(), "before", "after", lineterm="", n=2))
 
@@ -617,7 +633,8 @@ def diff_versions(a: ItemVersion, b: ItemVersion) -> list[dict[str, Any]]:
         if old != new:
             entry: dict[str, Any] = {"field": name, "old": old, "new": new}
             if name == "description":
-                entry["diff"] = text_diff(old or "", new or "")
+                entry["diff"] = text_diff(richtext.to_text(old or ""), richtext.to_text(new or ""))
+                entry["html_diff"] = richtext.html_diff(old or "", new or "")
             changes.append(entry)
     for key in sorted(set(a.fields) | set(b.fields)):
         if a.fields.get(key) != b.fields.get(key):

@@ -3,7 +3,7 @@ import { Group, Stack, Text, Title } from "@mantine/core";
 
 export function PageHeader({ title, subtitle, actions }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <Group justify="space-between" align="flex-start" mb="md" wrap="wrap" gap="sm">
+    <Group justify="space-between" align="flex-end" mb="md" wrap="wrap" gap="sm" className="page-header">
       <Stack gap={2}>
         <Title order={2} size="h3">{title}</Title>
         {subtitle && <Text c="dimmed" size="sm">{subtitle}</Text>}

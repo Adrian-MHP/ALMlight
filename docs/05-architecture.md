@@ -8,7 +8,7 @@ flowchart LR
     CI[CI/CD pipelines<br/>API token] -->|JUnit XML, REST| A
     GH[GitHub / GitLab] -->|webhooks| A
     ADO[Azure DevOps] -->|service hooks| A
-    A[ALMlight] -->|signed webhooks| EXT[Teams, ERP, custom systems]
+    A[Ariadne] -->|signed webhooks| EXT[Teams, ERP, custom systems]
     A -->|ReqIF, CSV, Excel| PART[Customers / suppliers / other ALM tools]
     A --- DB[(PostgreSQL)]
     A --- FS[(File store volume)]

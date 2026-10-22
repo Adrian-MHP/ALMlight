@@ -97,7 +97,7 @@ def test_reqif_import_doors_style(team, project):
     items = {i["title"]: i for i in c.get(f"{p}/items?type=stakeholder_requirement")["items"]}
     r1 = next(i for title, i in items.items() if title.startswith("The sensor shall measure"))
     detail = c.get(f"{p}/items/{r1['key']}")
-    assert "**0 to 10 bar**" in detail["description"] and "- gauge" in detail["description"]
+    assert "<strong>0 to 10 bar</strong>" in detail["description"] and "<li><p>gauge</p></li>" in detail["description"]
     assert detail["fields"]["priority"] == "must" and "1 General" not in items  # imported as heading
     assert res["summary"]["headings"] == 1
     spec = c.get(f"{p}/items?type=specification")["items"][0]
@@ -150,7 +150,7 @@ def test_reqif_round_trip_between_projects(team, project, admin):
     assert res["applied"] is True and res["summary"]["links"] == 1, res
     copied = {i["title"]: i for i in admin.get("/projects/COPY/items?type=system_requirement")["items"]}
     ca = admin.get(f"/projects/COPY/items/{copied['Measure pressure']['key']}")
-    assert ca["description"] == "Para one\n\nPara two"
+    assert ca["description"] == "<p>Para one</p><p>Para two</p>"
     assert ca["fields"]["priority"] == "must" and ca["fields"]["safety_relevant"] is True
     spec_copy = admin.get("/projects/COPY/items?type=specification")["items"][0]
     tree = admin.get(f"/projects/COPY/items/{spec_copy['key']}/tree")

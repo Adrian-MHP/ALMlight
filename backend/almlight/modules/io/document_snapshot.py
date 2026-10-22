@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from almlight.core.db import utcnow
 from almlight.core.errors import NotFound
+from almlight.core.richtext import content_hash
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
 from almlight.modules.items.models import Comment, Item, ItemVersion
 from almlight.modules.links.models import Link
@@ -247,12 +248,16 @@ def _field_rows(project: Project, type_key: str, values: dict[str, Any]) -> list
 
 
 def _description(project: Project, type_key: str, v: ItemVersion) -> str:
+    """The item text (canonical HTML) followed by the type's long-text fields as labelled paragraphs."""
+    from html import escape
+
     t = project.model.item_type(type_key)
     parts = [v.description or ""]
     for f in t.fields if t else []:
         if f.type == "text" and v.fields.get(f.key):
-            parts.append(f"**{f.label}:** {v.fields[f.key]}")
-    return "\n\n".join(p for p in parts if p).strip()
+            value = escape(str(v.fields[f.key])).replace("\n", "<br>")
+            parts.append(f"<p><strong>{escape(f.label)}:</strong> {value}</p>")
+    return "".join(p for p in parts if p)
 
 
 def build_snapshot(
@@ -387,6 +392,7 @@ def snapshot_json(snap: DocSnapshot) -> dict[str, Any]:
         return {
             "item_id": str(n.item_id), "key": n.key, "type_key": n.type_key, "type_label": n.type_label,
             "title": n.title, "display_title": n.display_title, "number": n.number, "description": n.description,
+            "raw_description": n.raw_description, "content_hash": content_hash(n.title, n.raw_description),
             "fields": [{"label": a, "value": b} for a, b in n.fields], "fields_raw": n.fields_raw,
             "applicability": n.applicability, "state": n.state, "state_key": n.state_key, "state_color": n.state_color,
             "state_category": n.state_category, "frozen": n.frozen, "released": n.released, "version": n.version,

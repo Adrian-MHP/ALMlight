@@ -4,11 +4,12 @@ Export (see ``io.document_export.render_docx(roundtrip=...)``) wraps every item'
 *content control* tagged ``alm:<item id>:<version no>:<title|desc>``; ``edit`` mode lets reviewers change the text
 inside the controls, ``comments`` mode protects the document so only comments are possible.
 
-Import reads the controls back, converts the Word content to Markdown with the *same* converter that is applied to
-the exported version (so untouched text never shows up as a change), and applies a 3-way rule against the exported
-version: changes are applied when the item did not change in ALMlight meanwhile (or changed in another field);
-otherwise they are reported as conflicts. Frozen items are reported, not changed. Word comments — including replies
-and their resolved state — become document comments on the item they were made on.
+Import reads the controls back, converts the Word content to rich text with the *same* reader that is applied to
+the exported version (so untouched text never shows up as a change; formatting, lists, tables, links and images
+survive), and applies a 3-way rule against the exported version: changes are applied when the item did not change
+in the meantime (or changed in another field); otherwise they are reported as conflicts. Frozen items are
+reported, not changed. Word comments — including replies and their resolved state — become document comments on
+the item they were made on.
 """
 
 from __future__ import annotations
@@ -56,120 +57,14 @@ def _on(el: etree._Element | None) -> bool:
     return el.get(_q("w:val"), "true").lower() not in ("0", "false", "none")
 
 
-# --- Word -> Markdown ---------------------------------------------------------------------------
+# --- Word -> rich text --------------------------------------------------------------------------
 
 
-def _runs_md(p: etree._Element) -> str:
-    parts: list[tuple[str, bool, bool]] = []
-    for r in p.iter(_q("w:r")):
-        rpr = r.find(_q("w:rPr"))
-        bold = _on(rpr.find(_q("w:b"))) if rpr is not None else False
-        ital = _on(rpr.find(_q("w:i"))) if rpr is not None else False
-        text = []
-        for c in r:
-            if c.tag == _q("w:t"):
-                text.append(c.text or "")
-            elif c.tag == _q("w:tab"):
-                text.append(" ")
-            elif c.tag in (_q("w:br"), _q("w:cr")):
-                text.append("\n")
-        t = "".join(text)
-        if not t:
-            continue
-        if parts and parts[-1][1] == bold and parts[-1][2] == ital:
-            parts[-1] = (parts[-1][0] + t, bold, ital)
-        else:
-            parts.append((t, bold, ital))
-    out = []
-    for t, b, i in parts:
-        core = t.strip()
-        if not core or not (b or i):
-            out.append(t)
-            continue
-        lead, trail = t[: len(t) - len(t.lstrip())], t[len(t.rstrip()):]
-        mark = "**" if b and not i else "*" if i and not b else "***"
-        out.append(f"{lead}{mark}{core}{mark}{trail}")
-    return "".join(out).replace("\n", "  \n")
+def roundtrip_html(html: str) -> str:
+    """What the exported text looks like after Word: render with the export pipeline, read back."""
+    from almlight.modules.io.rich_render import docx_roundtrip_html
 
-
-def _list_kind(p: etree._Element) -> str | None:
-    ppr = p.find(_q("w:pPr"))
-    if ppr is None:
-        return None
-    style = ppr.find(_q("w:pStyle"))
-    name = (style.get(_q("w:val")) if style is not None else "") or ""
-    n = name.replace(" ", "").lower()
-    if n.startswith("listnumber"):
-        return "number"
-    if n.startswith("listbullet") or ppr.find(_q("w:numPr")) is not None:
-        return "bullet"
-    return None
-
-
-def blocks_to_markdown(elements: list[etree._Element]) -> str:
-    chunks: list[tuple[str, str | None]] = []
-    for el in elements:
-        if el.tag == _q("w:p"):
-            text = _runs_md(el).strip()
-            kind = _list_kind(el)
-            if not text and kind is None:
-                continue
-            chunks.append((text, kind))
-        elif el.tag == _q("w:tbl"):
-            rows = []
-            for tr in el.iter(_q("w:tr")):
-                cells = [" ".join(_runs_md(p).strip() for p in tc.iter(_q("w:p"))).replace("|", "\\|")
-                         for tc in tr.iter(_q("w:tc"))]
-                rows.append(cells)
-            if rows:
-                width = max(len(r) for r in rows)
-                rows = [r + [""] * (width - len(r)) for r in rows]
-                lines = ["| " + " | ".join(rows[0]) + " |", "|" + " --- |" * width]
-                lines += ["| " + " | ".join(r) + " |" for r in rows[1:]]
-                chunks.append(("\n".join(lines), None))
-        elif el.tag == _q("w:sdt"):
-            content = el.find(_q("w:sdtContent"))
-            if content is not None:
-                inner = blocks_to_markdown(list(content))
-                if inner:
-                    chunks.append((inner, None))
-    out: list[str] = []
-    counter = 0
-    prev_kind: str | None = None
-    for text, kind in chunks:
-        if kind == "bullet":
-            line = f"- {text}"
-        elif kind == "number":
-            counter = counter + 1 if prev_kind == "number" else 1
-            line = f"{counter}. {text}"
-        else:
-            line = text
-        if out and kind is not None and prev_kind is not None:
-            out[-1] += "\n" + line
-        else:
-            out.append(line)
-        prev_kind = kind
-    return _norm("\n\n".join(out))
-
-
-def _norm(md: str) -> str:
-    md = "\n".join(line.rstrip() for line in (md or "").replace("\r", "").split("\n"))
-    return re.sub(r"\n{3,}", "\n\n", md).strip()
-
-
-def roundtrip_markdown(text: str) -> str:
-    """What the exported Markdown looks like after Word: render with the export pipeline, read back."""
-    from docx import Document
-
-    from almlight.modules.io.document_export import _md_to_docx
-
-    doc = Document()
-    body = doc.element.body
-    before = len(body)
-    _md_to_docx(doc, text or "")
-    new = [el for el in list(body)[before - 1:] if el.tag in (_q("w:p"), _q("w:tbl"))]
-    # The template's empty first paragraph (if any) is skipped by blocks_to_markdown.
-    return blocks_to_markdown(new)
+    return docx_roundtrip_html(html or "")
 
 
 def _text(el: etree._Element) -> str:
@@ -196,8 +91,36 @@ def _read(content: bytes) -> dict[str, etree._Element | None]:
         except etree.XMLSyntaxError as exc:
             raise ValidationFailed(f"Corrupt Word file ({name}): {exc}") from None
 
+    rels: dict[str, tuple[str, str]] = {}
+    rel_xml = parse("word/_rels/document.xml.rels")
+    if rel_xml is not None:
+        for r in rel_xml:
+            rels[r.get("Id")] = (r.get("Type"), r.get("Target"))
+
+    def media(rid: str) -> bytes | None:
+        rel = rels.get(rid)
+        if rel is None or not rel[0].endswith("/image"):
+            return None
+        target = rel[1].lstrip("/")
+        name = target if target.startswith("word/") else f"word/{target}"
+        return z.read(name) if name in names else None
+
     return {"document": parse("word/document.xml"), "comments": parse("word/comments.xml"),
-            "comments_ext": parse("word/commentsExtended.xml"), "core": parse("docProps/core.xml")}
+            "comments_ext": parse("word/commentsExtended.xml"), "core": parse("docProps/core.xml"),
+            "styles": parse("word/styles.xml"), "numbering": parse("word/numbering.xml"), "rels": rels,
+            "media": media}
+
+
+def _context(parts: dict[str, Any]) -> Any:
+    from almlight.modules.io.rich_render import DocxContext
+
+    style_names: dict[str, str] = {}
+    if parts["styles"] is not None:
+        for st in parts["styles"].iter(_q("w:style")):
+            name = st.find(_q("w:name"))
+            style_names[st.get(_q("w:styleId"))] = name.get(_q("w:val")) if name is not None else st.get(
+                _q("w:styleId"))
+    return DocxContext(style_names, parts["numbering"], parts["rels"], parts["media"])
 
 
 def import_docx(db: Session, project: Project, actor: User, doc_item: Item, filename: str, content: bytes, *,
@@ -213,23 +136,32 @@ def import_docx(db: Session, project: Project, actor: User, doc_item: Item, file
                                f"{f' (it belongs to {ident})' if ident else ''}")
     document = parts["document"]
     assert document is not None
+    from almlight.core.errors import DomainError as _DomainError
+    from almlight.modules.images import service as images_svc
+    from almlight.modules.io.rich_render import DocxReader
 
-    controls: dict[tuple[uuid.UUID, str], dict[str, Any]] = {}
-    for sdt in document.iter(_q("w:sdt")):
-        tag_el = sdt.find(f"{_q('w:sdtPr')}/{_q('w:tag')}")
-        m = TAG_RE.match(tag_el.get(_q("w:val"), "")) if tag_el is not None else None
-        if not m:
-            continue
-        item_id, base_no, part = uuid.UUID(m.group(1)), int(m.group(2)), m.group(3)
-        content_el = sdt.find(_q("w:sdtContent"))
-        value = (_text(content_el).strip() if part == "title"
-                 else blocks_to_markdown(list(content_el) if content_el is not None else []))
-        controls[(item_id, part)] = {"base": base_no, "value": value}
+    def store(data: bytes, name: str) -> str | None:
+        try:
+            return images_svc.image_url(images_svc.store_image(db, project, actor, data, name).sha256)
+        except _DomainError:
+            return None
 
+    reader = DocxReader(_context(parts), store)
     results: list[dict[str, Any]] = []
     summary = {"updated": 0, "unchanged": 0, "conflicts": 0, "frozen": 0, "missing": 0, "comments": 0}
-    savepoint = db.begin_nested()
+    savepoint = db.begin_nested()  # images found in the file are stored inside it (dry run: rolled back)
     try:
+        controls: dict[tuple[uuid.UUID, str], dict[str, Any]] = {}
+        for sdt in document.iter(_q("w:sdt")):
+            tag_el = sdt.find(f"{_q('w:sdtPr')}/{_q('w:tag')}")
+            m = TAG_RE.match(tag_el.get(_q("w:val"), "")) if tag_el is not None else None
+            if not m:
+                continue
+            item_id, base_no, part = uuid.UUID(m.group(1)), int(m.group(2)), m.group(3)
+            content_el = sdt.find(_q("w:sdtContent"))
+            value = (_text(content_el).strip() if part == "title"
+                     else _blocks_html(reader, list(content_el) if content_el is not None else []))
+            controls[(item_id, part)] = {"base": base_no, "value": value}
         by_item: dict[uuid.UUID, dict[str, dict[str, Any]]] = {}
         for (item_id, part), c in controls.items():
             by_item.setdefault(item_id, {})[part] = c
@@ -259,7 +191,7 @@ def import_docx(db: Session, project: Project, actor: User, doc_item: Item, file
                         change["title"] = new
             if "desc" in item_parts:
                 new = item_parts["desc"]["value"]
-                if new != roundtrip_markdown(base.description):
+                if new != roundtrip_html(base.description):
                     diffs.append({"field": "description", "old": base.description, "new": new})
                     if item.description != base.description:
                         conflicts.append("description")
@@ -307,6 +239,12 @@ def import_docx(db: Session, project: Project, actor: User, doc_item: Item, file
     results.sort(key=lambda r: (order.get(r["status"], 9), r.get("key", "")))
     return {"dry_run": dry_run, "applied": applied, "summary": summary, "items": results,
             "comments": comments[:200]}
+
+
+def _blocks_html(reader: Any, elements: list[etree._Element]) -> str:
+    from almlight.core.richtext import canonical, to_html
+
+    return canonical(to_html(reader.blocks(elements)), lambda src, attrs: src)
 
 
 def _import_comments(db: Session, project: Project, actor: User, doc_item: Item,

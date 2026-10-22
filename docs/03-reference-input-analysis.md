@@ -22,7 +22,7 @@ best-practice patterns in [02-research](02-research-best-practices.md).
 
 ## 3.2 Target picture → capabilities
 
-| Need from the workshop | Generic capability | Where in ALMlight |
+| Need from the workshop | Generic capability | Where in Ariadne |
 |---|---|---|
 | Separate stakeholder, system, subsystem/module requirements; allocate to modules | Requirement levels, `derives_from`, `satisfies` | Template *systems_engineering*, coverage view |
 | Specifications as controlled documents and their release | Live documents with a release guard on contained items | Document view, `contained_items_released` guard |
@@ -46,7 +46,7 @@ best-practice patterns in [02-research](02-research-best-practices.md).
    sales/product management.
 4. A minimal change process must be enforceable by the tool (change-controlled types), but light enough for a
    small team (one CCB approval, one change order).
-5. Existing tools (work management, Git, architecture tool) are not replaced on day one; ALMlight must link to them.
+5. Existing tools (work management, Git, architecture tool) are not replaced on day one; Ariadne must link to them.
 6. Organisational topics (roles, governance) are supported by roles, approvals and the audit trail, but the tool
    does not replace them; consulting covers that part.
 

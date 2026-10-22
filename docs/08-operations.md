@@ -30,6 +30,9 @@ If `ALMLIGHT_ADMIN_PASSWORD` is empty, a password is generated once and printed 
 | `ALMLIGHT_DEMO_DATA` | `false` | Load the demo project and demo users |
 | `ALMLIGHT_COOKIE_SECURE` | `false` | `true` behind HTTPS |
 | `ALMLIGHT_MAX_UPLOAD_MB` | `100` | Upload limit per file |
+| `ALMLIGHT_MAX_IMAGE_MB` | `15` | Size limit of images in rich text |
+| `ALMLIGHT_COLLAB_LEAVE_GRACE_SECONDS` | `8` | Live editing: save this long after the last editor left |
+| `ALMLIGHT_COLLAB_IDLE_SECONDS` | `300` | Live editing: save after this idle time while people are connected |
 | `ALMLIGHT_SESSION_HOURS` | `12` | Session lifetime |
 | `ALMLIGHT_CORS_ORIGINS` | – | JSON list, only if another web origin calls the API |
 | `ALMLIGHT_LOG_LEVEL` | `INFO` | Log level |
@@ -61,6 +64,7 @@ docker compose up -d --build     # migrations run automatically on start
 ```
 
 Take a backup first. Database migrations are versioned with Alembic (`backend/migrations`).
+Upgrading from 0.3 to 0.4 converts all item texts from Markdown to rich text once (content-preserving).
 
 ## 8.6 Monitoring
 
@@ -92,3 +96,24 @@ Regenerate pinned Python dependencies after editing `backend/requirements.in`:
 docker run --rm -v "$PWD/backend":/src -w /src python:3.12-slim sh -c \
   "pip install -q -r requirements.in && pip freeze > requirements.txt"
 ```
+
+## 8.8 Reverse proxy and WebSockets
+
+Live editing and live updates use two WebSocket endpoints (`/api/v1/collab/…`, `/api/v1/live`). The proxy must forward
+the upgrade and the original host; the application refuses WebSocket connections whose `Origin` does not match the
+host (or `ALMLIGHT_CORS_ORIGINS`).
+
+```nginx
+location / {
+    proxy_pass http://app:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;   # map $http_upgrade $connection_upgrade { default upgrade; "" close; }
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 1h;
+}
+```
+
+Traefik and Caddy forward WebSockets without extra configuration. Live sessions are held in the application process,
+so run a single app container (the default).

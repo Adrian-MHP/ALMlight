@@ -16,7 +16,7 @@ export function WordReviewExport({ docKey, opened, onClose }: { docKey: string; 
     <Modal opened={opened} onClose={onClose} title={`Word round trip — ${docKey}`}>
       <Stack>
         <Text size="sm" c="dimmed">
-          Send the file to reviewers without ALMlight access. Their edits and Word comments come back with “Import reviewed Word”
+          Send the file to reviewers without access to Ariadne. Their edits and Word comments come back with “Import reviewed Word”
           and are applied as new versions (with history) — conflicting edits are reported, not overwritten.
         </Text>
         <Radio.Group value={mode} onChange={setMode}>
@@ -70,7 +70,7 @@ export function WordImportDialog({ docKey, opened, onClose }: { docKey: string; 
                     <Table.Tr key={n}>
                       <Table.Td><Text className="item-key">{i.key}</Text><Text size="xs">{i.base_version} → {i.new_version ?? i.current_version}</Text></Table.Td>
                       <Table.Td><Badge color={STATUS_COLORS[i.status] ?? "gray"} variant="light">{i.status}</Badge>
-                        {i.conflicts && <Text size="xs" c="red">changed in ALMlight too: {i.conflicts.join(", ")}</Text>}</Table.Td>
+                        {i.conflicts && <Text size="xs" c="red">changed in Ariadne too: {i.conflicts.join(", ")}</Text>}</Table.Td>
                       <Table.Td>{(i.changes ?? []).map((c) => (
                         <Text key={c.field} size="xs"><b>{c.field}:</b> <span className="diff-del">{String(c.old).slice(0, 80)}</span> → <span className="diff-add">{String(c.new).slice(0, 80)}</span></Text>
                       ))}</Table.Td>

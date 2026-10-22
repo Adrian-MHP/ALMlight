@@ -1,4 +1,4 @@
-// Minimal fetch wrapper for the ALMlight API. The session lives in an httpOnly cookie.
+// Minimal fetch wrapper for the REST API. The session lives in an httpOnly cookie.
 
 export class ApiError extends Error {
   status: number;

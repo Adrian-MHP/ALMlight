@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActionIcon, Alert, Anchor, Badge, Breadcrumbs, Button, Card, Center, Drawer, Group, Loader, Menu, Modal, MultiSelect, Select,
   Stack, Switch, Text, TextInput, Title, Tooltip,
@@ -8,14 +8,18 @@ import {
   IconGitCompare, IconHistory, IconLink, IconMessage, IconPlus, IconSearch,
 } from "@tabler/icons-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { notifications } from "@mantine/notifications";
 import { api } from "@/api/client";
-import { useDocument, useFeatureModel, useItem, useProjectMutation, useThreads } from "@/api/hooks";
+import { useDocument, useFeatureModel, useItem, useMe, useProjectMutation, useThreads } from "@/api/hooks";
 import type { DocNode, ItemDetail } from "@/api/types";
 import { CommentThreads } from "@/components/CommentThreads";
 import { ItemPicker } from "@/components/ItemPicker";
-import { Markdown } from "@/components/Markdown";
+import { RichText } from "@/components/rich/RichText";
+import { LiveEditor, ParticipantAvatars } from "@/collab/LiveEditor";
+import { useLive, usePresenceLocation, type PresenceUser } from "@/live/LiveProvider";
 import { NotFound } from "@/components/NotFound";
 import { fmtDateTime } from "@/lib/format";
+import { useRemember } from "@/lib/recent";
 import { stateColor } from "@/lib/model";
 import { BranchBar } from "./BranchMerge";
 import { DocumentExportMenu } from "./DocumentExport";
@@ -32,7 +36,8 @@ function matches(n: DocNode, f: Filter): boolean {
   if (f.states.length && !f.states.includes(n.state_key ?? "")) return false;
   if (f.q) {
     const q = f.q.toLowerCase();
-    if (!`${n.key} ${n.title} ${n.description}`.toLowerCase().includes(q)) return false;
+    const text = n.description.replace(/<[^>]+>/g, " ");
+    if (!`${n.key} ${n.title} ${text}`.toLowerCase().includes(q)) return false;
   }
   return true;
 }
@@ -76,6 +81,23 @@ export function DocumentView() {
   const [compareOpen, setCompareOpen] = useState(false);
   const [branching, setBranching] = useState(false);
   const editItem = useItem(key, editing ?? "", !!editing);
+  const [liveBlock, setLiveBlock] = useState<string | null>(null);
+  const live = useLive();
+  const me = useMe().data;
+  usePresenceLocation(key, { doc: docKey, editing: liveBlock });
+  useRemember(doc.data && !historical ? { project: key, key: docKey, title: doc.data.root.title, kind: "document" } : null);
+  const here = live.presence(key).filter((u) => u.doc === docKey);
+  const docItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    const walk = (nodes: DocNode[]) => nodes.forEach((n) => { ids.add(n.item_id); walk(n.children); });
+    if (doc.data) { ids.add(doc.data.root.item_id); walk(doc.data.root.children); }
+    return ids;
+  }, [doc.data]);
+  useEffect(() => live.onChange((e) => {
+    if (!me || e.actor_id === me.id || e.project !== key) return;
+    const hit = (e.entity_id && docItemIds.has(e.entity_id)) || e.related_ids.some((r) => docItemIds.has(r));
+    if (hit) notifications.show({ title: `${e.actor} changed the document`, message: e.summary, color: "blue", autoClose: 5000 });
+  }), [live, docItemIds, me, key]);
 
   const setParam = (k: string, v: string | null) => {
     const p = new URLSearchParams(params);
@@ -120,6 +142,7 @@ export function DocumentView() {
           <Text size="xs" c="dimmed">Each block is an item with its own version, workflow and traceability. Release the document once all items are approved.</Text>
         </Stack>
         <Group gap="xs">
+          <PresenceBar people={here} meId={me?.id} />
           <Button variant="default" leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)} data-testid="doc-history">History</Button>
           <Button variant="default" leftSection={<IconGitCompare size={16} />} onClick={() => setCompareOpen(true)} data-testid="doc-compare">Compare</Button>
           {!historical && <DocBaselineButton docKey={docKey} />}
@@ -176,11 +199,12 @@ export function DocumentView() {
 
       {!historical && <BranchBar docKey={docKey} creating={branching} onCloseCreate={() => setBranching(false)} />}
 
-      <Card withBorder padding="lg" data-testid="document">
-        {root.description && <div style={{ marginBottom: 12 }}><Markdown text={root.description} /></div>}
+      <Card withBorder padding="xl" className="doc-paper" data-testid="document">
+        {root.description && <div style={{ marginBottom: 12 }}><RichText html={root.description} empty="" /></div>}
         {tree.length === 0 && <Text c="dimmed">{total ? "Nothing matches the filter." : "This document is empty. Add headings and requirements."}</Text>}
         <Blocks nodes={tree} depth={0} parentKey={docKey} editable={editable && !filtering}
-          historical={historical} onAdd={setAdding} onEdit={setEditing} onComments={setCommentsFor} />
+          historical={historical} onAdd={setAdding} onEdit={setEditing} onComments={setCommentsFor}
+          live={{ block: liveBlock, open: setLiveBlock, editors: (k) => here.filter((u) => u.editing === k && u.user_id !== me?.id) }} />
       </Card>
 
       {adding && !adding.existing && (
@@ -228,9 +252,30 @@ function CommentsDrawer({ docKey, itemKey, onClose }: { docKey: string; itemKey:
   );
 }
 
-function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, onComments }: {
+interface LiveBlocks { block: string | null; open: (key: string | null) => void; editors: (key: string) => PresenceUser[] }
+
+function PresenceBar({ people, meId }: { people: PresenceUser[]; meId?: string }) {
+  const users = new Map<string, { id: string; name: string; color: string; editing: boolean }>();
+  for (const u of people) {
+    const prev = users.get(u.user_id);
+    users.set(u.user_id, { id: u.user_id, name: u.user_id === meId ? `${u.name} (you)` : u.name, color: u.color, editing: (prev?.editing ?? false) || !!u.editing });
+  }
+  const list = Array.from(users.values());
+  if (list.length === 0) return null;
+  const editing = list.filter((u) => u.editing).length;
+  return (
+    <Tooltip label={`${list.length} ${list.length === 1 ? "person" : "people"} in this document${editing ? `, ${editing} editing` : ""}`}>
+      <Group gap={6} className="presence-bar" data-testid="doc-presence">
+        <ParticipantAvatars people={list} size={24} />
+        <Text size="xs" c="dimmed">{list.length}</Text>
+      </Group>
+    </Tooltip>
+  );
+}
+
+function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, onComments, live }: {
   nodes: DocNode[]; depth: number; parentKey: string; editable: boolean; historical: boolean;
-  onAdd: (t: AddTarget) => void; onEdit: (key: string) => void; onComments: (key: string) => void;
+  onAdd: (t: AddTarget) => void; onEdit: (key: string) => void; onComments: (key: string) => void; live: LiveBlocks;
 }) {
   const { key } = useProjectCtx();
   const move = useProjectMutation(key, (v: { item: string; position: number }) =>
@@ -247,7 +292,19 @@ function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, 
         const afterTarget = i < nodes.length - 1 ? (pos[i] + pos[i + 1]) / 2 : null;
         return (
           <div key={`${n.item_id}-${n.link_id}`} style={{ marginLeft: depth * 18 }}>
-            <div className="doc-block" data-testid={`block-${n.key}`}>
+            <div className={`doc-block${live.editors(n.key).length ? " doc-block-live" : ""}${live.block === n.key ? " doc-block-editing" : ""}`}
+              data-testid={`block-${n.key}`} onDoubleClick={() => editable && !n.frozen && live.open(n.key)}>
+              {live.editors(n.key).length > 0 && live.block !== n.key && (
+                <Group gap={6} mb={4} data-testid={`block-editors-${n.key}`}>
+                  <ParticipantAvatars size={18} people={live.editors(n.key).map((u) => ({ id: u.user_id, name: u.name, color: u.color, editing: true }))} />
+                  <Text size="xs" c="orange.7">{Array.from(new Set(live.editors(n.key).map((u) => u.name))).join(", ")} editing live</Text>
+                </Group>
+              )}
+              {live.block === n.key ? (
+                <LiveEditor target={{ id: n.item_id, key: n.key, title: n.title, description: n.raw_description, content_hash: n.content_hash }}
+                  projectKey={key} canWrite={editable && !n.frozen} onClose={() => live.open(null)} withBody={!n.is_heading}
+                  testId={`live-${n.key}`} />
+              ) : (
               <Group justify="space-between" wrap="nowrap" align="flex-start">
                 <div style={{ minWidth: 0, flex: 1 }}>
                   {n.is_heading ? (
@@ -267,7 +324,7 @@ function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, 
                             onClick={() => onComments(n.key)} data-testid={`comments-${n.key}`}>{n.comment_count}</Badge>
                         )}
                       </Group>
-                      <Markdown text={n.description} empty="" />
+                      <RichText html={n.description} empty="" />
                     </>
                   )}
                 </div>
@@ -290,13 +347,15 @@ function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, 
                             onClick={() => upTarget !== null && move.mutate({ item: n.key, position: upTarget })}><IconArrowUp size={14} /></ActionIcon></Tooltip>
                           <Tooltip label="Move down"><ActionIcon variant="subtle" size="sm" disabled={downTarget === null}
                             onClick={() => downTarget !== null && move.mutate({ item: n.key, position: downTarget })}><IconArrowDown size={14} /></ActionIcon></Tooltip>
-                          {!n.frozen && <Tooltip label="Edit"><ActionIcon variant="subtle" size="sm" onClick={() => onEdit(n.key)}><IconEdit size={14} /></ActionIcon></Tooltip>}
+                          {!n.frozen && <Tooltip label="Edit text live (double-click)"><ActionIcon variant="subtle" size="sm" onClick={() => live.open(n.key)} data-testid={`edit-${n.key}`}><IconEdit size={14} /></ActionIcon></Tooltip>}
                           <Menu position="bottom-end">
                             <Menu.Target><ActionIcon variant="subtle" size="sm"><IconPlus size={14} /></ActionIcon></Menu.Target>
                             <Menu.Dropdown>
                               <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget })}>Add after</Menu.Item>
                               {(n.is_heading || n.children.length > 0) && <Menu.Item onClick={() => onAdd({ parent: n.key, position: null })}>Add inside</Menu.Item>}
                               <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget, existing: true })}>Insert existing item after</Menu.Item>
+                              {!n.frozen && <Menu.Divider />}
+                              {!n.frozen && <Menu.Item onClick={() => onEdit(n.key)} data-testid={`props-${n.key}`}>Properties (title, attributes)…</Menu.Item>}
                             </Menu.Dropdown>
                           </Menu>
                         </>
@@ -305,10 +364,11 @@ function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, 
                   )}
                 </Group>
               </Group>
+              )}
             </div>
             {n.children.length > 0 && (
               <Blocks nodes={n.children} depth={depth + 1} parentKey={n.key} editable={editable} historical={historical}
-                onAdd={onAdd} onEdit={onEdit} onComments={onComments} />
+                onAdd={onAdd} onEdit={onEdit} onComments={onComments} live={live} />
             )}
           </div>
         );

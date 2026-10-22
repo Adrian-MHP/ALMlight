@@ -51,7 +51,7 @@ every content change appends an immutable **item version**.
 | Version number | Monotonic per item (1, 2, 3 …) — used for optimistic locking and pinning |
 | Head version | Current content |
 | Released version | The version that was last released (stays valid while a new revision is in work) |
-| Content | Title, Markdown description, custom fields, applicability expression, attachment list |
+| Content | Title, rich-text description (canonical HTML, images by reference), custom fields, applicability expression, attachment list |
 | Metadata | Owner, created/updated by/at — owner changes do not create versions |
 
 Rules:
@@ -149,7 +149,16 @@ variant) and are evaluated on demand (see ADR-0014).
 - **Collections** bundle document baselines (one per document) for a release; closing freezes them.
 - **Recycle bin**: deleted items keep their links (soft delete) and can be restored together with them.
 
-## 4.13 Audit trail
+## 4.13 Rich text, images and live editing sessions
+
+- **Rich text** is stored as canonical HTML (one serialiser; equal content, equal bytes). Item references are inline
+  `item-ref` spans (`#SYS-12`).
+- **Images** (`images`) register content-addressed blobs for a project; texts reference `/api/v1/images/<sha256>`. A
+  user may see an image if they are a member of a project that uses it.
+- **Live editing session**: per item while people edit it; its unsaved shared state is a **draft** (`collab_drafts`,
+  crash safety). Saving produces a normal item version whose change note lists the co-authors.
+
+## 4.14 Audit trail
 
 Every mutation writes an audit entry (actor, action, entity, summary, details, related item ids). Each entry stores
 the SHA-256 of its canonical content and the previous entry's hash; `GET /admin/audit/verify` recomputes the chain

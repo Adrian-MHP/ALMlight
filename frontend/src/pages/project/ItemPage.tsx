@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Alert, Anchor, Badge, Breadcrumbs, Button, Card, Center, Grid, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Title,
+  Alert, Anchor, Badge, Box, Breadcrumbs, Button, Card, Center, Grid, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Title,
   Tooltip,
 } from "@mantine/core";
 import {
@@ -14,10 +14,14 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { StateBadge, TypeBadge } from "@/components/badges";
 import { FieldsView } from "@/components/FieldsForm";
 import { ItemPicker } from "@/components/ItemPicker";
-import { Markdown } from "@/components/Markdown";
+import { RichText } from "@/components/rich/RichText";
+import { LiveEditor, ParticipantAvatars } from "@/collab/LiveEditor";
+import { useLive, usePresenceLocation } from "@/live/LiveProvider";
 import { NotFound } from "@/components/NotFound";
 import { ActionPrompt } from "@/components/PasswordPrompt";
 import { fmtDateTime } from "@/lib/format";
+import { CATEGORY_COLORS } from "@/lib/model";
+import { useRemember } from "@/lib/recent";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
 import { LinksTab } from "./item/LinksTab";
@@ -38,6 +42,10 @@ export function ItemPage() {
   const requested = vparams.get("version") ? Number(vparams.get("version")) : null;
   const viewVersion = useVersion(key, itemKey.toUpperCase(), requested).data ?? null;
   const [params, setParams] = useSearchParams();
+  const [editing, setEditing] = useState(false);
+  const live = useLive();
+  usePresenceLocation(key, { item: item?.key ?? null, editing: editing && item ? item.key : null });
+  useRemember(item ? { project: key, key: item.key, title: item.title, kind: "item" } : null);
   if (isLoading) return <Center mt={80}><Loader /></Center>;
   if (isError || !item) return <NotFound message={`Item ${itemKey} not found.`} />;
   const typeDef = model.type(item.type_key);
@@ -54,7 +62,11 @@ export function ItemPage() {
         <Anchor component={Link} to={`/p/${key}/items?type=${item.type_key}`} size="sm">{typeDef?.label ?? item.type_key}</Anchor>
         <Text size="sm" className="item-key">{item.key}</Text>
       </Breadcrumbs>
-      <Group justify="space-between" align="flex-start" mb="sm" wrap="wrap">
+      <Group justify="space-between" align="flex-start" mb="sm" wrap="wrap" className="object-header">
+        <Group gap="sm" align="flex-start" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+        <Box className="type-tile" style={{ background: `var(--mantine-color-${typeColor(typeDef?.color, typeDef?.category)}-7)` }}>
+          {(typeDef?.label ?? item.type_key).slice(0, 2).toUpperCase()}
+        </Box>
         <Stack gap={6} style={{ minWidth: 0, flex: 1 }}>
           <Group gap="xs">
             <Text className="item-key" size="lg" data-testid="item-key">{item.key}</Text>
@@ -78,11 +90,15 @@ export function ItemPage() {
             )}
           </Group>
           <Title order={2} size="h3" data-testid="item-title-heading">{versionNo !== null && viewVersion ? viewVersion.title : item.title}</Title>
-          <Text size="xs" c="dimmed">
-            Owner {item.owner?.display_name ?? "–"} · created {fmtDateTime(item.created_at)} by {item.created_by?.display_name ?? "–"} ·
-            updated {fmtDateTime(item.updated_at)} by {item.updated_by?.display_name ?? "–"}
-          </Text>
+          <Group gap="xs">
+            <Text size="xs" c="dimmed">
+              Owner {item.owner?.display_name ?? "–"} · created {fmtDateTime(item.created_at)} by {item.created_by?.display_name ?? "–"} ·
+              updated {fmtDateTime(item.updated_at)} by {item.updated_by?.display_name ?? "–"}
+            </Text>
+            <ParticipantAvatars size={20} people={uniqueUsers(live.presence(key).filter((u) => u.item === item.key || u.editing === item.key))} />
+          </Group>
         </Stack>
+        </Group>
         <WorkflowBar item={item} />
       </Group>
       {versionNo !== null && <VersionBanner item={item} versionNo={versionNo} version={viewVersion} />}
@@ -101,7 +117,7 @@ export function ItemPage() {
           <Tabs.Tab value="comments">Comments</Tabs.Tab>
           <Tabs.Tab value="development">Development</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="overview"><Overview item={item} version={viewVersion} /></Tabs.Panel>
+        <Tabs.Panel value="overview"><Overview item={item} version={versionNo !== null ? viewVersion : null} editing={editing} setEditing={setEditing} /></Tabs.Panel>
         <Tabs.Panel value="links"><LinksTab item={item} /></Tabs.Panel>
         <Tabs.Panel value="impact"><ImpactTab item={item} /></Tabs.Panel>
         {hasStructure && <Tabs.Panel value="structure"><Card withBorder><StructureTree rootKey={item.key} /></Card></Tabs.Panel>}
@@ -117,6 +133,19 @@ export function ItemPage() {
   );
 }
 
+function typeColor(color?: string | null, category?: string | null): string {
+  return color ?? CATEGORY_COLORS[category ?? "other"] ?? "gray";
+}
+
+function uniqueUsers(list: { user_id: string; name: string; color: string; editing: string | null }[]) {
+  const m = new Map<string, { id: string; name: string; color: string; editing: boolean }>();
+  for (const u of list) {
+    const prev = m.get(u.user_id);
+    m.set(u.user_id, { id: u.user_id, name: u.name, color: u.color, editing: (prev?.editing ?? false) || !!u.editing });
+  }
+  return Array.from(m.values());
+}
+
 function LinksTabLabel({ itemKey }: { itemKey: string }) {
   const { key } = useProjectCtx();
   const links = useLinks(key, itemKey).data ?? [];
@@ -130,21 +159,46 @@ function LinksTabLabel({ itemKey }: { itemKey: string }) {
   );
 }
 
-function Overview({ item, version }: { item: ItemDetail; version?: Version | null }) {
-  const { model } = useProjectCtx();
+function Overview({ item, version, editing, setEditing }: {
+  item: ItemDetail; version?: Version | null; editing: boolean; setEditing: (v: boolean) => void;
+}) {
+  const { key, model, can } = useProjectCtx();
+  const live = useLive();
   const defs = model.type(item.type_key)?.fields ?? [];
+  const canWrite = can("contributor") && !item.lifecycle.frozen;
+  const editors = live.presence(key).filter((u) => u.editing === item.key);
   if (version) item = { ...item, title: version.title, description: version.description, fields: version.fields, applicability: version.applicability };
   const texts = defs.filter((f) => f.type === "text" && item.fields[f.key]);
   return (
     <Grid>
       <Grid.Col span={{ base: 12, lg: 8 }}>
-        <Card withBorder mb="md">
-          <Markdown text={item.description} />
+        <Card withBorder mb="md" className="text-card">
+          {editing && !version ? (
+            <LiveEditor target={item} projectKey={key} canWrite={canWrite} onClose={() => setEditing(false)} />
+          ) : (
+            <>
+              <Group justify="space-between" mb={6}>
+                <Group gap={6}>
+                  <Text size="xs" c="dimmed" tt="uppercase" fw={600}>Text</Text>
+                  {editors.length > 0 && (
+                    <Badge size="xs" color="orange" variant="light" data-testid="item-editing-badge">
+                      {editors.map((u) => u.name).join(", ")} editing live
+                    </Badge>
+                  )}
+                </Group>
+                {!version && (
+                  <Button size="xs" variant="light" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}
+                    data-testid="edit-text">{canWrite ? (editors.length ? "Join live editing" : "Edit text") : "Live view"}</Button>
+                )}
+              </Group>
+              <RichText html={item.description} testId="item-description-view" />
+            </>
+          )}
         </Card>
         {texts.map((f) => (
           <Card withBorder mb="md" key={f.key}>
             <Text size="xs" c="dimmed" mb={4}>{f.label}</Text>
-            <Markdown text={item.fields[f.key] as string} />
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{item.fields[f.key] as string}</Text>
           </Card>
         ))}
       </Grid.Col>
@@ -222,9 +276,9 @@ function WorkflowBar({ item }: { item: ItemDetail }) {
         </Tooltip>
       )}
       {can("contributor") && (
-        <Tooltip label={item.lifecycle.frozen ? `Frozen in state '${item.lifecycle.label}'` : "Edit content (creates a new iteration)"}>
+        <Tooltip label={item.lifecycle.frozen ? `Frozen in state '${item.lifecycle.label}'` : "Edit title, attributes and applicability (creates a new iteration)"}>
           <Button size="sm" variant="default" leftSection={<IconEdit size={16} />} disabled={item.lifecycle.frozen}
-            onClick={() => setEditing(true)} data-testid="edit-item">Edit</Button>
+            onClick={() => setEditing(true)} data-testid="edit-item">Properties</Button>
         </Tooltip>
       )}
       <Menu position="bottom-end">

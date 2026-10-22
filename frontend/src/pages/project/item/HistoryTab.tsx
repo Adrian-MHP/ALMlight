@@ -4,6 +4,7 @@ import { Badge, Button, Card, Grid, Group, Radio, Stack, Table, Text, Timeline, 
 import { api } from "@/api/client";
 import { useDiff, useHistory, useProjectMutation, useVersions } from "@/api/hooks";
 import type { Change, ItemDetail } from "@/api/types";
+import { RichDiff } from "@/components/rich/RichText";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
 
@@ -84,6 +85,14 @@ export function HistoryTab({ item }: { item: ItemDetail }) {
 }
 
 export function ChangeView({ change }: { change: Change }) {
+  if (change.html_diff) {
+    return (
+      <div>
+        <Text size="xs" fw={600} mb={2}>{change.field}</Text>
+        <div className="rich-diff-box" data-testid="html-diff"><RichDiff html={change.html_diff} /></div>
+      </div>
+    );
+  }
   if (change.diff && change.diff.length) {
     return (
       <div>

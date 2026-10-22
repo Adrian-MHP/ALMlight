@@ -1,6 +1,6 @@
 # ADR-0004 Configurable information model as data (process templates)
 
-**Context.** MHP tailors ALMlight per customer. Hard-coding types such as "requirement" would lead to forks.
+**Context.** MHP tailors Ariadne per customer. Hard-coding types such as "requirement" would lead to forks.
 
 **Decision.** Item types, fields, link types and workflows are defined in YAML process templates and validated by
 Pydantic models (`metamodel.py`). Each project stores its own JSON copy with a version counter, so projects keep

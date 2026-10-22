@@ -1,13 +1,13 @@
 # 2 Research: best practices and future direction
 
-This summarises the research done before designing ALMlight: how leading ALM/PLM suites solve the problems,
+This summarises the research done before designing Ariadne: how leading ALM/PLM suites solve the problems,
 which standards matter, where systems engineering is heading, and what integrations an engineering backbone
 needs. The rule for the product: **proven practice of the leading suites outranks individual customer wishes**;
 customer specifics are then expressed through configuration.
 
 ## 2.1 Patterns adopted from leading suites
 
-| Pattern | Seen in | ALMlight implementation |
+| Pattern | Seen in | Ariadne implementation |
 |---|---|---|
 | Typed, configurable work items with custom fields and workflows per type | Polarion, codebeamer | Item types, field definitions and workflows in the project template |
 | Live documents: a specification is an ordered view on individually managed items | Polarion LiveDoc | Document item type + ordered structural links; document view with inline editing |
@@ -47,7 +47,7 @@ customer specifics are then expressed through configuration.
 
 - **Model-based and digitally threaded.** INCOSE's *Systems Engineering Vision 2035* expects model-based practice
   integrated with simulation and analysis to be standard. The digital thread is an unbroken chain of traceability
-  across tools, each tool staying the authoritative source for its own data. → ALMlight is the backbone that
+  across tools, each tool staying the authoritative source for its own data. → Ariadne is the backbone that
   *links* artefacts (external references, webhooks) instead of copying everything.
 - **Product platforms and variability.** Companies move from clone & own to platform-based reuse and product line
   engineering; they need to know commonality, variability and the maturity of each reusable module.
@@ -65,7 +65,7 @@ customer specifics are then expressed through configuration.
 
 ## 2.4 Integration landscape of a typical SME
 
-| Tool class | Typical tools | Integration in ALMlight |
+| Tool class | Typical tools | Integration in Ariadne |
 |---|---|---|
 | Git hosting / code | GitHub, GitLab, Azure Repos | Inbound webhooks: commits, PRs, builds mentioning item keys → external references |
 | Work management | Azure Boards, Jira | Azure DevOps service hooks (work items) → external references; Jira later |
@@ -81,7 +81,7 @@ customer specifics are then expressed through configuration.
 Open-source and low-cost tools cover parts of the problem (e.g. Tuleap for agile ALM, StrictDoc/Doorstop for
 docs-as-code requirements, Capella for MBSE), but none combines configurable items, PLM-style revisions and change
 control, variants and verification in one lightweight, self-hostable package for engineering SMEs. That gap is
-ALMlight's position.
+Ariadne's position.
 
 ## Sources
 

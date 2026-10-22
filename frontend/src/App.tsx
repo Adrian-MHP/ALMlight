@@ -2,7 +2,9 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AuthGate } from "./auth/AuthGate";
 import { LoginPage } from "./auth/LoginPage";
 import { AppLayout } from "./layout/AppLayout";
+import { LiveProvider } from "./live/LiveProvider";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { HomePage } from "./pages/HomePage";
 import { ApprovalsPage } from "./pages/ApprovalsPage";
 import { SearchPage } from "./pages/SearchPage";
 import { AdminPage } from "./pages/AdminPage";
@@ -29,9 +31,10 @@ import { NotFound } from "./components/NotFound";
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
-    element: <AuthGate><AppLayout /></AuthGate>,
+    element: <AuthGate><LiveProvider><AppLayout /></LiveProvider></AuthGate>,
     children: [
-      { path: "/", element: <ProjectsPage /> },
+      { path: "/", element: <HomePage /> },
+      { path: "/projects", element: <ProjectsPage /> },
       { path: "/approvals", element: <ApprovalsPage /> },
       { path: "/search", element: <SearchPage /> },
       { path: "/admin", element: <AdminPage /> },

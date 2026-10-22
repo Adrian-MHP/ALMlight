@@ -1,4 +1,4 @@
-// Types mirroring the ALMlight REST API (see /api/v1/docs).
+// Types mirroring the REST API (see /api/v1/docs).
 
 export type Role = "viewer" | "contributor" | "reviewer" | "manager";
 
@@ -200,6 +200,7 @@ export interface Attachment {
 
 export interface ItemDetail extends Item {
   description: string;
+  content_hash: string;
   attachments: Attachment[];
   released_version: string | null;
   created_by: UserRef | null;
@@ -232,6 +233,7 @@ export interface Change {
   old: unknown;
   new: unknown;
   diff?: string[];
+  html_diff?: string;
 }
 
 export interface HistoryEntry {
@@ -648,6 +650,8 @@ export interface DocNode {
   display_title: string;
   number: string | null;
   description: string;
+  raw_description: string;
+  content_hash: string;
   fields: { label: string; value: string }[];
   fields_raw: Record<string, unknown>;
   applicability: string | null;
@@ -720,7 +724,7 @@ export interface CompareResult {
     left: CompareNode | null;
     right: CompareNode | null;
     moved: boolean;
-    changes: { field: string; old: unknown; new: unknown; diff?: { op: "equal" | "insert" | "delete"; text: string }[] }[];
+    changes: { field: string; old: unknown; new: unknown; diff?: { op: "equal" | "insert" | "delete"; text: string }[]; html_diff?: string }[];
   }[];
 }
 

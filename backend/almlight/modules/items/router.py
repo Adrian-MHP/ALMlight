@@ -13,6 +13,7 @@ from almlight.core.deps import current_user
 from almlight.core.errors import NotFound
 from almlight.core.schemas import Ok, Page, UserDirectory
 from almlight.modules.audit.models import AuditEntry
+from almlight.modules.collab.router import flush_item
 from almlight.modules.identity.models import User
 from almlight.modules.items import service, storage
 from almlight.modules.items.models import Comment, Item, ItemVersion
@@ -87,6 +88,8 @@ def update_item(project_key: str, item_key: str, body: ItemPatch, user: User = D
                 db: Session = Depends(get_db)) -> ItemDetailOut:
     project = get_project(db, project_key, user, "contributor")
     item = service.get_item(db, project, item_key)
+    if body.title is not None or body.description is not None:
+        flush_item(db, item)  # unsaved live edits become a version first (expected_version then detects it)
     sent = body.model_fields_set
     change = service.ContentChange(
         title=body.title, description=body.description, fields=body.fields,
@@ -103,7 +106,9 @@ def update_item(project_key: str, item_key: str, body: ItemPatch, user: User = D
 def delete_item(project_key: str, item_key: str, user: User = Depends(current_user),
                 db: Session = Depends(get_db)) -> Ok:
     project = get_project(db, project_key, user, "manager")
-    service.delete_item(db, project, user, service.get_item(db, project, item_key))
+    item = service.get_item(db, project, item_key)
+    flush_item(db, item)
+    service.delete_item(db, project, user, item)
     db.commit()
     return Ok()
 
@@ -113,6 +118,7 @@ def revise_item(project_key: str, item_key: str, body: ReviseIn, user: User = De
                 db: Session = Depends(get_db)) -> ItemDetailOut:
     project = get_project(db, project_key, user, "contributor")
     item = service.get_item(db, project, item_key)
+    flush_item(db, item)
     co = service.get_item(db, project, body.change_order) if body.change_order else None
     item = service.revise_item(db, project, user, item, change_order=co, change_note=body.change_note)
     db.commit()
@@ -155,8 +161,9 @@ def diff(project_key: str, item_key: str, from_version: int = Query(alias="from"
 def restore(project_key: str, item_key: str, body: RestoreIn, user: User = Depends(current_user),
             db: Session = Depends(get_db)) -> ItemDetailOut:
     project = get_project(db, project_key, user, "contributor")
-    item = service.restore_version(db, project, user, service.get_item(db, project, item_key), body.version_no,
-                                   expected_version=body.expected_version)
+    item = service.get_item(db, project, item_key)
+    flush_item(db, item)
+    item = service.restore_version(db, project, user, item, body.version_no, expected_version=body.expected_version)
     db.commit()
     return item_detail(db, project, item, UserDirectory(db))
 

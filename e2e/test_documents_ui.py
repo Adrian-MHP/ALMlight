@@ -28,7 +28,8 @@ def test_time_travel_and_compare(page: Page):
     page.get_by_test_id("compare-with-live").click()
     view = page.get_by_test_id("compare-view")
     expect(view).to_contain_text("changed")
-    expect(view.locator(".diff-add", has_text="COM3").first).to_be_visible()
+    expect(view.locator(".rich-diff-new ins", has_text="COM3").first).to_be_visible()  # word-level rich-text diff
+    expect(view.locator(".rich-diff-old del", has_text="COM2").first).to_be_visible()
     expect(view).to_contain_text("NAMUR")
     shot(page, "23-compare")
     page.goto("/p/DEMO/documents/SPEC-2")

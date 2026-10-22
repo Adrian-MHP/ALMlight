@@ -28,11 +28,14 @@ from defusedxml import ElementTree as SafeET
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from almlight.core import richtext
 from almlight.core.errors import DomainError, ValidationFailed
 from almlight.modules.audit import service as audit
 from almlight.modules.identity.models import User
+from almlight.modules.images.service import ProjectImages
 from almlight.modules.integrations.models import ExternalRef
 from almlight.modules.integrations.service import upsert_ref
+from almlight.modules.io.rich_render import xhtml_to_html
 from almlight.modules.items import service as items_svc
 from almlight.modules.items.lifecycle import is_frozen
 from almlight.modules.items.models import Item
@@ -83,93 +86,18 @@ def _norm(s: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
 
 
-# --- XHTML -> Markdown -------------------------------------------------------------------------
+# --- XHTML -> rich text ---------------------------------------------------------------------------
 
 
-def xhtml_to_markdown(el: Element) -> str:
-    """Convert the XHTML content of an ATTRIBUTE-VALUE-XHTML to Markdown (paragraphs, emphasis, lists, tables)."""
-    blocks: list[str] = []
-    _blocks(el, blocks, list_prefix=None)
-    text = "\n\n".join(b.strip("\n") for b in blocks if b.strip())
-    return re.sub(r"\n{3,}", "\n\n", text).strip()
+class HtmlText(str):
+    """An XHTML attribute value converted to HTML (string attributes stay plain ``str``)."""
 
 
-def _inline(el: Element) -> str:
-    """Text content of ``el`` with inline formatting (children rendered, tails kept)."""
-    parts = [el.text or ""]
-    for c in el:
-        parts.append(_inline_element(c))
-        parts.append(c.tail or "")
-    return re.sub(r"[ \t]+", " ", "".join(parts))
+MAX_PACKAGE_FILE = 25 * 1024 * 1024
 
 
-def _inline_element(c: Element) -> str:
-    tag = _local(c.tag).lower()
-    inner = _inline(c)
-    if tag in ("b", "strong") and inner.strip():
-        return f"**{inner.strip()}**"
-    if tag in ("i", "em") and inner.strip():
-        return f"*{inner.strip()}*"
-    if tag == "br":
-        return "  \n"
-    if tag == "a":
-        href = c.get("href")
-        return f"[{inner}]({href})" if href else inner
-    if tag in ("object", "img"):
-        return "[image]"
-    if tag == "code":
-        return f"`{inner}`"
-    return inner
-
-
-def _blocks(el: Element, out: list[str], list_prefix: str | None) -> None:
-    inline_buf = [el.text or ""]
-
-    def flush() -> None:
-        text = "".join(inline_buf).strip()
-        if text:
-            out.append(re.sub(r"[ \t]+", " ", text))
-        inline_buf.clear()
-
-    for c in el:
-        tag = _local(c.tag).lower()
-        if tag in ("p", "div", "blockquote", "pre"):
-            flush()
-            if any(_local(g.tag).lower() in ("p", "div", "ul", "ol", "table") for g in c):
-                _blocks(c, out, list_prefix)
-            else:
-                out.append(_inline(c).strip())
-        elif tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            flush()
-            out.append("#" * int(tag[1]) + " " + _inline(c).strip())
-        elif tag in ("ul", "ol"):
-            flush()
-            lines = []
-            for n, li in enumerate(_children(c, "li"), start=1):
-                marker = f"{n}." if tag == "ol" else "-"
-                lines.append(f"{marker} {_inline(li).strip()}")
-            out.append("\n".join(lines))
-        elif tag == "table":
-            flush()
-            out.append(_table(c))
-        else:
-            inline_buf.append(_inline_element(c))
-        inline_buf.append(c.tail or "")
-    flush()
-
-
-def _table(t: Element) -> str:
-    rows = [r for r in t.iter() if _local(r.tag).lower() == "tr"]
-    cells = [[_inline(td).strip().replace("|", "\\|") for td in r if _local(td.tag).lower() in ("td", "th")]
-             for r in rows]
-    cells = [r for r in cells if r]
-    if not cells:
-        return ""
-    width = max(len(r) for r in cells)
-    cells = [r + [""] * (width - len(r)) for r in cells]
-    lines = ["| " + " | ".join(cells[0]) + " |", "|" + " --- |" * width]
-    lines += ["| " + " | ".join(r) + " |" for r in cells[1:]]
-    return "\n".join(lines)
+def _norm_path(path: str) -> str:
+    return path.replace("\\", "/").lstrip("/").removeprefix("./")
 
 
 # --- parsing -----------------------------------------------------------------------------------
@@ -214,6 +142,7 @@ class Specification:
 
 @dataclass
 class ReqIF:
+    files: dict[str, bytes]  # other files of a .reqifz archive (images), by path relative to the .reqif
     title: str | None
     enums: dict[str, str]  # enum value id -> label
     types: dict[str, SpecType]
@@ -222,22 +151,37 @@ class ReqIF:
     specifications: list[Specification]
 
 
-def _read_bytes(filename: str, content: bytes) -> bytes:
+def _read_package(filename: str, content: bytes) -> tuple[bytes, dict[str, bytes]]:
     if filename.lower().endswith(".reqifz") or content[:2] == b"PK":
         try:
             with zipfile.ZipFile(io.BytesIO(content)) as z:
                 name = next((n for n in z.namelist() if n.lower().endswith(".reqif")), None)
                 if name is None:
                     raise ValidationFailed("The .reqifz archive contains no .reqif file")
-                return z.read(name)
+                base = name.rsplit("/", 1)[0] + "/" if "/" in name else ""
+                files: dict[str, bytes] = {}
+                total = 0
+                for info in z.infolist():
+                    if info.is_dir() or info.filename == name or info.file_size > MAX_PACKAGE_FILE:
+                        continue
+                    total += info.file_size
+                    if total > 10 * MAX_PACKAGE_FILE:
+                        break
+                    path = _norm_path(info.filename)
+                    data = z.read(info.filename)
+                    files[path] = data
+                    if base and path.startswith(base):
+                        files[path[len(base):]] = data
+                return z.read(name), files
         except zipfile.BadZipFile:
             raise ValidationFailed("Not a valid .reqifz archive") from None
-    return content
+    return content, {}
 
 
 def parse_reqif(filename: str, content: bytes) -> ReqIF:
     try:
-        root = SafeET.fromstring(_read_bytes(filename, content))
+        data, files = _read_package(filename, content)
+        root = SafeET.fromstring(data)
     except DomainError:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -284,7 +228,7 @@ def parse_reqif(filename: str, content: bytes) -> ReqIF:
                 continue
             if tag == "ATTRIBUTE-VALUE-XHTML":
                 the = _child(av, "THE-VALUE")
-                out[def_id] = xhtml_to_markdown(the) if the is not None else ""
+                out[def_id] = HtmlText(xhtml_to_html(the)) if the is not None else HtmlText("")
             elif tag == "ATTRIBUTE-VALUE-ENUMERATION":
                 out[def_id] = [enums.get(r.text.strip(), r.text.strip())
                                for r in _children(_child(av, "VALUES")) if r.text]
@@ -317,8 +261,8 @@ def parse_reqif(filename: str, content: bytes) -> ReqIF:
     specs = [Specification(id=sp.get("IDENTIFIER", ""), name=sp.get("LONG-NAME") or "Imported specification",
                            children=hierarchy(_child(sp, "CHILDREN")))
              for sp in _children(_child(content_el, "SPECIFICATIONS"), "SPECIFICATION")]
-    return ReqIF(title=title_el.text if title_el is not None else None, enums=enums, types=types, objects=objects,
-                 relations=relations, specifications=specs)
+    return ReqIF(files=files, title=title_el.text if title_el is not None else None, enums=enums, types=types,
+                 objects=objects, relations=relations, specifications=specs)
 
 
 # --- mapping -----------------------------------------------------------------------------------
@@ -387,9 +331,22 @@ def _first(obj: SpecObject, ids: list[str]) -> str | None:
         v = obj.values.get(a)
         if isinstance(v, list):
             v = ", ".join(v)
+        if isinstance(v, HtmlText) and not richtext.to_text(v).strip() and "<img" not in v:
+            continue
         if v not in (None, ""):
-            return str(v)
+            return v if isinstance(v, str) else str(v)
     return None
+
+
+def _plain_value(value: Any) -> Any:
+    return _plain(value) if isinstance(value, HtmlText) else value
+
+
+def _plain(value: str | None) -> str | None:
+    """Single-line attributes (title, ID, fields) as plain text even when the partner sent XHTML."""
+    if isinstance(value, HtmlText):
+        return re.sub(r"\s+", " ", richtext.to_text(value)).strip()
+    return value
 
 
 def _field_value(target: ItemTypeDef, field_key: str, raw: Any) -> Any:
@@ -491,6 +448,14 @@ def import_reqif(
     actions: dict[str, int] = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0, "frozen": 0, "links": 0}
     item_of: dict[str, Item] = {}
     savepoint = db.begin_nested()
+    images = ProjectImages(db, project, actor, extra={k: v for k, v in doc.files.items()})
+
+    def rich(value: str) -> str:
+        if isinstance(value, HtmlText):
+            return richtext.canonical(value, lambda src, attrs: images(_norm_path(src) if src in doc.files or
+                                                                       _norm_path(src) in doc.files else src, attrs))
+        return richtext.plain_to_html(value or "")
+
     try:
         for obj in doc.objects.values():
             type_key = resolved_types.get(obj.type_id or "")
@@ -499,18 +464,20 @@ def import_reqif(
                 actions["skipped"] += 1
                 continue
             plan = plans[obj.type_id or ""]
-            text = _first(obj, plan.text) or ""
+            text = rich(_first(obj, plan.text) or "")
+            plain = richtext.to_text(text)
             # DOORS-style exports mark headings by a chapter name without text within the same object type.
-            if heading_type and _first(obj, plan.chapter) and not text.strip():
+            if heading_type and _first(obj, plan.chapter) and not plain.strip():
                 type_key = heading_type
                 actions["headings"] = actions.get("headings", 0) + 1
             target = model.item_type(type_key)
-            first_line = re.sub(r"[*_`#>]", "", text.splitlines()[0]).strip()[:120] if text else None
-            title = _first(obj, plan.title) or obj.long_name or first_line or obj.id
+            first_line = plain.splitlines()[0].strip()[:120] if plain.strip() else None
+            title = _plain(_first(obj, plan.title)) or obj.long_name or first_line or obj.id
             title = re.sub(r"\s+", " ", title).strip()[:500]
             fields = {k: v for a, k in plan.fields.items()
-                      if target.field(k) is not None and (v := _field_value(target, k, obj.values.get(a))) is not None}
-            ident = _first(obj, plan.ident)
+                      if target.field(k) is not None and (v := _field_value(target, k, _plain_value(obj.values.get(a))))
+                      is not None}
+            ident = _plain(_first(obj, plan.ident))
             try:
                 if obj.id in existing:
                     item = db.get(Item, existing[obj.id])

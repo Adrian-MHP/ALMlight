@@ -1,13 +1,13 @@
 # 10 Live documents — feature parity with enterprise ALM
 
-ALMlight's documents follow the *live document* idea of enterprise ALM suites (e.g. Polarion LiveDocs): a document is
+Ariadne's documents follow the *live document* idea of enterprise ALM suites (e.g. Polarion LiveDocs): a document is
 an ordered outline of individually versioned, traceable items with workflow. Before building the 0.3 increment we
 checked the published feature set of such suites (release notes, help pages and feature descriptions; see sources).
-This page maps those capabilities to ALMlight.
+This page maps those capabilities to Ariadne.
 
-| Capability | Typical enterprise ALM | ALMlight |
+| Capability | Typical enterprise ALM | Ariadne |
 |---|---|---|
-| Document = outline of work items | LiveDoc with work items, headings, free text | ✔ Document items with ordered structural links; headings; Markdown text per item |
+| Document = outline of work items | LiveDoc with work items, headings, free text | ✔ Document items with ordered structural links; headings; rich text per item |
 | Automatic heading numbering | ✔ | ✔ 1, 1.1, 1.1.1 in view, Word and PDF (switchable) |
 | Document history / revisions | every change is a revision; open any revision | ✔ document history timeline (content, structure, lifecycle, comments, baselines); **open the document as of any change point** (read-only, exact texts, versions, states, outline) |
 | Item history / versions | ✔ | ✔ revision.iteration versions, diff, restore; **open any version read-only** with older/newer navigation |
@@ -28,8 +28,9 @@ This page maps those capabilities to ALMlight.
 | Document workflow & signatures | approvals, e-signatures | ✔ document lifecycle with release guard (all items approved), approvals, four-eyes, e-signature |
 | Suspect links in documents | ✔ | ✔ suspect badge per block |
 | Recycle bin | restore deleted items | ✔ restore deleted items with their links and document position |
-| Collaborative real-time co-editing | ✔ (enterprise editors) | not planned for SMEs; optimistic locking prevents lost updates |
-| Rich-text editor with embedded tables/images | ✔ | Markdown with tables; images as attachments (rich editor on the roadmap) |
+| Collaboration notifications | who has the document open, who is editing, who saved (pushed, no refresh) | ✔ presence avatars per document and item, orange marker on blocks being edited, live refresh and "… changed the document" notifications |
+| Concurrent editing | save-based editing; concurrent changes merged on save | ✔ **real-time co-editing** of the same text with live cursors and names (CRDT, no locks); saved as one version with co-authors; read-only for viewers and frozen items |
+| Rich-text editor with tables and images | ✔ (rich text fields, tables, images) | ✔ formatting, headings, lists, quotes, code, alignment, links, tables (rows/columns, header, merge/split), images by upload, paste or drag & drop, `#` item references — and the same content in Word, PDF, ReqIF and Excel |
 
 ![Document history with time travel](images/document-history.png)
 
@@ -42,6 +43,8 @@ Everything a past view needs is immutable or versioned: item contents are `ItemV
 `created_at`–`deleted_at`). Opening a document "as of T" therefore reconstructs exactly the outline, the item versions
 and their states at T — not an approximation. Baseline views read the baseline's frozen tables.
 
+See [11-rich-text-and-co-editing](11-rich-text-and-co-editing.md) for how co-editing and rich text work.
+
 ## Sources
 
 - Polarion ALM 19.2 — document baselines: https://blogs.sw.siemens.com/polarion/polarion-alm-19-2-whats-new-and-noteworthy/
@@ -51,3 +54,6 @@ and their states at T — not an approximation. Baseline views read the baseline
 - Comments and threads (help): https://docs.plm.automation.siemens.com/content/polarion/20/help/en_US/user_and_administration_help/user_guide/work_with_documents/comments_and_threads.html
 - About baselines (help): https://docs.plm.automation.siemens.com/content/polarion/19.1/help/en_US/user_and_administration_help/user_guide/baselines/about_baselines.html
 - Community diff tool (compare documents across projects): https://extensions.polarion.com/extensions/476-diff-tool
+- Polarion ALM 21 R1 — collaboration notifications in LiveDocs: https://blogs.sw.siemens.com/polarion/polarion-alm-21-r1-whats-new-and-noteworthy/
+- Polarion ALM 21 R2 — editing/saving indicators: https://blogs.sw.siemens.com/polarion/polarion-alm-21-r2-whats-new-and-noteworthy/
+- Polarion rich text (tables in rich text fields, table row/column editing): https://blogs.sw.siemens.com/polarion/whats-new-and-noteworthy-in-polarion-2015-sr3/

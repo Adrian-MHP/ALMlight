@@ -141,3 +141,32 @@ curl -X POST ... $ALM/projects/DEMO/collections/<id>/status -d '{"status":"close
 ```
 
 Note: links are versioned — `PATCH /links/{id}` returns the id of the new link version.
+
+## 9.10 Rich text and images
+
+`description` is rich text. Requests may send HTML (it is sanitised and normalised) or Markdown/plain text (it is
+converted); responses always return canonical HTML. Pasted `data:` images in HTML are stored automatically.
+
+```bash
+# upload an image (contributor) and reference it in a text
+curl -F file=@plot.png $ALM/projects/DEMO/images          # -> {"url": "/api/v1/images/<sha256>", ...}
+curl -X PATCH ... $ALM/projects/DEMO/items/SYS-7 \
+  -d '{"description": "<p>See the plot:</p><img src=\"/api/v1/images/<sha256>\" alt=\"plot\">"}'
+curl ... $ALM/images/<sha256>                              # members of a project using the image only
+```
+
+Diffs (`GET …/diff`, document compare) include `html_diff` with `<ins>`/`<del>` next to the plain-text diff.
+ReqIF exports become `.reqifz` archives when they contain images (`?format=reqif|reqifz|auto`).
+
+## 9.11 Live editing and the live channel
+
+| Endpoint | Purpose |
+|---|---|
+| `WS /api/v1/collab/items/{item id}?base=<content_hash>` | Yjs co-editing session (standard y-websocket protocol; documents `body` and `title`) |
+| `GET /api/v1/projects/{k}/items/{key}/collab` | Session status: participants, unsaved changes |
+| `POST /api/v1/projects/{k}/items/{key}/collab/save` | Save the session as a new version now |
+| `WS /api/v1/live` | JSON: `subscribe` / `presence` from the client; `change` (audit events after commit), `presence` from the server |
+
+Authentication: the session cookie (browsers) or `?token=<API token>`. Close codes: `4001` the text changed
+elsewhere (reload), `4409` the start state is outdated (reload), `4401` not authenticated / cross-site, `4404` not found.
+`content_hash` is part of every item and document node response.

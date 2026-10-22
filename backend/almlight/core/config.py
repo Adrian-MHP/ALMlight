@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     demo_data: bool = False
 
     max_upload_mb: int = 100
+    max_image_mb: int = 15
+
+    # Live co-editing: a session is saved as a new item version when its last editor leaves (after a short
+    # grace period, so a page reload does not create a version) or after this many idle seconds.
+    collab_leave_grace_seconds: float = 8.0
+    collab_idle_seconds: float = 300.0
+    collab_draft_save_seconds: float = 2.0
     cors_origins: list[str] = Field(default_factory=list)
     log_level: str = "INFO"
 

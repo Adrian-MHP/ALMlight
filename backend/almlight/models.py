@@ -4,8 +4,10 @@ from almlight.core.db import Base
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
 from almlight.modules.branches.models import Branch, BranchItem
+from almlight.modules.collab.models import CollabDraft
 from almlight.modules.doc_collections.models import Collection, CollectionEntry
 from almlight.modules.identity.models import ApiToken, User
+from almlight.modules.images.models import InlineImage
 from almlight.modules.integrations.models import (
     ExternalRef,
     IntegrationSetting,
@@ -32,10 +34,12 @@ __all__ = [
     "Blob",
     "Branch",
     "BranchItem",
+    "CollabDraft",
     "Collection",
     "CollectionEntry",
     "Comment",
     "ExternalRef",
+    "InlineImage",
     "IntegrationSetting",
     "Item",
     "ItemVersion",

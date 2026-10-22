@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from almlight.core.db import get_db
 from almlight.core.deps import admin_user, current_user
 from almlight.core.errors import ValidationFailed
+from almlight.modules.collab.router import flush_project
 from almlight.modules.identity.models import User
 from almlight.modules.io import archive, reqif, reqif_import, tabular
 from almlight.modules.io.document_export import render_docx, render_pdf
@@ -50,6 +51,8 @@ def import_items(project_key: str, file: UploadFile = File(...), dry_run: bool =
     content = file.file.read(MAX_IMPORT + 1)
     if len(content) > MAX_IMPORT:
         raise ValidationFailed("File too large")
+    if not dry_run:
+        flush_project(project.id)
     result = tabular.import_table(db, project, user, file.filename or "import.csv", content,
                                   default_type=default_type, dry_run=dry_run)
     db.commit()
@@ -78,17 +81,21 @@ def import_archive(file: UploadFile = File(...), key: str = Form(...), name: str
 
 
 @router.get("/projects/{project_key}/reqif", summary="ReqIF export of all requirements")
-def project_reqif(project_key: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+def project_reqif(project_key: str, format: str = Query(default="auto", pattern="^(auto|reqif|reqifz)$"),
+                  user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    return _download(reqif.export_reqif(db, project), f"{project.key}-requirements.reqif", "application/xml")
+    content, ext, media = reqif.export_package(db, project, None, format)
+    return _download(content, f"{project.key}-requirements.{ext}", media)
 
 
-@router.get("/projects/{project_key}/items/{item_key}/reqif", summary="ReqIF export of a specification")
-def item_reqif(project_key: str, item_key: str, user: User = Depends(current_user),
-               db: Session = Depends(get_db)) -> Response:
+@router.get("/projects/{project_key}/items/{item_key}/reqif", summary="ReqIF export of a specification "
+            "(.reqifz when it contains images)")
+def item_reqif(project_key: str, item_key: str, format: str = Query(default="auto", pattern="^(auto|reqif|reqifz)$"),
+               user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
     root = items_svc.get_item(db, project, item_key)
-    return _download(reqif.export_reqif(db, project, root), f"{root.key}.reqif", "application/xml")
+    content, ext, media = reqif.export_package(db, project, root, format)
+    return _download(content, f"{root.key}.{ext}", media)
 
 
 @router.post("/projects/{project_key}/import-reqif", summary="Import a ReqIF file (.reqif/.reqifz), dry run by default")
@@ -104,6 +111,8 @@ def import_reqif(project_key: str, file: UploadFile = File(...), dry_run: bool =
         maps = json.loads(mapping) if mapping else {}
     except json.JSONDecodeError:
         raise ValidationFailed("mapping must be JSON") from None
+    if not dry_run:
+        flush_project(project.id)
     result = reqif_import.import_reqif(db, project, user, file.filename or "import.reqif", content, dry_run=dry_run,
                                        type_mapping=maps.get("types"), relation_mapping=maps.get("relations"),
                                        default_type=default_type)

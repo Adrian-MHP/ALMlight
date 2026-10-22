@@ -234,6 +234,7 @@ def _apply(
                          actor_id=actor.id if actor else None, comment=comment, version_no=item.version_no,
                          approval_request_id=request.id if request else None, signed=signed))
     db.flush()
+    db.info.setdefault("access_changed", set()).add(item.id)  # live editing sessions re-check write access
     audit.record(db, actor=actor, action="item.transitioned", entity_type="item", entity_id=item.id,
                  project_id=project.id,
                  summary=f"{item.key} {item.version_label}: {old} -> {t.to} ({t.label})",

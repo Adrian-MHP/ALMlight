@@ -20,6 +20,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from almlight.core.errors import ValidationFailed
+from almlight.core.richtext import html_diff, to_text
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.baselines.models import Baseline, BaselineItem
 from almlight.modules.branches.models import BranchItem
@@ -205,9 +206,12 @@ def compare(db: Session, left: DocSnapshot, right: DocSnapshot, *, fields: list[
 
     def changes(ln: DocNode, rn: DocNode) -> list[dict[str, Any]]:
         out = []
-        for name, a, b in (("title", ln.title, rn.title), ("description", ln.description, rn.description)):
-            if a != b:
-                out.append({"field": name, "old": a, "new": b, "diff": word_diff(a, b)})
+        if ln.title != rn.title:
+            out.append({"field": "title", "old": ln.title, "new": rn.title, "diff": word_diff(ln.title, rn.title)})
+        if ln.description != rn.description:
+            out.append({"field": "description", "old": ln.description, "new": rn.description,
+                        "diff": word_diff(to_text(ln.description), to_text(rn.description)),
+                        "html_diff": html_diff(ln.description, rn.description)})
         for name, a, b in (("state", ln.state, rn.state), ("version", ln.version, rn.version),
                            ("applicability", ln.applicability, rn.applicability)):
             if a != b and (name != "version" or ln.item_id == rn.item_id):

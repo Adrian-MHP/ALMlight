@@ -1,4 +1,4 @@
-# 7 Configuration guide: tailoring ALMlight per customer
+# 7 Configuration guide: tailoring Ariadne per customer
 
 A customer's information model is a **process template** — a YAML file in
 `backend/almlight/modules/projects/templates/`. New projects copy it; existing projects can change their copy via

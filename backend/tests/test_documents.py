@@ -62,7 +62,7 @@ def test_document_time_travel(team, project):
     assert _titles(past["root"]) == [("1 Measurement", ["Measure pressure", "Accuracy"]),
                                      ("2 Interfaces", ["Current output"])]
     old_r1 = past["root"]["children"][0]["children"][0]
-    assert old_r1["description"] == "Range 0-10 bar." and old_r1["state_key"] == "draft" and old_r1["version"] == "A.1"
+    assert old_r1["description"] == "<p>Range 0-10 bar.</p>" and old_r1["state_key"] == "draft" and old_r1["version"] == "A.1"
     assert now["root"]["children"][0]["children"][1]["state_key"] == "in_review"
     c.get(f"{p}/items/{spec['key']}/document?at=2000-01-01T00:00:00Z", expect=404)
     c.get(f"{p}/items/{spec['key']}/document?at=yesterday", expect=422)
@@ -178,11 +178,11 @@ def test_word_round_trip(team, project):
 
     dry = upload(edited)
     assert dry["applied"] is False and dry["summary"]["updated"] == 2 and dry["summary"]["comments"] == 1
-    assert c.get(f"{p}/items/{r1['key']}")["description"] == "Range 0-10 bar."
+    assert c.get(f"{p}/items/{r1['key']}")["description"] == "<p>Range 0-10 bar.</p>"
     res = upload(edited, dry_run=False)
     assert res["applied"] is True
     after = c.get(f"{p}/items/{r1['key']}")
-    assert after["description"] == "Range 0-25 bar." and after["version"] == "A.2"
+    assert after["description"] == "<p>Range 0-25 bar.</p>" and after["version"] == "A.2"
     assert c.get(f"{p}/items/{r3['key']}")["title"] == "Current output 4-20 mA"
     assert c.get(f"{p}/items/{r2['key']}")["version"] == "A.2"  # untouched: still the exported version
     comments = c.get(f"{p}/items/{r1['key']}/comments")
@@ -202,7 +202,7 @@ def test_word_round_trip(team, project):
     res = upload(buf.getvalue(), dry_run=False)
     statuses = {i["key"]: i["status"] for i in res["items"]}
     assert statuses[r1["key"]] == "conflict" and statuses[r2["key"]] == "frozen"
-    assert c.get(f"{p}/items/{r1['key']}")["description"] == "Changed in ALMlight meanwhile."
+    assert c.get(f"{p}/items/{r1['key']}")["description"] == "<p>Changed in ALMlight meanwhile.</p>"
 
     # Wrong document / not a round-trip export / comments-only mode.
     other = new_item(c, project, "specification", "Other")

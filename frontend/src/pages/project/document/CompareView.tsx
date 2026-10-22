@@ -4,7 +4,7 @@ import { IconArrowsMove } from "@tabler/icons-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useCompare } from "@/api/hooks";
 import type { CompareResult, DocStateRef } from "@/api/types";
-import { Markdown } from "@/components/Markdown";
+import { RichDiff, RichText } from "@/components/rich/RichText";
 import { useProjectCtx } from "../ProjectLayout";
 
 const STATUS = {
@@ -35,7 +35,7 @@ function Side({ row, side }: { row: Row; side: "left" | "right" }) {
   const node = row[side];
   if (!node) return <Text size="sm" c="dimmed" fs="italic">{side === "left" ? "— not present —" : "— removed —"}</Text>;
   const titleDiff = row.changes.find((c) => c.field === "title")?.diff;
-  const descDiff = row.changes.find((c) => c.field === "description")?.diff;
+  const descHtml = row.changes.find((c) => c.field === "description")?.html_diff;
   return (
     <Stack gap={4}>
       <Group gap={6}>
@@ -48,7 +48,8 @@ function Side({ row, side }: { row: Row; side: "left" | "right" }) {
         {node.state && <Badge size="xs" variant="light" color="gray">{node.state}</Badge>}
         <Text size="xs" c="dimmed" className="mono">{node.version}</Text>
       </Group>
-      {!node.is_heading && (descDiff ? <DiffText diff={descDiff} side={side} /> : <Markdown text={node.description} empty="" />)}
+      {!node.is_heading && (descHtml ? <RichDiff html={descHtml} side={side === "left" ? "old" : "new"} />
+        : <RichText html={node.description} empty="" />)}
     </Stack>
   );
 }

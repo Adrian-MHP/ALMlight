@@ -7,7 +7,7 @@ a round trip: export, review in Word, import edits and comments back into the to
 `alm:<item id>:<version no>:<part>`; the document carries its origin in the core property *identifier*. Two modes:
 *edit* (texts editable inside the controls) and *comments* (Word document protection: comments only). The import reads
 the controls, converts Word content to Markdown with the same converter that is applied to the exported version (so
-untouched text is never a change), and applies a 3-way rule against the exported version: apply if ALMlight did not
+untouched text is never a change), and applies a 3-way rule against the exported version: apply if Ariadne did not
 change that part meanwhile, otherwise report a conflict; frozen items are reported. Word comments — with replies and
 resolved state (`commentsExtended.xml`) — become document comments on the item they were made on; a second import of
 the same file adds no duplicates. Dry run first, all changes go through the item service (versions, audit, suspect links).

@@ -2,7 +2,8 @@
 
 Exports a specification (its structural sub-tree) or all requirement-category items of a
 project as SPEC-OBJECTs with typed attributes, SPEC-RELATIONs for links between exported
-items and a SPECIFICATION hierarchy. Descriptions are exported as XHTML paragraphs.
+items and a SPECIFICATION hierarchy. Descriptions are exported as rich XHTML (formatting, lists, tables, links);
+embedded images travel as XHTML objects in a .reqifz archive.
 This is the format DOORS, Polarion, codebeamer and most OEM supplier portals exchange.
 """
 
@@ -15,7 +16,7 @@ from xml.etree import ElementTree as ET
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from almlight import __version__
+from almlight import PRODUCT, __version__
 from almlight.modules.items.models import Item
 from almlight.modules.links import service as links_svc
 from almlight.modules.links.models import Link
@@ -45,6 +46,44 @@ def _string_value(values: ET.Element, definition_id: str, value: str) -> None:
 
 
 def export_reqif(db: Session, project: Project, root: Item | None = None) -> bytes:
+    """The .reqif XML only (image objects reference files that only a .reqifz carries)."""
+    return build_reqif(db, project, root)[0]
+
+
+def export_package(db: Session, project: Project, root: Item | None = None,
+                   fmt: str = "auto") -> tuple[bytes, str, str]:
+    """``(content, extension, media type)``: a .reqifz archive when images are included (or requested)."""
+    import io
+    import zipfile
+
+    xml, files = build_reqif(db, project, root)
+    if fmt == "reqifz" or (fmt == "auto" and files):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr(f"{root.key if root else project.key}.reqif", xml)
+            for path, data in sorted(files.items()):
+                z.writestr(path, data)
+        return buf.getvalue(), "reqifz", "application/zip"
+    return xml, "reqif", "application/xml"
+
+
+def build_reqif(db: Session, project: Project, root: Item | None = None) -> tuple[bytes, dict[str, bytes]]:
+    from almlight.modules.images.service import EXTENSIONS
+    from almlight.modules.io.rich_render import _image_info, image_bytes, xhtml_elements
+
+    files: dict[str, bytes] = {}
+
+    def add_file(src: str) -> str | None:
+        data = image_bytes(src)
+        if data is None:
+            return None
+        fmt = _image_info(data)[2].upper()
+        ext = EXTENSIONS.get({"PNG": "image/png", "JPEG": "image/jpeg", "GIF": "image/gif",
+                              "WEBP": "image/webp"}.get(fmt, ""), "bin")
+        path = f"images/{src.rsplit('/', 1)[-1]}.{ext}"
+        files[path] = data
+        return path
+
     model = project.model
     now = datetime.now(UTC).isoformat()
     structural = model.structural_link_types()
@@ -73,8 +112,8 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
 
     reqif = ET.Element(_q("REQ-IF"))
     header = _sub(_sub(reqif, "THE-HEADER"), "REQ-IF-HEADER", identifier=_id(project.key, "header", now))
-    for tag, text in (("CREATION-TIME", now), ("REQ-IF-TOOL-ID", f"ALMlight {__version__}"),
-                      ("REQ-IF-VERSION", "1.0"), ("SOURCE-TOOL-ID", "ALMlight"),
+    for tag, text in (("CREATION-TIME", now), ("REQ-IF-TOOL-ID", f"{PRODUCT} {__version__}"),
+                      ("REQ-IF-VERSION", "1.0"), ("SOURCE-TOOL-ID", PRODUCT),
                       ("TITLE", f"{project.key} — {root.title if root else project.name}")):
         _sub(header, tag).text = text
     content = _sub(_sub(reqif, "CORE-CONTENT"), "REQ-IF-CONTENT")
@@ -143,10 +182,9 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
             _string_value(values, attr_ids[(it.type_key, akey)], value)
         xv = _sub(values, "ATTRIBUTE-VALUE-XHTML")
         _sub(_sub(xv, "DEFINITION"), "ATTRIBUTE-DEFINITION-XHTML-REF").text = attr_ids[(it.type_key, "_description")]
-        div = ET.SubElement(_sub(xv, "THE-VALUE"), f"{{{XHTML}}}div")
-        for para in (it.description or "").split("\n\n"):
-            if para.strip():
-                ET.SubElement(div, f"{{{XHTML}}}p").text = para.strip()
+        the_value = _sub(xv, "THE-VALUE")
+        for el in xhtml_elements(it.description or "", add_file):
+            the_value.append(el)
         t = model.item_type(it.type_key)
         for f in t.fields if t else []:
             v = it.fields.get(f.key)
@@ -194,4 +232,4 @@ def export_reqif(db: Session, project: Project, root: Item | None = None) -> byt
         for it in items:
             h = _sub(children_el, "SPEC-HIERARCHY", identifier=_id("sh", it.id), last_change=now)
             _sub(_sub(h, "OBJECT"), "SPEC-OBJECT-REF").text = so_id(it.id)
-    return ET.tostring(reqif, encoding="utf-8", xml_declaration=True)
+    return ET.tostring(reqif, encoding="utf-8", xml_declaration=True), files

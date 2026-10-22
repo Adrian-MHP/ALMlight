@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Alert, Anchor, Box, Button, Center, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { Alert, Anchor, Box, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { IconAlertCircle, IconCheck } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
 import { Logo } from "@/components/Logo";
+import { PRODUCT } from "@/lib/product";
 
 export function LoginPage() {
   const [username, setUsername] = useState("");
@@ -32,29 +33,40 @@ export function LoginPage() {
   }
 
   return (
-    <Center mih="100vh" bg="var(--mantine-color-default-hover)">
-      <Box w={380}>
-        <Stack align="center" mb="lg" gap={4}>
-          <Logo size={34} />
-          <Text c="dimmed" size="sm">Lightweight engineering backbone</Text>
+    <div className="login-split">
+      <div className="login-brand">
+        <Logo size={36} inverted />
+        <Title order={2} c="white" mt={48} maw={420} fw={600}>The engineering thread through requirements, documents, variants and change.</Title>
+        <Stack gap={10} mt="xl">
+          {["Live documents with real-time co-editing", "Full version history, baselines and time travel",
+            "Traceability, change control and approvals", "Word, ReqIF and Excel round trips"].map((t) => (
+            <Group key={t} gap="xs" wrap="nowrap"><IconCheck size={16} color="var(--mantine-color-petrol-3)" />
+              <Text c="gray.3" size="sm">{t}</Text></Group>
+          ))}
         </Stack>
-        <Paper withBorder shadow="sm" p="xl" radius="lg">
-          <form onSubmit={submit}>
-            <Stack>
-              <Title order={4}>Sign in</Title>
-              {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
-              <TextInput label="Username" value={username} onChange={(e) => setUsername(e.currentTarget.value)}
-                autoFocus autoComplete="username" required data-testid="login-username" />
-              <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)}
-                autoComplete="current-password" required data-testid="login-password" />
-              <Button type="submit" loading={busy} fullWidth data-testid="login-submit">Sign in</Button>
-            </Stack>
-          </form>
-        </Paper>
-        <Text size="xs" c="dimmed" ta="center" mt="md">
-          API documentation: <Anchor href="/api/v1/docs" size="xs">/api/v1/docs</Anchor>
-        </Text>
-      </Box>
-    </Center>
+        <Text c="gray.6" size="xs" className="login-foot">Runs on your own infrastructure · open REST API</Text>
+      </div>
+      <Center className="login-form">
+        <Box w={360}>
+          <Title order={3} mb={4}>Sign in</Title>
+          <Text c="dimmed" size="sm" mb="lg">Use your {PRODUCT} account.</Text>
+          <Paper withBorder p="lg">
+            <form onSubmit={submit}>
+              <Stack>
+                {error && <Alert color="red" icon={<IconAlertCircle size={16} />}>{error}</Alert>}
+                <TextInput label="Username" value={username} onChange={(e) => setUsername(e.currentTarget.value)}
+                  autoFocus autoComplete="username" required data-testid="login-username" />
+                <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)}
+                  autoComplete="current-password" required data-testid="login-password" />
+                <Button type="submit" loading={busy} fullWidth data-testid="login-submit">Sign in</Button>
+              </Stack>
+            </form>
+          </Paper>
+          <Text size="xs" c="dimmed" ta="center" mt="md">
+            API documentation: <Anchor href="/api/v1/docs" size="xs">/api/v1/docs</Anchor>
+          </Text>
+        </Box>
+      </Center>
+    </div>
   );
 }

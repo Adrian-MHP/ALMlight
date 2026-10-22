@@ -12,6 +12,7 @@ from almlight.core.db import get_db
 from almlight.core.deps import current_user
 from almlight.core.errors import NotFound
 from almlight.core.schemas import Ok, UserDirectory
+from almlight.modules.collab.router import flush_item
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
 from almlight.modules.items.models import Item
@@ -78,6 +79,7 @@ def run_transition(project_key: str, item_key: str, transition_key: str, body: T
                    user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user, "viewer")
     item = items_svc.get_item(db, project, item_key)
+    flush_item(db, item)  # the version that is reviewed/released includes the latest live edits
     result = engine.execute_transition(db, project, user, item, transition_key, comment=body.comment,
                                        password=body.password)
     db.commit()
@@ -127,6 +129,9 @@ def vote(project_key: str, request_id: uuid.UUID, body: VoteIn, user: User = Dep
          db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user)
     req = _get_request(db, project, request_id)
+    item = db.get(Item, req.item_id)
+    if item is not None:
+        flush_item(db, item)
     result = engine.vote(db, project, user, req, decision=body.decision, comment=body.comment,
                          password=body.password)
     db.commit()

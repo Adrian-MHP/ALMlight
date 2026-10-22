@@ -2,7 +2,7 @@
 
 ## Vision
 
-**ALMlight is a digital engineering backbone for small and medium-sized engineering companies**: one connected,
+**Ariadne is a digital engineering backbone for small and medium-sized engineering companies**: one connected,
 versioned and auditable source of truth for requirements, architecture, verification, documents, variants and
 changes, without the licence costs and operating effort of enterprise ALM/PLM suites such as Polarion,
 Teamcenter or 3DEXPERIENCE.
@@ -27,14 +27,14 @@ Enterprise tools solve this but cost six-figure licence and integration budgets 
 
 ## Delivery model
 
-ALMlight is delivered by MHP as a **tailored solution per customer**:
+Ariadne is delivered by MHP as a **tailored solution per customer**:
 
 1. *Assess*: workshops on the customer's engineering process and pain points.
 2. *Model*: derive the customer's information model (item types, fields, link types, workflows) —
    "use case first, information model second, tool third".
 3. *Configure*: express that model as a process template (YAML) — no code changes for most customers.
 4. *Extend*: add connectors or small plugins where the customer's tool landscape needs them.
-5. *Hand over*: the customer runs ALMlight on their own infrastructure with minimal maintenance.
+5. *Hand over*: the customer runs Ariadne on their own infrastructure with minimal maintenance.
 
 Product consequences:
 
@@ -75,7 +75,8 @@ Product consequences:
 | Capability | MVP (implemented) | Later (prepared) |
 |---|---|---|
 | Projects, configurable item types & fields | ✔ templates, JSON/YAML, compatibility checks | Visual template editor |
-| Requirements & specifications | ✔ levels, live documents, ordering, headings, Word/PDF export (live or from a baseline) | Rich-text editor |
+| Requirements & specifications | ✔ levels, live documents, ordering, headings, rich text with tables and images, Word/PDF export (live or from a baseline) | Text-anchored comments |
+| Collaboration | ✔ real-time co-editing with live cursors, presence, live refresh, threaded comments, approvals inbox | Notifications by e-mail |
 | Documents & files | ✔ controlled documents, versioned attachments (SHA-256 store) | S3 storage, viewer for CAD/PDF |
 | Relations & traceability | ✔ typed links, rules, cycles, suspect links, matrix, impact analysis | Graph visualisation |
 | Versioning & history | ✔ revisions/iterations, diff, restore, timeline; open any item version or any document state (time travel) | — |

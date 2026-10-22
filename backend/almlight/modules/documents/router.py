@@ -12,6 +12,7 @@ from almlight.core.db import get_db
 from almlight.core.deps import current_user
 from almlight.core.errors import ValidationFailed
 from almlight.core.schemas import UserDirectory
+from almlight.modules.collab.router import flush_project
 from almlight.modules.documents import service, word_roundtrip
 from almlight.modules.identity.models import User
 from almlight.modules.io.document_snapshot import build_snapshot, snapshot_json
@@ -77,6 +78,8 @@ def import_docx(project_key: str, item_key: str, file: UploadFile = File(...), d
     content = file.file.read(MAX_DOCX + 1)
     if len(content) > MAX_DOCX:
         raise ValidationFailed("File too large")
+    if not dry_run:
+        flush_project(project.id)
     result = word_roundtrip.import_docx(db, project, user, doc, file.filename or "review.docx", content,
                                        dry_run=dry_run)
     db.commit()

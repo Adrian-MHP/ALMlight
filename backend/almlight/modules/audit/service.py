@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from almlight.core import events
 from almlight.core.db import utcnow
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.identity.models import User
@@ -83,6 +84,10 @@ def record(
     entry.hash = _entry_hash(entry)
     db.add(entry)
     db.flush()
+    events.record(db, {"type": "change", "id": entry.id, "project_id": str(project_id) if project_id else None,
+                       "action": action, "entity_type": entity_type, "entity_id": entry.entity_id,
+                       "summary": summary, "actor": entry.actor_name, "actor_id": str(actor.id) if actor else None,
+                       "related_ids": [str(r) for r in entry.related_ids], "ts": entry.ts.isoformat()})
     return entry
 
 

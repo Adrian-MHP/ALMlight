@@ -218,7 +218,7 @@ function IntegrationsView() {
       )}
       <Card withBorder>
         <Title order={5} mb="xs">Outbound webhooks</Title>
-        <Text size="xs" c="dimmed" mb="sm">ALMlight POSTs domain events (JSON) to these URLs, signed with <Code>X-ALMlight-Signature: sha256=HMAC(secret, body)</Code>.</Text>
+        <Text size="xs" c="dimmed" mb="sm">Ariadne POSTs domain events (JSON) to these URLs, signed with <Code>X-ALMlight-Signature: sha256=HMAC(secret, body)</Code>.</Text>
         <Group align="flex-end" mb="sm">
           <TextInput label="URL" placeholder="https://…" value={hookUrl} onChange={(e) => setHookUrl(e.currentTarget.value)} style={{ flex: 1 }} />
           <MultiSelect label="Events" data={["*", ...(data?.events ?? [])]} value={events} onChange={setEvents} w={300} />

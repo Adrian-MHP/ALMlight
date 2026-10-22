@@ -5,6 +5,9 @@ column per custom field (header = field key) and one per outgoing link type (hea
 key, cell = comma-separated target keys). Import accepts the same layout: rows with an existing
 ``key`` update that item, rows without create one. Everything runs in a single transaction, and
 ``dry_run`` validates and reports without writing.
+
+Rich text travels as Markdown (formatting, lists, tables, links and images survive editing in Excel); a cell
+that was not changed leaves the item text exactly as it is.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.errors import DomainError, ValidationFailed
+from almlight.core.richtext import text_key, to_markdown, to_text
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
 from almlight.modules.items.models import Item
@@ -63,7 +67,7 @@ def _rows_for_export(db: Session, project: Project, types: list[str] | None) -> 
     out = []
     for it in items:
         row = [it.key, it.type_key, it.title, it.state or "", it.version_label, users.get(it.owner_id, ""),
-               it.description, it.applicability or "", parents.get(it.id, "")]
+               to_markdown(it.description), it.applicability or "", parents.get(it.id, "")]
         for fk in field_keys:
             v = it.fields.get(fk)
             row.append(", ".join(map(str, v)) if isinstance(v, list) else ("" if v is None else v))
@@ -159,9 +163,13 @@ def import_table(
                             val = [v.strip() for v in val.split(",") if v.strip()]
                         field_values[f.key] = val
                 if existing:
+                    desc = row.get("description")
+                    if desc is not None and text_key(desc) in (text_key(to_markdown(existing.description)),
+                                                               text_key(to_text(existing.description))):
+                        desc = None  # untouched cell: keep the rich text exactly as it is
                     change = items_svc.ContentChange(
                         title=row.get("title") or None,
-                        description=row.get("description"),
+                        description=desc,
                         fields=field_values or None,
                         applicability=row.get("applicability", items_svc._UNSET),
                     )

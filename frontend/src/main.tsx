@@ -1,7 +1,10 @@
+import "@fontsource-variable/inter";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/charts/styles.css";
+import "@mantine/tiptap/styles.css";
 import "./styles.css";
+import "./rich.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";

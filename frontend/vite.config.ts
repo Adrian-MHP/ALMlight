@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     port: 5173,
-    proxy: { "/api": { target: process.env.API_URL ?? "http://localhost:48080", changeOrigin: true } },
+    proxy: { "/api": { target: process.env.API_URL ?? "http://localhost:48080", changeOrigin: true, ws: true } },
   },
   build: { outDir: "dist", sourcemap: false, chunkSizeWarningLimit: 1500 },
 });

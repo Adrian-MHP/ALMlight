@@ -12,6 +12,7 @@ from almlight.core.db import get_db
 from almlight.core.deps import current_user
 from almlight.modules.branches import service
 from almlight.modules.branches.models import Branch
+from almlight.modules.collab.router import flush_project
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
 from almlight.modules.items.models import Item
@@ -76,6 +77,7 @@ def merge_preview(project_key: str, branch_id: uuid.UUID, user: User = Depends(c
 def merge(project_key: str, branch_id: uuid.UUID, body: MergeIn, user: User = Depends(current_user),
           db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user, "contributor")
+    flush_project(project.id)
     result = service.merge(db, project, user, service.get_branch(db, project, branch_id), direction=body.direction,
                            keys=body.items, resolutions=body.resolutions, include_added=body.include_added)
     db.commit()

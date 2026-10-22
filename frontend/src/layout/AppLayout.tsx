@@ -1,49 +1,121 @@
 import { useState } from "react";
 import {
-  ActionIcon, AppShell, Avatar, Badge, Burger, Divider, Group, Indicator, Menu, NavLink, ScrollArea, Text, TextInput,
-  Tooltip, useComputedColorScheme, useMantineColorScheme,
+  ActionIcon, AppShell, Avatar, Badge, Box, Burger, Group, Indicator, Menu, NavLink, Popover, ScrollArea, SimpleGrid,
+  Stack, Text, TextInput, Tooltip, UnstyledButton, useComputedColorScheme, useMantineColorScheme,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
-  IconActivity, IconApi, IconBinaryTree, IconChartBar, IconCheckbox, IconFileText, IconFolders, IconGitCompare, IconHome,
-  IconListDetails, IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun,
-  IconTestPipe, IconTopologyStar3, IconUser, IconUsers,
+  IconActivity, IconApi, IconBell, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
+  IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
+  IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
+  IconTopologyStar3, IconUser, IconUsers, type Icon,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useInbox, useMe, useProjects } from "@/api/hooks";
 import { Logo } from "@/components/Logo";
+import { useLive } from "@/live/LiveProvider";
 
-const PROJECT_NAV = [
-  { to: "", label: "Dashboard", icon: IconHome },
-  { to: "items", label: "Items", icon: IconListDetails },
-  { to: "documents", label: "Documents", icon: IconFileText },
-  { to: "structure", label: "Structure", icon: IconSitemap },
-  { to: "traceability", label: "Traceability", icon: IconRoute },
-  { to: "changes", label: "Changes", icon: IconGitCompare },
-  { to: "verification", label: "Verification", icon: IconTestPipe },
-  { to: "variants", label: "Variants", icon: IconTopologyStar3 },
-  { to: "baselines", label: "Baselines", icon: IconBinaryTree },
-  { to: "reports", label: "Reports", icon: IconChartBar },
-  { to: "activity", label: "Activity", icon: IconActivity },
-  { to: "settings", label: "Settings", icon: IconSettings },
+interface NavEntry { to: string; label: string; icon: Icon; hint: string }
+interface NavGroup { group: string; color: string; items: NavEntry[] }
+
+export const PROJECT_NAV: NavGroup[] = [
+  { group: "Overview", color: "navy", items: [
+    { to: "", label: "Dashboard", icon: IconHome, hint: "Status, coverage and open work" },
+    { to: "activity", label: "Activity", icon: IconActivity, hint: "Complete audit trail" },
+  ] },
+  { group: "Engineering", color: "petrol", items: [
+    { to: "items", label: "Items", icon: IconListDetails, hint: "Requirements, elements, tests — search and edit" },
+    { to: "documents", label: "Documents", icon: IconFileText, hint: "Live documents, co-editing, Word & ReqIF" },
+    { to: "structure", label: "Structure", icon: IconSitemap, hint: "Product and system structure" },
+    { to: "traceability", label: "Traceability", icon: IconRoute, hint: "Matrix, coverage and impact" },
+  ] },
+  { group: "Change & quality", color: "orange", items: [
+    { to: "changes", label: "Changes", icon: IconGitCompare, hint: "Change requests and orders" },
+    { to: "verification", label: "Verification", icon: IconTestPipe, hint: "Tests, runs and results" },
+  ] },
+  { group: "Configuration", color: "violet", items: [
+    { to: "variants", label: "Variants", icon: IconTopologyStar3, hint: "Features, variants, 150% model" },
+    { to: "baselines", label: "Baselines", icon: IconBinaryTree, hint: "Baselines and release collections" },
+  ] },
+  { group: "Insights", color: "blue", items: [
+    { to: "reports", label: "Reports", icon: IconChartBar, hint: "KPIs and user-built reports" },
+  ] },
+  { group: "Project", color: "gray", items: [
+    { to: "settings", label: "Settings", icon: IconSettings, hint: "Members, information model, integrations" },
+  ] },
 ];
+
+function AppLauncher({ projectKey }: { projectKey?: string }) {
+  const [opened, setOpened] = useState(false);
+  const navigate = useNavigate();
+  const projects = useProjects().data ?? [];
+  const target = projectKey ?? projects[0]?.key;
+  return (
+    <Popover opened={opened} onChange={setOpened} position="bottom-start" shadow="lg" width={560} offset={10}>
+      <Popover.Target>
+        <Tooltip label="Apps">
+          <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" onClick={() => setOpened((o) => !o)}
+            aria-label="Apps" data-testid="app-launcher">
+            <IconGridDots size={20} />
+          </ActionIcon>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown p="md">
+        <Group justify="space-between" mb="sm">
+          <Text fw={600}>Apps</Text>
+          {target && <Badge variant="light">{target}</Badge>}
+        </Group>
+        {!target && <Text size="sm" c="dimmed">Join a project to use the engineering apps.</Text>}
+        {target && (
+          <Stack gap="sm">
+            {PROJECT_NAV.map((g) => (
+              <div key={g.group}>
+                <Text size="xs" tt="uppercase" fw={600} c="dimmed" mb={4}>{g.group}</Text>
+                <SimpleGrid cols={2} spacing={6}>
+                  {g.items.map((n) => (
+                    <UnstyledButton key={n.to} className="app-tile" data-testid={`app-tile-${n.to || "dashboard"}`}
+                      onClick={() => { setOpened(false); navigate(`/p/${target}${n.to ? `/${n.to}` : ""}`); }}>
+                      <Group gap="sm" wrap="nowrap">
+                        <Box className="app-tile-icon" style={{ background: `var(--mantine-color-${g.color}-7)` }}>
+                          <n.icon size={18} color="white" />
+                        </Box>
+                        <div style={{ minWidth: 0 }}>
+                          <Text size="sm" fw={600}>{n.label}</Text>
+                          <Text size="xs" c="dimmed" truncate>{n.hint}</Text>
+                        </div>
+                      </Group>
+                    </UnstyledButton>
+                  ))}
+                </SimpleGrid>
+              </div>
+            ))}
+          </Stack>
+        )}
+      </Popover.Dropdown>
+    </Popover>
+  );
+}
 
 export function AppLayout() {
   const [opened, { toggle, close }] = useDisclosure();
+  const [collapsed, setCollapsed] = useLocalStorage({ key: "alm-nav-collapsed", defaultValue: false });
   const me = useMe().data!;
   const projects = useProjects().data ?? [];
   const inbox = useInbox().data ?? [];
+  const live = useLive();
   const pendingForMe = inbox.filter((r) => r.can_vote).length;
   const match = useMatch("/p/:projectKey/*");
-  const projectKey = match?.params.projectKey;
+  const projectKey = match?.params.projectKey?.toUpperCase();
+  const project = projects.find((p) => p.key === projectKey);
   const location = useLocation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const { setColorScheme } = useMantineColorScheme();
   const scheme = useComputedColorScheme("light");
+  const rail = collapsed && !opened;
 
   async function logout() {
     await api.post("/auth/logout");
@@ -52,51 +124,75 @@ export function AppLayout() {
   }
 
   const section = projectKey ? location.pathname.split("/")[3] ?? "" : null;
+  const link = (to: string, label: string, icon: Icon, active: boolean, extra: Record<string, unknown> = {}, right?: React.ReactNode) => {
+    const IconC = icon;
+    const nav = (
+      <NavLink key={to} label={rail ? null : label} leftSection={<IconC size={18} stroke={1.7} />} component={Link} to={to}
+        onClick={close} active={active} className="side-link" rightSection={rail ? null : right} {...extra} />
+    );
+    return rail ? <Tooltip key={to} label={label} position="right">{nav}</Tooltip> : nav;
+  };
 
   return (
-    <AppShell className="app-shell" header={{ height: 56 }} navbar={{ width: 230, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Link to="/" style={{ textDecoration: "none", color: "inherit" }}><Logo /></Link>
+    <AppShell className="app-shell" header={{ height: 50 }} padding="md"
+      navbar={{ width: rail ? 60 : 236, breakpoint: "sm", collapsed: { mobile: !opened } }}>
+      <AppShell.Header className="alm-header">
+        <Group h="100%" px="sm" justify="space-between" wrap="nowrap" gap="sm">
+          <Group gap={6} wrap="nowrap">
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" color="white" />
+            <AppLauncher projectKey={projectKey} />
+            <Link to="/" style={{ textDecoration: "none", color: "inherit" }} data-testid="home-link"><Logo inverted /></Link>
             {projectKey && (
-              <Menu shadow="md" position="bottom-start">
-                <Menu.Target>
-                  <Badge variant="light" size="lg" className="clickable" data-testid="project-switcher">{projectKey}</Badge>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>Switch project</Menu.Label>
-                  {projects.map((p) => (
-                    <Menu.Item key={p.key} component={Link} to={`/p/${p.key}`}>
-                      <Text size="sm"><b>{p.key}</b> — {p.name}</Text>
-                    </Menu.Item>
-                  ))}
-                </Menu.Dropdown>
-              </Menu>
+              <>
+                <Text c="dimmed" visibleFrom="sm" className="header-sep">/</Text>
+                <Menu shadow="md" position="bottom-start">
+                  <Menu.Target>
+                    <UnstyledButton className="context-switcher" data-testid="project-switcher">
+                      <Group gap={6} wrap="nowrap">
+                        <Text size="sm" fw={600} c="white">{projectKey}</Text>
+                        <Text size="sm" c="gray.4" visibleFrom="md" truncate maw={220}>{project?.name}</Text>
+                        <IconChevronDown size={14} color="var(--mantine-color-gray-4)" />
+                      </Group>
+                    </UnstyledButton>
+                  </Menu.Target>
+                  <Menu.Dropdown>
+                    <Menu.Label>Switch project</Menu.Label>
+                    {projects.map((p) => (
+                      <Menu.Item key={p.key} component={Link} to={`/p/${p.key}`}>
+                        <Text size="sm"><b>{p.key}</b> — {p.name}</Text>
+                      </Menu.Item>
+                    ))}
+                  </Menu.Dropdown>
+                </Menu>
+              </>
             )}
           </Group>
-          <Group gap="xs" wrap="nowrap">
-            <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`); }}>
-              <TextInput placeholder="Search all projects…" leftSection={<IconSearch size={16} />} value={q}
-                onChange={(e) => setQ(e.currentTarget.value)} w={{ base: 140, md: 280 }} size="sm" data-testid="global-search" />
-            </form>
-            <Tooltip label="Approvals">
-              <Indicator disabled={pendingForMe === 0} label={pendingForMe} size={16} color="red">
-                <ActionIcon variant="subtle" size="lg" component={Link} to="/approvals" aria-label="Approvals">
-                  <IconCheckbox size={20} />
+          <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`); }}
+            style={{ flex: "0 1 460px" }}>
+            <TextInput placeholder="Search items and documents in all projects…" leftSection={<IconSearch size={16} />}
+              value={q} onChange={(e) => setQ(e.currentTarget.value)} size="sm" classNames={{ input: "header-search" }}
+              data-testid="global-search" />
+          </form>
+          <Group gap={4} wrap="nowrap">
+            <Tooltip label={live.connected ? "Live: changes and presence are pushed" : "Live connection lost — reconnecting"}>
+              <Box className={`live-dot ${live.connected ? "is-on" : ""}`} data-testid="live-indicator" />
+            </Tooltip>
+            <Tooltip label="My approvals">
+              <Indicator disabled={pendingForMe === 0} label={pendingForMe} size={16} color="red" offset={4}>
+                <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" component={Link} to="/approvals" aria-label="Approvals">
+                  <IconBell size={20} />
                 </ActionIcon>
               </Indicator>
             </Tooltip>
             <Tooltip label={scheme === "dark" ? "Light mode" : "Dark mode"}>
-              <ActionIcon variant="subtle" size="lg" onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")}
-                aria-label="Toggle color scheme">
+              <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon"
+                onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")} aria-label="Toggle color scheme">
                 {scheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
               </ActionIcon>
             </Tooltip>
             <Menu shadow="md" position="bottom-end">
               <Menu.Target>
-                <Avatar color="indigo" radius="xl" size={32} className="clickable" data-testid="user-menu">
+                <Avatar color="petrol" variant="filled" radius="xl" size={30} className="clickable" data-testid="user-menu">
                   {me.display_name.slice(0, 2).toUpperCase()}
                 </Avatar>
               </Menu.Target>
@@ -113,31 +209,34 @@ export function AppLayout() {
         </Group>
       </AppShell.Header>
 
-      <AppShell.Navbar p="xs">
-        <ScrollArea>
-          <NavLink label="All projects" leftSection={<IconFolders size={18} />} component={Link} to="/" onClick={close}
-            active={location.pathname === "/"} />
-          <NavLink label="Approvals" leftSection={<IconCheckbox size={18} />} component={Link} to="/approvals" onClick={close}
-            active={location.pathname === "/approvals"}
-            rightSection={pendingForMe ? <Badge size="xs" color="red" circle>{pendingForMe}</Badge> : null} />
-          {me.is_admin && (
-            <NavLink label="Administration" leftSection={<IconUsers size={18} />} component={Link} to="/admin" onClick={close}
-              active={location.pathname === "/admin"} />
-          )}
-          {projectKey && (
-            <>
-              <Divider my="sm" label={projectKey} labelPosition="left" />
-              {PROJECT_NAV.map((n) => (
-                <NavLink key={n.to} label={n.label} leftSection={<n.icon size={18} />} component={Link}
-                  to={`/p/${projectKey}${n.to ? `/${n.to}` : ""}`} onClick={close} active={section === n.to}
-                  data-testid={`nav-${n.to || "dashboard"}`} />
-              ))}
-            </>
-          )}
-        </ScrollArea>
+      <AppShell.Navbar className="alm-nav" p={rail ? 6 : "xs"}>
+        <AppShell.Section grow component={ScrollArea}>
+          {link("/", "Home", IconHome, location.pathname === "/", { "data-testid": "nav-home" })}
+          {link("/approvals", "My approvals", IconBell, location.pathname === "/approvals", {},
+            pendingForMe ? <Badge size="xs" color="red" circle>{pendingForMe}</Badge> : null)}
+          {link("/projects", "All projects", IconFolders, location.pathname === "/projects", { "data-testid": "nav-projects" })}
+          {me.is_admin && link("/admin", "Administration", IconUsers, location.pathname === "/admin")}
+          {projectKey && PROJECT_NAV.map((g) => (
+            <div key={g.group}>
+              {rail ? <div className="nav-rule" /> : (
+                <Text className="nav-group" size="xs" tt="uppercase" fw={600}>{g.group}{g.group === "Overview" ? ` · ${projectKey}` : ""}</Text>
+              )}
+              {g.items.map((n) => link(`/p/${projectKey}${n.to ? `/${n.to}` : ""}`, n.label, n.icon, section === n.to,
+                { "data-testid": `nav-${n.to || "dashboard"}` }))}
+            </div>
+          ))}
+        </AppShell.Section>
+        <AppShell.Section visibleFrom="sm">
+          <Tooltip label={rail ? "Expand navigation" : "Collapse navigation"} position="right">
+            <ActionIcon variant="subtle" color="gray" onClick={() => setCollapsed(!collapsed)} m={6} aria-label="Toggle navigation"
+              data-testid="nav-collapse">
+              {rail ? <IconLayoutSidebarLeftExpand size={18} /> : <IconLayoutSidebarLeftCollapse size={18} />}
+            </ActionIcon>
+          </Tooltip>
+        </AppShell.Section>
       </AppShell.Navbar>
 
-      <AppShell.Main>
+      <AppShell.Main className="alm-main">
         <Outlet />
       </AppShell.Main>
     </AppShell>

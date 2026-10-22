@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Card, Group, Modal, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Badge, Box, Button, Card, Group, Modal, Select, SimpleGrid, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { IconPlus } from "@tabler/icons-react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
@@ -14,26 +14,35 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <PageHeader title="Projects" subtitle="Engineering projects you are a member of"
+      <PageHeader title="All projects" subtitle="Engineering projects you are a member of"
         actions={me.is_admin && <Button leftSection={<IconPlus size={16} />} onClick={() => setOpen(true)} data-testid="new-project">New project</Button>} />
       {!isLoading && projects.length === 0 && (
         <Card withBorder p="xl"><Text c="dimmed">No projects yet. {me.is_admin ? "Create the first one." : "Ask an administrator to add you to a project."}</Text></Card>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {projects.map((p) => (
-          <Card key={p.key} withBorder padding="lg" component={Link} to={`/p/${p.key}`} style={{ textDecoration: "none" }} data-testid={`project-card-${p.key}`}>
-            <Group justify="space-between" mb={6}>
-              <Badge variant="light" size="lg">{p.key}</Badge>
-              {p.role && <Badge variant="outline" color="gray">{p.role}</Badge>}
-            </Group>
-            <Text fw={600}>{p.name}</Text>
-            <Text size="sm" c="dimmed" lineClamp={2} mt={4}>{p.description || "—"}</Text>
-            <Text size="xs" c="dimmed" mt="sm">Template: {p.template_key}</Text>
-          </Card>
-        ))}
+        {projects.map((p) => <ProjectCard key={p.key} p={p} />)}
       </SimpleGrid>
       <CreateProjectModal opened={open} onClose={() => setOpen(false)} />
     </>
+  );
+}
+
+export function ProjectCard({ p }: { p: Project }) {
+  return (
+    <Card withBorder padding="md" component={Link} to={`/p/${p.key}`} className="project-card" data-testid={`project-card-${p.key}`}>
+      <Group justify="space-between" mb={6} wrap="nowrap">
+        <Group gap="xs" wrap="nowrap" style={{ minWidth: 0, flex: 1 }}>
+          <Box className="project-badge">{p.key.slice(0, 2)}</Box>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Text fw={600} truncate>{p.name}</Text>
+            <Text size="xs" c="dimmed" className="mono">{p.key}</Text>
+          </div>
+        </Group>
+        {p.role && <Badge variant="light" color="gray" style={{ flexShrink: 0, maxWidth: "none" }}>{p.role}</Badge>}
+      </Group>
+      <Text size="sm" c="dimmed" lineClamp={2}>{p.description || "—"}</Text>
+      <Text size="xs" c="dimmed" mt="sm">Process template: {p.template_key}</Text>
+    </Card>
   );
 }
 

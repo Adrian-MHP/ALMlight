@@ -1,6 +1,6 @@
 """Inbound integrations (Git hosting, Azure DevOps), external references and outbound webhooks.
 
-Inbound: tools call ALMlight's webhook endpoints. Item keys mentioned in commit messages,
+Inbound: tools call the application's webhook endpoints. Item keys mentioned in commit messages,
 pull requests or work items (e.g. "Fix SYS-12 range check") create *external references*
 on those items — the digital thread from requirement to code without copying data.
 Outbound: domain events from the outbox are POSTed to subscribed URLs, signed with HMAC-SHA256.

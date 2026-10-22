@@ -19,5 +19,8 @@
 | [0015](0015-document-rendering-and-reqif-import.md) | Document rendering (Word/PDF) and ReqIF import identity | accepted |
 | [0016](0016-document-time-travel.md) | Exact document time travel through versioned links | accepted |
 | [0017](0017-word-round-trip.md) | Word round trip with content controls and 3-way detection | accepted |
+| [0018](0018-rich-text-canonical-html.md) | Rich text as canonical HTML with one content model | accepted |
+| [0019](0019-live-co-editing.md) | Live co-editing with a server-held Yjs document per item | accepted |
+| [0020](0020-product-name-and-design-language.md) | Product name "Ariadne" and an industrial design language | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

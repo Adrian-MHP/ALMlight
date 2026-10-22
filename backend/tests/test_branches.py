@@ -72,7 +72,7 @@ def test_source_changes_flow_to_branch_and_conflicts(team, project):
     res = c.post(f"{p}/branches/{br['id']}/merge", {"direction": "from_source"})
     assert set(res["updated"]) == {b1, b2}
     b1_now = c.get(f"{p}/items/{b1}")
-    assert b1_now["title"] == "Measure 0-10 bar gauge" and b1_now["description"] == "Variant X needs a vacuum range"
+    assert b1_now["title"] == "Measure 0-10 bar gauge" and b1_now["description"] == "<p>Variant X needs a vacuum range</p>"
     # Branch-only change is still pending for the source; now create a real conflict on the title.
     c.patch(f"{p}/items/{r1['key']}", {"title": "Source title"})
     c.patch(f"{p}/items/{b1}", {"title": "Branch title"})
@@ -82,7 +82,7 @@ def test_source_changes_flow_to_branch_and_conflicts(team, project):
     assert f"{b1}: title" in err["error"]["details"]["conflicts"]
     c.post(f"{p}/branches/{br['id']}/merge", {"direction": "to_source", "resolutions": {b1: {"title": "branch"}}})
     merged = c.get(f"{p}/items/{r1['key']}")
-    assert merged["title"] == "Branch title" and merged["description"] == "Variant X needs a vacuum range"
+    assert merged["title"] == "Branch title" and merged["description"] == "<p>Variant X needs a vacuum range</p>"
 
 
 def test_merge_respects_lifecycle_and_adds_new_items(team, project):

@@ -1,6 +1,6 @@
 # ADR-0009 One container image, SPA served by the API, Docker-only toolchain
 
-**Context.** Customers should run ALMlight with minimal effort; developer machines may lack Node or a current Python.
+**Context.** Customers should run Ariadne with minimal effort; developer machines may lack Node or a current Python.
 
 **Decision.** A multi-stage Dockerfile builds the React frontend (Node) and the Python runtime into one image; the
 API serves the static SPA with a fallback to `index.html`. Compose runs `app` + `db`; a separate `compose.test.yaml`

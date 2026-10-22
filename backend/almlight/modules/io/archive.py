@@ -1,7 +1,8 @@
 """Project archive: a self-contained JSON export with configuration, full version history,
 links, workflow history and baselines — for backups, migration between installations and
 handing a project over. Import recreates the project under a new key with the same item keys.
-Attachment *content* stays in the file store; the archive lists the blobs it references.
+Attachment and image *content* stays in the file store; the archive lists the blobs it references.
+Format 2 stores item texts as rich text (canonical HTML); format 1 archives (Markdown) are converted on import.
 """
 
 from __future__ import annotations
@@ -13,18 +14,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.errors import Conflict, ValidationFailed
+from almlight.core.richtext import image_shas, looks_like_html, markdown_to_html
 from almlight.modules.audit import service as audit
 from almlight.modules.audit.service import jsonable
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
 from almlight.modules.identity.models import User
-from almlight.modules.items.models import Item, ItemVersion
+from almlight.modules.images.models import InlineImage
+from almlight.modules.items import storage
+from almlight.modules.items.models import Blob, Item, ItemVersion
 from almlight.modules.links.models import Link
 from almlight.modules.projects.metamodel import parse_config
 from almlight.modules.projects.models import Project, ProjectCounter, ProjectMember
 from almlight.modules.workflow.models import WorkflowEvent
 
 FORMAT = "almlight-project-archive"
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+READABLE_VERSIONS = (1, 2)
 
 
 def export_archive(db: Session, project: Project) -> dict[str, Any]:
@@ -89,14 +94,30 @@ def export_archive(db: Session, project: Project) -> dict[str, Any]:
                   for lk in links if lk.source_id in key_of and lk.target_id in key_of],
         "baselines": baselines,
         "blobs": sorted({a["sha256"] for i in items for v in versions[i.id] for a in v.attachments}),
+        "images": _images(db, project, {sha for i in items for v in versions[i.id]
+                                        for sha in image_shas(v.description)}),
     }
     return jsonable(data)
 
 
+def _images(db: Session, project: Project, shas: set[str]) -> list[dict[str, Any]]:
+    if not shas:
+        return []
+    rows = db.execute(select(InlineImage).where(InlineImage.project_id == project.id,
+                                                InlineImage.sha256.in_(shas))).scalars()
+    return [{"sha256": r.sha256, "filename": r.filename, "content_type": r.content_type, "size": r.size,
+             "width": r.width, "height": r.height} for r in sorted(rows, key=lambda r: r.sha256)]
+
+
 def import_archive(db: Session, actor: User, data: dict[str, Any], *, new_key: str, new_name: str | None = None
                    ) -> Project:
-    if data.get("format") != FORMAT or data.get("format_version") != FORMAT_VERSION:
-        raise ValidationFailed("Not an ALMlight project archive (format/version mismatch)")
+    if data.get("format") != FORMAT or data.get("format_version") not in READABLE_VERSIONS:
+        raise ValidationFailed("Not a project archive of this application (format/version mismatch)")
+    legacy = data.get("format_version") == 1
+
+    def text(value: str | None) -> str:
+        value = value or ""
+        return markdown_to_html(value) if legacy and value and not looks_like_html(value) else value
     new_key = new_key.strip().upper()
     if db.execute(select(Project.id).where(Project.key == new_key)).scalar():
         raise Conflict(f"Project key '{new_key}' is already in use")
@@ -118,7 +139,7 @@ def import_archive(db: Session, actor: User, data: dict[str, Any], *, new_key: s
         head = versions[-1]
         prefix, _, seq = raw["key"].rpartition("-")
         item = Item(project_id=project.id, type_key=raw["type"], key=raw["key"], seq=int(seq),
-                    title=head["title"], description=head.get("description", ""), fields=head.get("fields", {}),
+                    title=head["title"], description=text(head.get("description")), fields=head.get("fields", {}),
                     applicability=head.get("applicability"), attachments=head.get("attachments", []),
                     state=raw.get("state"), revision=head["revision"], iteration=head["iteration"],
                     version_no=head["version_no"], owner_id=users.get(raw.get("owner")), created_by=actor.id,
@@ -130,7 +151,7 @@ def import_archive(db: Session, actor: User, data: dict[str, Any], *, new_key: s
         for v in versions:
             iv = ItemVersion(item_id=item.id, version_no=v["version_no"], revision=v["revision"],
                              iteration=v["iteration"], kind=v.get("kind", "import"), title=v["title"],
-                             description=v.get("description", ""), fields=v.get("fields", {}),
+                             description=text(v.get("description")), fields=v.get("fields", {}),
                              applicability=v.get("applicability"), attachments=v.get("attachments", []),
                              state=v.get("state"), change_note=v.get("change_note"),
                              created_by=users.get(v.get("created_by")))
@@ -147,6 +168,11 @@ def import_archive(db: Session, actor: User, data: dict[str, Any], *, new_key: s
                                  signed=bool(e.get("signed"))))
     for prefix, last in counters.items():
         db.add(ProjectCounter(project_id=project.id, prefix=prefix, next_value=last + 1))
+    for img in data.get("images", []):
+        if storage.exists(img["sha256"]) and db.get(Blob, img["sha256"]) is not None:
+            db.add(InlineImage(project_id=project.id, sha256=img["sha256"], filename=img.get("filename", "image"),
+                               content_type=img.get("content_type", "image/png"), size=img.get("size", 0),
+                               width=img.get("width"), height=img.get("height"), uploaded_by=actor.id))
     for lk in data.get("links", []):
         if lk["source"] in id_of and lk["target"] in id_of:
             db.add(Link(project_id=project.id, type_key=lk["type"], source_id=id_of[lk["source"]],

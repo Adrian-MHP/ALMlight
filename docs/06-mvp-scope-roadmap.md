@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP, 0.2 and 0.3 increments)
+## 6.1 Implemented (v0.1 MVP, 0.2 – 0.4 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -61,6 +61,12 @@ ReqIF export with partner identifiers, threaded document comments with resolve, 
 specifications, automatic heading numbering, reuse of existing items, recycle bin, collections of document baselines
 (close/reopen, zip export). See [10-live-documents](10-live-documents.md).
 
+**Collaboration & rich text (0.4)**: rich-text editor (formatting, lists, tables with merge/split, images by upload,
+paste or drag & drop, `#` item references), real-time co-editing with live cursors, presence per document/item/block,
+live refresh and change notifications, sessions saved as versions with co-authors (explicit, on leave, idle; crash-safe
+drafts), rich text in Word/PDF/ReqIF (`.reqifz` with images)/Excel/archives, product name Ariadne with an industrial
+design language (app launcher, workspace home, object headers). See [11-rich-text-and-co-editing](11-rich-text-and-co-editing.md).
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check
 
 ## 6.2 Prepared but not built (extension points)
@@ -76,19 +82,20 @@ specifications, automatic heading numbering, reuse of existing items, recycle bi
 
 ## 6.3 Roadmap
 
-**Next increment (0.4) — enterprise readiness for SMEs**
+**Next increment (0.5) — enterprise readiness for SMEs**
 - SSO via OIDC (Microsoft Entra ID, Keycloak), groups → roles
+- Live sessions across several app processes (shared bus), comments anchored to text ranges
 - E-mail notifications (assignments, approvals), saved queries, scheduled report e-mails
 - Effectivity on change orders (date / serial number)
 - Visual template editor; template versioning and migration helpers
 - S3-compatible file storage; scheduled backups
 
-**0.5 — digital thread**
+**0.6 — digital thread**
 - SysML v2 API connector (link items to model elements, e.g. SysON)
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**0.6 — assisted engineering (governed AI)**
+**0.7 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

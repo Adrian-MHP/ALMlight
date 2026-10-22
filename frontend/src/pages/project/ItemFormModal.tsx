@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Group, Modal, Select, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/core";
+import { Alert, Button, Group, Input, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
 import { useProjectMutation } from "@/api/hooks";
 import type { ItemDetail } from "@/api/types";
 import { FieldsForm } from "@/components/FieldsForm";
 import { ItemPicker } from "@/components/ItemPicker";
-import { Markdown } from "@/components/Markdown";
+import { HtmlEditor } from "@/components/rich/HtmlEditor";
 import { useProjectCtx } from "./ProjectLayout";
 
 interface Props {
@@ -56,7 +56,8 @@ export function ItemFormModal({ opened, onClose, item, defaultType, types, paren
         if (JSON.stringify(before) !== JSON.stringify(after)) changedFields[f.key] = after;
       }
       return api.patch<ItemDetail>(`/projects/${key}/items/${item.key}`, {
-        title, description, fields: changedFields, applicability, expected_version: item.version_no, change_note: note || null,
+        title: title !== item.title ? title : undefined, fields: changedFields, applicability,
+        expected_version: item.version_no, change_note: note || null,
       });
     }
     return api.post<ItemDetail>(`/projects/${key}/items`, {
@@ -81,7 +82,7 @@ export function ItemFormModal({ opened, onClose, item, defaultType, types, paren
     model.config.link_types.some((lt) => lt.structural && (lt.sources.includes(t.key)) && (lt.targets.includes(type) || lt.targets.includes("*")))).map((t) => t.key) : [];
 
   return (
-    <Modal opened={opened} onClose={onClose} size="xl" title={item ? `Edit ${item.key}` : "New item"}>
+    <Modal opened={opened} onClose={onClose} size="xl" title={item ? `Properties of ${item.key}` : "New item"}>
       <Stack>
         {!item && (
           <Select label="Type" placeholder="Choose an item type" data={model.typeOptions((t) => !types || types.includes(t.key))}
@@ -90,17 +91,15 @@ export function ItemFormModal({ opened, onClose, item, defaultType, types, paren
         {typeDef?.description && <Text size="xs" c="dimmed">{typeDef.description}</Text>}
         <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required data-autofocus
           data-testid="item-title" />
-        <Tabs defaultValue="write">
-          <Tabs.List>
-            <Tabs.Tab value="write">Description</Tabs.Tab>
-            <Tabs.Tab value="preview">Preview</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="write" pt="xs">
-            <Textarea autosize minRows={4} maxRows={14} value={description} placeholder="Markdown supported"
-              onChange={(e) => setDescription(e.currentTarget.value)} data-testid="item-description" />
-          </Tabs.Panel>
-          <Tabs.Panel value="preview" pt="xs"><Markdown text={description} /></Tabs.Panel>
-        </Tabs>
+        {!item ? (
+          <Input.Wrapper label="Text" description="Rich text: formatting, lists, tables, images (paste or upload), # references an item">
+            <div style={{ marginTop: 6 }}>
+              <HtmlEditor value={description} onChange={setDescription} projectKey={key} testId="item-description" minHeight={120} />
+            </div>
+          </Input.Wrapper>
+        ) : (
+          <Text size="xs" c="dimmed">The text is edited live (together with others) on the item page and in documents.</Text>
+        )}
         {typeDef && <FieldsForm defs={typeDef.fields} values={fields} onChange={(k, v) => setFields((f) => ({ ...f, [k]: v }))} />}
         <TextInput label="Applicability (variants)" description="Feature expression, e.g. OUT_HART and not EX — empty = all variants"
           value={applicability} onChange={(e) => { setApplicability(e.currentTarget.value); setExprCheck(null); }} onBlur={checkExpression}

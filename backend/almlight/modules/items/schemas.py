@@ -51,6 +51,7 @@ class Attachment(BaseModel):
 
 class ItemDetailOut(ItemOut):
     description: str
+    content_hash: str = Field(description="Identifies the current title/text (start state of a live editing session)")
     attachments: list[Attachment]
     released_version: str | None
     created_by: UserRef | None
@@ -159,7 +160,10 @@ def item_detail(db: Session, project: Project, item: Item, users: UserDirectory)
     co_key = None
     if head and head.change_order_id:
         co_key = db.execute(select(Item.key).where(Item.id == head.change_order_id)).scalar()
+    from almlight.core.richtext import content_hash
+
     return ItemDetailOut(**base.model_dump(), description=item.description,
+                         content_hash=content_hash(item.title, item.description),
                          attachments=[Attachment(**a) for a in item.attachments], released_version=released,
                          created_by=users.ref(item.created_by), created_at=item.created_at,
                          updated_by=users.ref(item.updated_by), change_order=co_key)

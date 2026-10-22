@@ -1,0 +1,36 @@
+html, body, #root { height: 100%; }
+body { background: var(--mantine-color-body); }
+
+.mono { font-family: var(--mantine-font-family-monospace); }
+
+.item-key {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.markdown { line-height: 1.55; overflow-wrap: anywhere; }
+.markdown p { margin: 0 0 0.6em; }
+.markdown p:last-child { margin-bottom: 0; }
+.markdown table { border-collapse: collapse; margin: 0.5em 0; }
+.markdown th, .markdown td { border: 1px solid var(--mantine-color-default-border); padding: 4px 8px; }
+.markdown code { background: var(--mantine-color-default-hover); padding: 1px 4px; border-radius: 4px; }
+.markdown pre { background: var(--mantine-color-default-hover); padding: 8px; border-radius: 6px; overflow: auto; }
+
+.doc-block { border-left: 3px solid transparent; padding: 6px 10px; border-radius: 6px; }
+.doc-block:hover { background: var(--mantine-color-default-hover); border-left-color: var(--mantine-primary-color-filled); }
+.doc-block .doc-actions { visibility: hidden; }
+.doc-block:hover .doc-actions { visibility: visible; }
+
+.tree-row { border-radius: 6px; padding: 3px 6px; }
+.tree-row:hover { background: var(--mantine-color-default-hover); }
+
+.diff-line { font-family: var(--mantine-font-family-monospace); font-size: 0.8rem; white-space: pre-wrap; padding: 0 6px; }
+.diff-add { background: var(--mantine-color-green-light); }
+.diff-del { background: var(--mantine-color-red-light); }
+
+.matrix-cell { width: 26px; height: 26px; text-align: center; }
+
+.kanban-col { min-width: 250px; flex: 1; }
+.clickable { cursor: pointer; }

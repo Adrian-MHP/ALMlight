@@ -1,0 +1,59 @@
+# Test stack: isolated database, backend tests and browser E2E tests.
+#   docker compose -f compose.test.yaml run --rm backend-tests
+#   docker compose -f compose.test.yaml up -d app && docker compose -f compose.test.yaml run --rm e2e
+name: almlight-test
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: almlight
+      POSTGRES_USER: almlight
+      POSTGRES_PASSWORD: almlight
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U almlight -d almlight"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  backend-tests:
+    build:
+      context: .
+      target: test
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ALMLIGHT_TEST_DATABASE_ADMIN_URL: postgresql+psycopg://almlight:almlight@db:5432/almlight
+      ALMLIGHT_DATA_DIR: /tmp/almlight-data
+      ALMLIGHT_OUTBOX_WORKER: "false"
+    command: ["pytest", "-q"]
+
+  app:
+    build:
+      context: .
+      target: runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ALMLIGHT_DATABASE_URL: postgresql+psycopg://almlight:almlight@db:5432/almlight
+      ALMLIGHT_ADMIN_PASSWORD: admin-e2e-password
+      ALMLIGHT_DEMO_DATA: "true"
+      ALMLIGHT_DATA_DIR: /tmp/almlight-data
+    ports:
+      - "127.0.0.1:48081:8000"
+
+  e2e:
+    image: mcr.microsoft.com/playwright/python:v1.49.1-noble
+    depends_on:
+      - app
+    working_dir: /e2e
+    volumes:
+      - ./e2e:/e2e
+    environment:
+      BASE_URL: http://app:8000
+      ADMIN_PASSWORD: admin-e2e-password
+    command: ["sh", "-c", "pip install -q -r requirements.txt && pytest -q"]

@@ -1,0 +1,97 @@
+# 9 API and integrations
+
+Everything the UI does goes through the REST API — interactive documentation at `/api/v1/docs`
+(OpenAPI at `/api/v1/openapi.json`).
+
+## 9.1 Authentication
+
+Create a personal access token under *Account → API tokens* and send it as a bearer token. It acts with the
+permissions of its owner.
+
+```bash
+export ALM=http://localhost:48080/api/v1
+export TOKEN=alm_...
+curl -H "Authorization: Bearer $TOKEN" $ALM/projects
+```
+
+## 9.2 Common calls
+
+```bash
+# list / search items (custom fields: field.<key>=<value>)
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items?type=system_requirement&q=pressure&field.priority=must"
+
+# create an item below a document heading
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" $ALM/projects/DEMO/items \
+  -d '{"type":"system_requirement","title":"Report diagnostics","fields":{"priority":"must"},"parent":"H-1"}'
+
+# edit with optimistic locking (version_no from the last read)
+curl -X PATCH ... $ALM/projects/DEMO/items/SYS-8 -d '{"title":"…","expected_version":1}'
+
+# link: test case verifies requirement
+curl -X POST ... $ALM/projects/DEMO/links -d '{"type":"verifies","source":"TC-1","target":"SYS-8"}'
+
+# lifecycle
+curl ... $ALM/projects/DEMO/items/SYS-8/transitions                    # what is possible now
+curl -X POST ... $ALM/projects/DEMO/items/SYS-8/transitions/submit -d '{}'
+
+# impact analysis, coverage, baselines
+curl ... $ALM/projects/DEMO/items/STK-1/impact
+curl ... "$ALM/projects/DEMO/coverage?type=system_requirement"
+curl -X POST ... $ALM/projects/DEMO/baselines -d '{"name":"Design review","revision_rule":"released"}'
+```
+
+Errors use one format: `{"error": {"code": "locked", "message": "…", "details": {…}}}` with HTTP 401/403/404/
+409 (conflict, blocked transition), 422 (validation) and 423 (frozen by lifecycle).
+
+## 9.3 CI/CD: test results
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F file=@build/test-results.xml -F build=$CI_COMMIT_SHA -F environment=CI -F variant=VAR-2 \
+  $ALM/projects/DEMO/test-runs/import-junit
+```
+
+Results are matched to test cases by the field *Automation ID* (`classname.name` or `name`) or by an item key in the
+test name (`test_TC-12_range`). The run is created, filled and completed automatically.
+
+## 9.4 GitHub
+
+*Settings → Integrations → GitHub* (manager): enable → copy endpoint and secret (shown once).
+In GitHub: *Repository → Settings → Webhooks → Add webhook*: payload URL = endpoint, content type `application/json`,
+secret = shared secret, events: *pushes, pull requests, workflow runs*.
+
+Commits, PRs (title, body, branch) and builds that mention an item key (`SYS-12`) become external references on
+that item (idempotent on redelivery).
+
+## 9.5 Azure DevOps
+
+*Settings → Integrations → Azure DevOps*: enable → endpoint + secret. In Azure DevOps:
+*Project settings → Service hooks → Web Hooks*: URL = endpoint, basic authentication with any user name and the
+shared secret as password (or header `X-ALMlight-Token`). Events: *Code pushed*, *Pull request created/updated*,
+*Work item created/updated*. Work items, commits and PRs mentioning item keys are linked.
+
+## 9.6 Outbound webhooks
+
+*Settings → Integrations → Outbound webhooks*: URL + events (`*` or e.g. `item.transitioned`). Each delivery:
+
+```http
+POST /your/endpoint
+Content-Type: application/json
+X-ALMlight-Event: item.transitioned
+X-ALMlight-Delivery: 1234
+X-ALMlight-Signature: sha256=<HMAC-SHA256(secret, body)>
+
+{"id":1234,"event":"item.transitioned","created_at":"…","data":{"project":"DEMO","item":"SYS-4","from":"in_review","to":"approved"}}
+```
+
+Events are written in the same transaction as the change (outbox) and delivered asynchronously with up to three
+attempts. Deliveries are logged per webhook.
+
+## 9.7 Exchange formats
+
+| Format | Direction | Endpoint |
+|---|---|---|
+| CSV / Excel | export, import (dry run, all-or-nothing, update by key, parent and link columns) | `/projects/{k}/export.csv`, `/export.xlsx`, `POST /projects/{k}/import` |
+| ReqIF 1.2 | export (project requirements or a specification sub-tree) | `/projects/{k}/reqif`, `/projects/{k}/items/{key}/reqif` |
+| Project archive (JSON) | export / import with history, links, baselines | `/projects/{k}/archive`, `POST /projects/import-archive` |
+| JUnit XML | import | `POST /projects/{k}/test-runs/import-junit` |

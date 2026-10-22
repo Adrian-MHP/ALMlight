@@ -17,10 +17,11 @@ import secrets
 import threading
 import time
 import uuid
+from datetime import timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -241,6 +242,14 @@ def sign(secret: str, body: bytes) -> str:
     return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
 
+def prune(db: Session, keep_days: int = 30) -> None:
+    """Delete delivered outbox events and delivery logs older than ``keep_days`` (the audit trail keeps history)."""
+    cutoff = utcnow() - timedelta(days=keep_days)
+    db.execute(delete(OutboxEvent).where(OutboxEvent.processed_at.is_not(None), OutboxEvent.processed_at < cutoff))
+    db.execute(delete(WebhookDelivery).where(WebhookDelivery.created_at < cutoff))
+    db.commit()
+
+
 def deliver_pending(db: Session, client: httpx.Client, batch: int = 20) -> int:
     events = db.execute(
         select(OutboxEvent).where(OutboxEvent.processed_at.is_(None)).order_by(OutboxEvent.id)
@@ -295,11 +304,15 @@ class OutboxWorker:
             self._thread.join(timeout=5)
 
     def _run(self) -> None:
+        last_prune = 0.0
         with httpx.Client(timeout=10.0) as client:
             while not self._stop.is_set():
                 try:
                     with session_factory()() as db:
                         n = deliver_pending(db, client)
+                        if time.monotonic() - last_prune > 3600:
+                            prune(db)
+                            last_prune = time.monotonic()
                 except Exception:  # noqa: BLE001 — never let the worker die
                     log.exception("outbox delivery failed")
                     n = 0

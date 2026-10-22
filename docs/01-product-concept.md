@@ -80,7 +80,7 @@ Product consequences:
 | Relations & traceability | ✔ typed links, rules, cycles, suspect links, matrix, impact analysis | Graph visualisation |
 | Versioning & history | ✔ revisions/iterations, diff, restore, timeline | — |
 | Baselines | ✔ project or sub-tree, latest/released rule, compare | Baseline-based exports/reports |
-| Branching & merging | Concept (see ADR-0011); change-scoped revisions cover the core need | Document branches with 3-way merge |
+| Branching & merging | ✔ revisions under change orders; document branches with field-level 3-way merge (both directions) | Structural move/delete merge |
 | Status, workflows, approvals | ✔ configurable workflows, guards, effects, approvals, four-eyes, e-signature | Parallel approval steps, delegation |
 | Configuration & change management | ✔ PR → CR → CO, change-controlled revisions, release via CO | Effectivity (date/serial) |
 | Variants | ✔ feature model, constraints, variants, applicability (150% model) | Variant-specific baselines, BOM export |

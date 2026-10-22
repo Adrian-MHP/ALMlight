@@ -31,6 +31,10 @@
 
 **Baselines**: project or sub-tree, revision rule latest/released, compare with baseline or current state
 
+**Branching & merging (0.2)**: branch a document (sub-tree copy with outline and traces), field-level 3-way merge
+preview against a git-like merge base, merge into the source or update the branch from the source, conflict
+resolution per field, new branch items created in the source, lifecycle rules enforced
+
 **Variants**: feature model (mandatory/optional, alternative/or groups), requires/excludes, variants with validation,
 applicability expressions on items and links, configurator (150% → 100%)
 
@@ -57,7 +61,6 @@ CSV/Excel export and import (dry run, all-or-nothing), ReqIF 1.2 export, full pr
 ## 6.3 Roadmap
 
 **Next increment (0.2) — collaboration & exchange**
-- Document branches with "branched from" links and 3-way merge (ADR-0011)
 - ReqIF import with attribute mapping; Word/PDF export of documents
 - Saved queries and dashboards per project; KPI reports (reuse rate per module, re-test effort, change lead time)
 - E-mail notifications (assignments, approvals)

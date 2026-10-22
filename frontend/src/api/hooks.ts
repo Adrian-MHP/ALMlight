@@ -8,7 +8,7 @@ import type {
   AdminUser, ApiToken, ApprovalRequest, AuditEntry, Baseline, BaselineCompare, BaselineDetail, Comment, Coverage,
   ExternalRef, FeatureModel, HistoryEntry, ImpactResult, Integrations, Item, ItemDetail, LinkView, MaturityRow, Me,
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
-  TreeNode, UserRef, VerificationInfo, Version,
+  TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview,
 } from "./types";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -242,5 +242,15 @@ export function useProjectMutation<TVars, TResult = unknown>(
     onError: (err) => {
       if (!opts.silentError) notifications.show({ color: "red", title: "Action failed", message: err.full ?? err.message });
     },
+  });
+}
+
+export const useItemBranches = itemQuery<BranchInfo[]>("branches", "/branches");
+
+export function useMergePreview(key: string, branchId: string | null) {
+  return useQuery<MergePreview>({
+    queryKey: pk(key, "merge-preview", branchId),
+    queryFn: () => api.get(`/projects/${key}/branches/${branchId}/preview`),
+    enabled: !!branchId,
   });
 }

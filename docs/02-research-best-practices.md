@@ -16,7 +16,7 @@ customer specifics are then expressed through configuration.
 | Maturity states In Work → Frozen → Released → Obsolete; released content is never edited, it is revised | 3DEXPERIENCE/ENOVIA | `frozen` / `released` state flags; *Revise* starts the next revision |
 | Closed-loop change (problem report → change request → change notice/order), certified CMII process; release of solution items via the change | Teamcenter (CMII), ENOVIA Change Action | PR → CR (CCB approval) → CO; change-controlled types can only be revised under an open CO; CO release releases its affected items |
 | Project and document baselines; collections of document revisions | Polarion | Baselines of a project or a sub-tree, revision rules *latest* / *released*, compare |
-| Branching of documents with "branched from" links and 3-way merge | Polarion (2310/2404) | Concept, ADR-0011 (next increment) |
+| Branching of documents with "branched from" relations and 3-way merge | Polarion (2310/2404) | Document branches with field-level 3-way merge in both directions (ADR-0011) |
 | Variant management with feature/option models and variant conditions on a 150% structure | Teamcenter Product Configurator, Polarion Variants, pure::variants (ISO/IEC 26580) | Feature items, `requires`/`excludes`, variant items, applicability expressions on items and links |
 | RFLP (Requirements, Functional, Logical, Physical) | 3DEXPERIENCE CATIA, MBSE practice | Requirements, functions and system elements with `realizes` / `satisfies` links |
 | Electronic signatures on approvals | Polarion, Teamcenter (21 CFR Part 11 practice) | Password re-entry with displayed meaning, stored per vote |

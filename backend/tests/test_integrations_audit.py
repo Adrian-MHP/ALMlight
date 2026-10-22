@@ -119,3 +119,19 @@ def test_config_update_compatibility(team, project, admin):
     item = new_item(team["contributor"], project, "system_requirement", "R2", fields={"cost_center": "4711"})
     assert item["fields"]["cost_center"] == "4711"
     team["contributor"].put(f"/projects/{project}/config", {"config": extended}, expect=403)
+
+
+def test_outbox_prune(team, project, db):
+    from datetime import timedelta
+
+    from almlight.core.db import utcnow
+    from almlight.modules.integrations.models import OutboxEvent
+    from almlight.modules.integrations.service import prune
+
+    new_item(team["contributor"], project, "system_requirement", "R")
+    events = db.query(OutboxEvent).all()
+    assert events
+    events[0].processed_at = utcnow() - timedelta(days=45)
+    db.commit()
+    prune(db)
+    assert db.query(OutboxEvent).count() == len(events) - 1  # unprocessed events are kept

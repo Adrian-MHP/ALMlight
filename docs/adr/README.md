@@ -12,7 +12,7 @@
 | [0008](0008-variants-150-model.md) | Variants: features as items, applicability expressions | accepted |
 | [0009](0009-single-image-delivery.md) | One container image, SPA served by the API, Docker-only toolchain | accepted |
 | [0010](0010-authentication.md) | Local accounts, cookie sessions, API tokens; OIDC later | accepted |
-| [0011](0011-branching-strategy.md) | Branching: change-scoped revisions now, document branches later | accepted |
+| [0011](0011-branching-strategy.md) | Branching: change-scoped revisions plus document branches with 3-way merge | accepted |
 | [0012](0012-integration-strategy.md) | Integration via webhooks, external references and an outbox | accepted |
 | [0013](0013-hash-chained-audit.md) | Hash-chained, append-only audit trail | accepted |
 

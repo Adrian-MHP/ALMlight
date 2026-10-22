@@ -23,6 +23,8 @@ them in two containers, without enterprise licence and operating costs.
 - **Change management**: problem report → change request (CCB) → change order. Change-controlled revisions, and
   releasing the change order releases its affected items.
 - **Baselines**: of a whole project or one document or structure, using latest or released revisions, with compare.
+- **Branching & merging**: branch a document for a variant or release and merge it back with a field-level 3-way
+  merge in either direction.
 - **Variants**: feature model with constraints, product variants, and applicability expressions on items and links,
   plus a configurator.
 - **Verification**: test runs pinned to versions, JUnit import from CI, re-test detection, and maturity per system

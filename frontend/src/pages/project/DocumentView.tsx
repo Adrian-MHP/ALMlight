@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   ActionIcon, Anchor, Badge, Breadcrumbs, Button, Card, Center, Group, Loader, Menu, Stack, Text, Title, Tooltip,
 } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconDownload, IconEdit, IconExternalLink, IconPlus } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconDownload, IconEdit, IconExternalLink, IconGitBranch, IconPlus } from "@tabler/icons-react";
 import { Link, useParams } from "react-router-dom";
 import { api, downloadUrl } from "@/api/client";
 import { useItem, useProjectMutation, useTree } from "@/api/hooks";
@@ -11,6 +11,7 @@ import { StateBadge, SuspectBadge } from "@/components/badges";
 import { Markdown } from "@/components/Markdown";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { BranchBar } from "./BranchMerge";
 
 interface AddTarget { parent: string; position: number | null; }
 
@@ -22,6 +23,7 @@ export function DocumentView() {
   const tree = useTree(key, specKey.toUpperCase(), true);
   const [adding, setAdding] = useState<AddTarget | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [branching, setBranching] = useState(false);
   const editItem = useItem(key, editing ?? "", !!editing);
 
   if (spec.isLoading || tree.isLoading) return <Center mt={80}><Loader /></Center>;
@@ -49,9 +51,11 @@ export function DocumentView() {
         <Group gap="xs">
           <Button variant="default" component={Link} to={`/p/${key}/items/${spec.data.key}`} leftSection={<IconExternalLink size={16} />}>Document item</Button>
           <Button variant="default" component="a" href={downloadUrl(`/projects/${key}/items/${spec.data.key}/reqif`)} leftSection={<IconDownload size={16} />}>ReqIF</Button>
+          {can("contributor") && <Button variant="default" leftSection={<IconGitBranch size={16} />} onClick={() => setBranching(true)} data-testid="create-branch">Branch</Button>}
           {editableDoc && <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding({ parent: spec.data!.key, position: null })} data-testid="doc-add">Add</Button>}
         </Group>
       </Group>
+      <BranchBar docKey={spec.data.key} creating={branching} onCloseCreate={() => setBranching(false)} />
       <Card withBorder padding="lg" data-testid="document">
         {tree.data.children.length === 0 && <Text c="dimmed">This document is empty. Add headings and requirements.</Text>}
         <Blocks nodes={tree.data.children} depth={0} parentKey={spec.data.key} editable={editableDoc}

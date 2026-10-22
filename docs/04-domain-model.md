@@ -108,7 +108,14 @@ or a sub-tree (a document or product structure). Revision rules: *latest* (worki
 released revision; unreleased items left out). Baselines can be compared with each other or with the current state
 (added / removed / changed items with field diffs, link changes).
 
-## 4.8 Variants (150% model)
+## 4.8 Document branches
+
+A **branch** copies a document's structural sub-tree into new items (outline and outgoing traces included). Each copy
+is paired with its source and a **merge base** (a version of either side). The merge preview classifies every field as
+changed only in the source, only in the branch, identically on both, or in conflict; merges run in either direction,
+write new versions through the normal lifecycle rules and move the merge base forward (see ADR-0011).
+
+## 4.9 Variants (150% model)
 
 - **Features** are items with a unique `code`, a kind (mandatory/optional) and a child group (none / alternative /
   or), arranged in a tree via structural links; cross-tree constraints are `requires` / `excludes` links.
@@ -117,7 +124,7 @@ released revision; unreleased items left out). Baselines can be compared with ea
   (`OUT_HART and (SIL2 or SIL3) and not EX`). Empty = applies to all variants.
 - **Resolve**: a selection filters the 150% model to the items and links of one configuration (100%).
 
-## 4.9 Verification and maturity
+## 4.10 Verification and maturity
 
 - Test cases `verify` requirements, elements, functions or interfaces.
 - A test run holds **test records**: one result per test case, pinned to the executed test case version.
@@ -126,7 +133,7 @@ released revision; unreleased items left out). Baselines can be compared with ea
 - **Maturity per element**: specified (allocated requirements released), realised (element released), verified
   (allocated requirements passed), validated (upstream stakeholder needs passed).
 
-## 4.10 Audit trail
+## 4.11 Audit trail
 
 Every mutation writes an audit entry (actor, action, entity, summary, details, related item ids). Each entry stores
 the SHA-256 of its canonical content and the previous entry's hash; `GET /admin/audit/verify` recomputes the chain

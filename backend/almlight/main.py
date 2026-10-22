@@ -17,6 +17,7 @@ from almlight.core.config import get_settings
 from almlight.core.db import session_factory
 from almlight.core.errors import install_error_handlers
 from almlight.modules.baselines.router import router as baselines_router
+from almlight.modules.branches.router import router as branches_router
 from almlight.modules.identity.router import router as identity_router
 from almlight.modules.identity.service import ensure_bootstrap_admin
 from almlight.modules.integrations.router import router as integrations_router
@@ -95,7 +96,7 @@ def create_app() -> FastAPI:
         return response
 
     for r in (identity_router, projects_router, items_router, links_router, workflow_router, baselines_router,
-              variants_router, verification_router, io_router, integrations_router):
+              variants_router, verification_router, io_router, integrations_router, branches_router):
         app.include_router(r, prefix=API_PREFIX)
 
     @app.get(f"{API_PREFIX}/health", tags=["system"])

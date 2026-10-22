@@ -515,3 +515,36 @@ export interface ImportResult {
   summary: Record<string, number>;
   results: { row: number; action: string; key?: string; error?: string }[];
 }
+
+export interface BranchInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  source_root: string | null;
+  branch_root: string | null;
+  created_at: string;
+  last_merged_at: string | null;
+}
+
+export interface MergeChange {
+  field: string;
+  base: unknown;
+  source: unknown;
+  branch: unknown;
+  kind: "source" | "branch" | "same" | "conflict";
+}
+
+export interface MergePreview {
+  branch: BranchInfo;
+  pairs: {
+    source: string;
+    branch: string;
+    type_key: string;
+    title: string;
+    source_version: string;
+    branch_version: string;
+    status: "conflict" | "both_changed" | "branch_changed" | "source_changed" | "deleted_in_branch" | "deleted_in_source" | "unchanged";
+    changes: MergeChange[];
+  }[];
+  added_in_branch: { branch: string; type_key: string; title: string; parent_in_source: string | null }[];
+}

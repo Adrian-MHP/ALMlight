@@ -94,4 +94,26 @@ attempts. Deliveries are logged per webhook.
 | CSV / Excel | export, import (dry run, all-or-nothing, update by key, parent and link columns) | `/projects/{k}/export.csv`, `/export.xlsx`, `POST /projects/{k}/import` |
 | ReqIF 1.2 | export (project requirements or a specification sub-tree) | `/projects/{k}/reqif`, `/projects/{k}/items/{key}/reqif` |
 | Project archive (JSON) | export / import with history, links, baselines | `/projects/{k}/archive`, `POST /projects/import-archive` |
+| ReqIF 1.x | import with mapping (dry run by default, `.reqif` / `.reqifz`) | `POST /projects/{k}/import-reqif` |
+| Word / PDF | export of a document, live or from a baseline (`?baseline=<id>&fields=&links=`) | `/projects/{k}/items/{key}/export.docx`, `/export.pdf` |
 | JUnit XML | import | `POST /projects/{k}/test-runs/import-junit` |
+
+## 9.8 Reports and KPIs
+
+Reports are lists of widgets evaluated on the server (`GET /projects/{k}/reports/{id}/data`, Excel:
+`/reports/{id}/export.xlsx`). BI tools (Power BI, Excel Power Query, Grafana JSON) can read the engineering KPIs directly:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" $ALM/projects/DEMO/kpis/reuse            # products per module, reuse rate
+curl -H "Authorization: Bearer $TOKEN" $ALM/projects/DEMO/kpis/change-lead-time # lead time per change type, trend
+curl -H "Authorization: Bearer $TOKEN" $ALM/projects/DEMO/kpis/retest-effort    # per variant
+curl -H "Authorization: Bearer $TOKEN" $ALM/projects/DEMO/kpis/variant-ratio    # modules vs. offered variants
+```
+
+ReqIF import with an explicit mapping:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@customer.reqifz -F dry_run=false \
+  -F 'mapping={"types":{"Customer Requirement":"stakeholder_requirement"},"relations":{"refines":"relates_to"}}' \
+  $ALM/projects/DEMO/import-reqif
+```

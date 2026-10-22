@@ -50,7 +50,9 @@ backend/almlight/
     baselines/     snapshots, compare
     variants/      expressions (parser), feature model, validation, 150% resolve
     verification/  test records, JUnit import, verification status, coverage, maturity
-    io/            CSV/Excel, ReqIF export, project archive
+    io/            CSV/Excel, ReqIF export/import, Word/PDF rendering, project archive
+    reports/       user-defined reports (widgets), KPI calculations, templates
+    branches/      document branches and 3-way merge
     integrations/  external refs, GitHub / Azure DevOps hooks, outbound webhooks, outbox
     audit/         hash-chained audit trail
   seed/            demo dataset
@@ -80,6 +82,8 @@ See the [ADRs](adr/). In short:
 | Branching | Change-scoped revisions now; document branches later ([ADR-0011](adr/0011-branching-strategy.md)) |
 | Integration | Webhooks in/out, external refs, outbox ([ADR-0012](adr/0012-integration-strategy.md)) |
 | Audit | Hash-chained audit trail ([ADR-0013](adr/0013-hash-chained-audit.md)) |
+| Reports | Widget lists evaluated on the server, KPI module ([ADR-0014](adr/0014-user-defined-reports.md)) |
+| Documents & ReqIF | python-docx/ReportLab rendering, ReqIF import identity ([ADR-0015](adr/0015-document-rendering-and-reqif-import.md)) |
 
 ## 5.5 Security
 
@@ -99,7 +103,7 @@ See the [ADRs](adr/). In short:
 
 ## 5.6 Quality and testing
 
-- Backend: ~85 pytest tests against a real PostgreSQL (migrations applied by Alembic), covering API flows and
+- Backend: 100+ pytest tests against a real PostgreSQL (migrations applied by Alembic), covering API flows and
   negative cases (permissions, frozen states, validation, conflicts, signature failures, tampering detection).
 - Frontend: strict TypeScript; Playwright browser tests (login, item lifecycle, approvals with e-signature,
   traceability, documents, structure, variants, baselines, permissions) run against a fresh stack with demo data.

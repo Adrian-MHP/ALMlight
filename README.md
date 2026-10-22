@@ -9,6 +9,8 @@ them in two containers, without enterprise licence and operating costs.
 
 ![Dashboard](docs/images/dashboard.png)
 
+![KPI report](docs/images/report.png)
+
 ## Highlights
 
 - **Configurable information model**: item types, fields, link types and workflows are defined in process templates
@@ -29,8 +31,13 @@ them in two containers, without enterprise licence and operating costs.
   plus a configurator.
 - **Verification**: test runs pinned to versions, JUnit import from CI, re-test detection, and maturity per system
   element (specified / realised / verified / validated).
+- **Reports & KPIs**: end users build their own reports from KPI, chart, table, trend, coverage, matrix and
+  maturity widgets, plus engineering KPIs: reuse rate per module, change lead time, re-test effort per variant and
+  module variants vs. offered variants. Reports export to Excel and print to PDF; KPIs are also available as JSON.
+- **Documents out & in**: Word and PDF export of documents, either live or exactly as frozen in a baseline. ReqIF
+  import with a mapping wizard; re-importing an updated file updates the existing items instead of duplicating them.
 - **Integration**: REST API (OpenAPI), API tokens, GitHub and Azure DevOps webhooks, signed outbound webhooks,
-  CSV/Excel import/export, ReqIF export, and full project archives.
+  CSV/Excel import/export, ReqIF export/import, and full project archives.
 - **Compliance**: hash-chained audit trail with verification, role-based access, and secure defaults.
 
 ## Quick start
@@ -62,7 +69,7 @@ API documentation: <http://localhost:48080/api/v1/docs>
 | [Configuration guide](docs/07-configuration-guide.md) | Tailoring process templates per customer |
 | [Operations](docs/08-operations.md) | Install, configure, back up, upgrade, develop |
 | [API & integrations](docs/09-api-and-integrations.md) | REST API, CI, GitHub, Azure DevOps, webhooks, formats |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0013 |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0015 |
 
 ## Technology
 
@@ -79,7 +86,7 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # ~85 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 100+ API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
 docker compose -f compose.test.yaml run --rm e2e                                 # browser E2E tests
 docker compose -f compose.test.yaml down
@@ -87,4 +94,4 @@ docker compose -f compose.test.yaml down
 
 ## Status
 
-Version 0.1, the MVP foundation. See the [roadmap](docs/06-mvp-scope-roadmap.md) for planned increments.
+Version 0.2: the MVP foundation plus document branches, reports & KPIs, Word/PDF export and ReqIF import. See the [roadmap](docs/06-mvp-scope-roadmap.md) for planned increments.

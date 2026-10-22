@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented in the MVP (v0.1)
+## 6.1 Implemented (v0.1 MVP and the 0.2 increment)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -45,6 +45,15 @@ re-test detection, maturity per element (specified / realised / verified / valid
 webhooks, manual external references (CAD/PDM/URL), outbound signed webhooks via transactional outbox,
 CSV/Excel export and import (dry run, all-or-nothing), ReqIF 1.2 export, full project archive (export/import)
 
+**Reports & KPIs (0.2)**: user-built reports from widgets (KPI with target, chart, table, trend, coverage,
+traceability matrix, maturity, text) with live preview, shared or private, templates, Excel export and print/PDF;
+engineering KPIs: reuse rate per module, change lead time (incl. end-to-end request → release), re-test effort per
+variant, module variants vs. offered variants; KPI JSON endpoints for BI tools
+
+**Document output & ReqIF import (0.2)**: Word and PDF export of documents (live or from a baseline) with title page,
+table of contents, attributes and traces; ReqIF import (.reqif/.reqifz) with mapping analysis, DOORS-style headings,
+enumeration mapping, relations, and update-on-reimport identity (incl. round trips of own exports)
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check
 
 ## 6.2 Prepared but not built (extension points)
@@ -60,13 +69,9 @@ CSV/Excel export and import (dry run, all-or-nothing), ReqIF 1.2 export, full pr
 
 ## 6.3 Roadmap
 
-**Next increment (0.2) — collaboration & exchange**
-- ReqIF import with attribute mapping; Word/PDF export of documents
-- Saved queries and dashboards per project; KPI reports (reuse rate per module, re-test effort, change lead time)
-- E-mail notifications (assignments, approvals)
-
-**0.3 — enterprise readiness for SMEs**
+**Next increment (0.3) — enterprise readiness for SMEs**
 - SSO via OIDC (Microsoft Entra ID, Keycloak), groups → roles
+- E-mail notifications (assignments, approvals), saved queries, scheduled report e-mails
 - Effectivity on change orders (date / serial number)
 - Visual template editor; template versioning and migration helpers
 - S3-compatible file storage; scheduled backups

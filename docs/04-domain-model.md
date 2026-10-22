@@ -133,7 +133,14 @@ write new versions through the normal lifecycle rules and move the merge base fo
 - **Maturity per element**: specified (allocated requirements released), realised (element released), verified
   (allocated requirements passed), validated (upstream stakeholder needs passed).
 
-## 4.11 Audit trail
+## 4.11 Reports
+
+A **report** belongs to a project, is shared or private, and holds an ordered list of widgets (KPI, chart, table,
+trend, coverage, matrix, maturity, text, and the KPIs reuse rate, change lead time, re-test effort and module/variant
+ratio). Widgets select items with the same filters as the item list (types, states, fields, text, owner, suspect,
+variant) and are evaluated on demand (see ADR-0014).
+
+## 4.12 Audit trail
 
 Every mutation writes an audit entry (actor, action, entity, summary, details, related item ids). Each entry stores
 the SHA-256 of its canonical content and the previous entry's hash; `GET /admin/audit/verify` recomputes the chain

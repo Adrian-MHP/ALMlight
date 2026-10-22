@@ -15,5 +15,7 @@
 | [0011](0011-branching-strategy.md) | Branching: change-scoped revisions plus document branches with 3-way merge | accepted |
 | [0012](0012-integration-strategy.md) | Integration via webhooks, external references and an outbox | accepted |
 | [0013](0013-hash-chained-audit.md) | Hash-chained, append-only audit trail | accepted |
+| [0014](0014-user-defined-reports.md) | User-defined reports as widget lists evaluated on the server | accepted |
+| [0015](0015-document-rendering-and-reqif-import.md) | Document rendering (Word/PDF) and ReqIF import identity | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

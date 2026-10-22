@@ -20,6 +20,8 @@ import { VerificationPage } from "./pages/project/VerificationPage";
 import { VariantsPage } from "./pages/project/VariantsPage";
 import { BaselinesPage } from "./pages/project/BaselinesPage";
 import { ActivityPage } from "./pages/project/ActivityPage";
+import { ReportsPage } from "./pages/project/reports/ReportsPage";
+import { ReportView } from "./pages/project/reports/ReportView";
 import { SettingsPage } from "./pages/project/SettingsPage";
 import { NotFound } from "./components/NotFound";
 
@@ -48,6 +50,8 @@ export const router = createBrowserRouter([
           { path: "verification", element: <VerificationPage /> },
           { path: "variants", element: <VariantsPage /> },
           { path: "baselines", element: <BaselinesPage /> },
+          { path: "reports", element: <ReportsPage /> },
+          { path: "reports/:reportId", element: <ReportView /> },
           { path: "activity", element: <ActivityPage /> },
           { path: "settings", element: <SettingsPage /> },
         ],

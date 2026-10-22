@@ -227,6 +227,8 @@ function WorkflowBar({ item }: { item: ItemDetail }) {
           {typeDef?.document && <Menu.Item leftSection={<IconFileText size={16} />} component={Link} to={`/p/${key}/documents/${item.key}`}>Open document view</Menu.Item>}
           {model.config.link_types.some((lt) => lt.structural && lt.sources.includes(item.type_key)) &&
             <Menu.Item leftSection={<IconSitemap size={16} />} component={Link} to={`/p/${key}/structure?root=${item.key}`}>Open in structure</Menu.Item>}
+          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.docx`)}>Export Word</Menu.Item>}
+          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.pdf`)}>Export PDF</Menu.Item>}
           <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/reqif`)}>Export ReqIF (sub-tree)</Menu.Item>
           {can("manager") && !item.released_version && (
             <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => { if (confirm(`Delete ${item.key}?`)) del.mutate(undefined); }}>Delete</Menu.Item>

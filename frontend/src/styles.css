@@ -34,3 +34,10 @@ body { background: var(--mantine-color-body); }
 
 .kanban-col { min-width: 250px; flex: 1; }
 .clickable { cursor: pointer; }
+
+@media print {
+  .mantine-AppShell-header, .mantine-AppShell-navbar, .no-print, .mantine-Notifications-root { display: none !important; }
+  .mantine-AppShell-main { padding: 0 !important; margin: 0 !important; }
+  .report-widget { break-inside: avoid; }
+  body { background: white; }
+}

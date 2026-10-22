@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  IconActivity, IconApi, IconBinaryTree, IconCheckbox, IconFileText, IconFolders, IconGitCompare, IconHome,
+  IconActivity, IconApi, IconBinaryTree, IconChartBar, IconCheckbox, IconFileText, IconFolders, IconGitCompare, IconHome,
   IconListDetails, IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun,
   IconTestPipe, IconTopologyStar3, IconUser, IconUsers,
 } from "@tabler/icons-react";
@@ -25,6 +25,7 @@ const PROJECT_NAV = [
   { to: "verification", label: "Verification", icon: IconTestPipe },
   { to: "variants", label: "Variants", icon: IconTopologyStar3 },
   { to: "baselines", label: "Baselines", icon: IconBinaryTree },
+  { to: "reports", label: "Reports", icon: IconChartBar },
   { to: "activity", label: "Activity", icon: IconActivity },
   { to: "settings", label: "Settings", icon: IconSettings },
 ];
@@ -53,7 +54,7 @@ export function AppLayout() {
   const section = projectKey ? location.pathname.split("/")[3] ?? "" : null;
 
   return (
-    <AppShell header={{ height: 56 }} navbar={{ width: 230, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="md">
+    <AppShell className="app-shell" header={{ height: 56 }} navbar={{ width: 230, breakpoint: "sm", collapsed: { mobile: !opened } }} padding="md">
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">

@@ -8,7 +8,8 @@ import type {
   AdminUser, ApiToken, ApprovalRequest, AuditEntry, Baseline, BaselineCompare, BaselineDetail, Comment, Coverage,
   ExternalRef, FeatureModel, HistoryEntry, ImpactResult, Integrations, Item, ItemDetail, LinkView, MaturityRow, Me,
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
-  TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview,
+  TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview, Report, ReportSummary, ReportTemplate,
+  ReportWidget, WidgetData,
 } from "./types";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -252,5 +253,35 @@ export function useMergePreview(key: string, branchId: string | null) {
     queryKey: pk(key, "merge-preview", branchId),
     queryFn: () => api.get(`/projects/${key}/branches/${branchId}/preview`),
     enabled: !!branchId,
+  });
+}
+
+export function useReports(key: string) {
+  return useQuery<ReportSummary[]>({ queryKey: pk(key, "reports"), queryFn: () => api.get(`/projects/${key}/reports`) });
+}
+
+export function useReportTemplates(key: string) {
+  return useQuery<ReportTemplate[]>({ queryKey: pk(key, "report-templates"), queryFn: () => api.get(`/projects/${key}/report-templates`) });
+}
+
+export function useReport(key: string, id: string) {
+  return useQuery<Report>({ queryKey: pk(key, "report", id), queryFn: () => api.get(`/projects/${key}/reports/${id}`) });
+}
+
+export function useReportData(key: string, id: string, enabled = true) {
+  return useQuery<Record<string, WidgetData>>({
+    queryKey: pk(key, "report", id, "data"),
+    queryFn: () => api.get(`/projects/${key}/reports/${id}/data`),
+    enabled,
+  });
+}
+
+/** Live evaluation of a (possibly unsaved) widget definition. */
+export function useWidgetPreview(key: string, widget: ReportWidget | null) {
+  return useQuery<WidgetData>({
+    queryKey: pk(key, "widget-preview", widget),
+    queryFn: () => api.post(`/projects/${key}/reports/preview-widget`, widget),
+    enabled: !!widget,
+    placeholderData: (prev) => prev,
   });
 }

@@ -15,6 +15,7 @@ from almlight.modules.integrations.models import (
 from almlight.modules.items.models import Blob, Comment, Item, ItemVersion
 from almlight.modules.links.models import Link
 from almlight.modules.projects.models import Project, ProjectCounter, ProjectMember
+from almlight.modules.reports.models import Report
 from almlight.modules.verification.models import TestRecord
 from almlight.modules.workflow.models import ApprovalRequest, ApprovalVote, WorkflowEvent
 
@@ -40,6 +41,7 @@ __all__ = [
     "Project",
     "ProjectCounter",
     "ProjectMember",
+    "Report",
     "TestRecord",
     "User",
     "Webhook",

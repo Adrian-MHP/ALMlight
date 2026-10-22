@@ -19,3 +19,20 @@ def test_demo_seed_is_consistent_and_idempotent(db, admin):
     hart = admin.get("/projects/DEMO/variants/VAR-2/resolve")
     titles = {i["title"] for i in hart["included"]}
     assert "Provide HART communication" in titles and "Provide an IO-Link interface" not in titles
+
+
+def test_demo_kpis_and_reports(db, admin):
+    from almlight.seed.demo import seed_demo
+
+    seed_demo(db)
+    reports = admin.get("/projects/DEMO/reports")
+    assert {r["title"] for r in reports} == {"Project KPI overview", "Requirements status"}
+    kpi = next(r for r in reports if r["title"] == "Project KPI overview")
+    data = admin.get(f"/projects/DEMO/reports/{kpi['id']}/data")
+    assert all(d["ok"] for d in data.values()), data
+    reuse = admin.get("/projects/DEMO/kpis/reuse")
+    cell = next(r for r in reuse["rows"] if r["title"] == "Measuring cell")
+    assert cell["products"] == 2
+    lead = admin.get("/projects/DEMO/kpis/change-lead-time")
+    assert lead["types"]["change_order"]["lead_days"]["avg"] == 17.0
+    assert lead["end_to_end"]["avg"] == 31.0

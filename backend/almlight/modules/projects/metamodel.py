@@ -196,11 +196,13 @@ class Semantics(_Strict):
     """
 
     affects_link: str = "affects"
+    implements_link: str = "implements"
     verifies_link: str = "verifies"
     satisfies_link: str = "satisfies"
     derives_link: str = "derives_from"
     requires_link: str = "requires"
     excludes_link: str = "excludes"
+    heading_type: str | None = "heading"
     test_case_types: list[str] = Field(default_factory=lambda: ["test_case"])
     test_run_type: str | None = "test_run"
     stakeholder_types: list[str] = Field(default_factory=lambda: ["stakeholder_requirement"])

@@ -26,6 +26,7 @@ from almlight.modules.io.router import router as io_router
 from almlight.modules.items.router import router as items_router
 from almlight.modules.links.router import router as links_router
 from almlight.modules.projects.router import router as projects_router
+from almlight.modules.reports.router import router as reports_router
 from almlight.modules.variants.router import router as variants_router
 from almlight.modules.verification.router import router as verification_router
 from almlight.modules.workflow.router import router as workflow_router
@@ -96,7 +97,8 @@ def create_app() -> FastAPI:
         return response
 
     for r in (identity_router, projects_router, items_router, links_router, workflow_router, baselines_router,
-              variants_router, verification_router, io_router, integrations_router, branches_router):
+              variants_router, verification_router, io_router, integrations_router, branches_router,
+              reports_router):
         app.include_router(r, prefix=API_PREFIX)
 
     @app.get(f"{API_PREFIX}/health", tags=["system"])

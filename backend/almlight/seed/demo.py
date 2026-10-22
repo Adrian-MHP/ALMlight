@@ -33,6 +33,20 @@ def _user(db: Session, username: str, name: str) -> User:
     return user or create_user(db, None, username=username, display_name=name, password=DEMO_PASSWORD)
 
 
+def _backdate(db: Session, item: Item, *, created: int, events: dict[str, int]) -> None:
+    """Move an item's creation and lifecycle events into the past (demo history only)."""
+    from datetime import timedelta
+
+    from almlight.core.db import utcnow
+    from almlight.modules.workflow.models import WorkflowEvent
+
+    now = utcnow()
+    item.created_at = now - timedelta(days=created)
+    for ev in db.execute(select(WorkflowEvent).where(WorkflowEvent.item_id == item.id)).scalars():
+        if ev.to_state in events:
+            ev.created_at = now - timedelta(days=events[ev.to_state])
+
+
 def seed_demo(db: Session) -> None:
     if db.execute(select(Project.id).where(Project.key == DEMO_KEY)).scalar():
         return
@@ -210,9 +224,11 @@ def seed_demo(db: Session) -> None:
     verification.add_test_cases(db, project, alex, run, [tcs["range"], tcs["accuracy"], tcs["analog"], tcs["temp"]])
     engine.execute_transition(db, project, alex, run, "start")
     results = {"range": "passed", "accuracy": "passed", "analog": "passed", "temp": "failed"}
+    minutes = {"range": 20, "accuracy": 45, "analog": 15, "temp": 240}
     for record, tc in verification.records_of(db, run):
         key = next(k for k, v in tcs.items() if v.id == tc.id)
         verification.set_result(db, project, alex, run, record.id, result=results[key],
+                                duration_ms=minutes[key] * 60_000,
                                 comment="Drift at -40 degC exceeds limit" if results[key] == "failed" else None)
     engine.execute_transition(db, project, alex, run, "complete")
 
@@ -239,5 +255,45 @@ def seed_demo(db: Session) -> None:
                       items.ContentChange(description="Overload resistance shall be at least twice the upper "
                                                       "range value, including the 160 bar option under review."),
                       change_note="Prepared for range extension")
+
+    # --- platform reuse: a second product shares the measuring cell and the housing ---------------------
+    switch = new("system_element", "Compact pressure switch",
+                 fields={"level": "product", "perspective": "physical", "discipline": "mechatronic"})
+    link("contains", switch, cell, attributes={"quantity": 1})
+    link("contains", switch, housing, attributes={"quantity": 1})
+    new("system_element", "Switch electronics", parent=switch,
+        fields={"level": "module", "discipline": "hardware", "reuse_strategy": "new"})
+
+    # --- a completed closed-loop change (dated in the past, so lead-time KPIs have history) -------------
+    cr2 = new("change_request", "Qualify a second supplier for the measuring cell", by=max_,
+              fields={"reason": "cost_reduction", "priority": "medium",
+                      "impact_analysis": "Measuring cell only; interface unchanged; re-test range and accuracy."})
+    link("affects", cr2, cell)
+    engine.execute_transition(db, project, max_, cr2, "analyse")
+    engine.execute_transition(db, project, alex, cr2, "approve")
+    engine.vote(db, project, max_, engine.pending_request(db, cr2), decision="approve", password=DEMO_PASSWORD)
+    co1 = new("change_order", "Introduce measuring cell from supplier B", by=max_)
+    link("implements", co1, cr2)
+    link("affects", co1, cell, attributes={"action": "revise"})
+    engine.execute_transition(db, project, max_, co1, "start_work")
+    items.revise_item(db, project, alex, cell, change_order=co1, change_note="Second source")
+    items.update_item(db, project, alex, cell, items.ContentChange(fields={"supplier": "Supplier B",
+                                                                           "part_number": "MC-1001-B"}),
+                      change_note="Supplier B part")
+    engine.execute_transition(db, project, alex, co1, "submit")
+    engine.execute_transition(db, project, alex, co1, "release")
+    engine.vote(db, project, max_, engine.pending_request(db, co1), decision="approve", password=DEMO_PASSWORD)
+    _backdate(db, cr2, created=45, events={"in_analysis": 41, "approved": 33})
+    _backdate(db, co1, created=31, events={"in_work": 29, "in_approval": 16, "released": 14})
+    _backdate(db, cr, created=9, events={"in_analysis": 8})
+
+    # --- shared reports ---------------------------------------------------------------------------------
+    from almlight.modules.reports import service as reports
+    from almlight.modules.reports.schemas import ReportIn
+
+    reports.create_report(db, project, max_, ReportIn(title="Project KPI overview", template="kpi_overview",
+                                                      description="Platform and process KPIs for the steering board"))
+    reports.create_report(db, project, rita, ReportIn(title="Requirements status", template="requirements_status",
+                                                      description="Lifecycle, coverage and progress"))
     db.commit()
     log.warning("Demo project %s loaded (users alex/rita/max, password '%s')", DEMO_KEY, DEMO_PASSWORD)

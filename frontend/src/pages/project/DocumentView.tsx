@@ -2,9 +2,9 @@ import { useState } from "react";
 import {
   ActionIcon, Anchor, Badge, Breadcrumbs, Button, Card, Center, Group, Loader, Menu, Stack, Text, Title, Tooltip,
 } from "@mantine/core";
-import { IconArrowDown, IconArrowUp, IconDownload, IconEdit, IconExternalLink, IconGitBranch, IconPlus } from "@tabler/icons-react";
+import { IconArrowDown, IconArrowUp, IconEdit, IconExternalLink, IconGitBranch, IconPlus } from "@tabler/icons-react";
 import { Link, useParams } from "react-router-dom";
-import { api, downloadUrl } from "@/api/client";
+import { api } from "@/api/client";
 import { useItem, useProjectMutation, useTree } from "@/api/hooks";
 import type { ItemDetail, TreeNode } from "@/api/types";
 import { StateBadge, SuspectBadge } from "@/components/badges";
@@ -12,6 +12,7 @@ import { Markdown } from "@/components/Markdown";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
 import { BranchBar } from "./BranchMerge";
+import { DocumentExportMenu } from "./DocumentExport";
 
 interface AddTarget { parent: string; position: number | null; }
 
@@ -50,7 +51,7 @@ export function DocumentView() {
         </Stack>
         <Group gap="xs">
           <Button variant="default" component={Link} to={`/p/${key}/items/${spec.data.key}`} leftSection={<IconExternalLink size={16} />}>Document item</Button>
-          <Button variant="default" component="a" href={downloadUrl(`/projects/${key}/items/${spec.data.key}/reqif`)} leftSection={<IconDownload size={16} />}>ReqIF</Button>
+          <DocumentExportMenu docKey={spec.data.key} />
           {can("contributor") && <Button variant="default" leftSection={<IconGitBranch size={16} />} onClick={() => setBranching(true)} data-testid="create-branch">Branch</Button>}
           {editableDoc && <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding({ parent: spec.data!.key, position: null })} data-testid="doc-add">Add</Button>}
         </Group>

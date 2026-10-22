@@ -11,6 +11,7 @@ import type { ImportResult, Role } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { CATEGORY_LABELS, stateColor } from "@/lib/model";
 import { useProjectCtx } from "./ProjectLayout";
+import { ReqifImport } from "./ReqifImport";
 
 export function SettingsPage() {
   const { can } = useProjectCtx();
@@ -261,6 +262,7 @@ function ImportExport() {
           <Anchor href={downloadUrl(`/projects/${key}/export.xlsx`)}><Group gap={6}><IconDownload size={16} />All items as Excel (.xlsx)</Group></Anchor>
           <Anchor href={downloadUrl(`/projects/${key}/export.csv`)}><Group gap={6}><IconDownload size={16} />All items as CSV</Group></Anchor>
           <Anchor href={downloadUrl(`/projects/${key}/reqif`)}><Group gap={6}><IconDownload size={16} />Requirements as ReqIF 1.2 (DOORS, Polarion, codebeamer, OEM portals)</Group></Anchor>
+          <Text size="xs" c="dimmed">Documents: Word and PDF export from the document view (live or from a baseline).</Text>
           {can("manager") && <Anchor href={downloadUrl(`/projects/${key}/archive`)}><Group gap={6}><IconDownload size={16} />Full project archive (JSON with history, links, baselines)</Group></Anchor>}
         </Stack>
       </Card>
@@ -288,6 +290,7 @@ function ImportExport() {
           </Stack>
         </Card>
       )}
+      {can("contributor") && <ReqifImport />}
     </SimpleGrid>
   );
 }

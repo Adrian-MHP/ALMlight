@@ -135,11 +135,13 @@ export interface LinkTypeDef {
 
 export interface Semantics {
   affects_link: string;
+  implements_link: string;
   verifies_link: string;
   satisfies_link: string;
   derives_link: string;
   requires_link: string;
   excludes_link: string;
+  heading_type: string | null;
   test_case_types: string[];
   test_run_type: string | null;
   stakeholder_types: string[];
@@ -547,4 +549,90 @@ export interface MergePreview {
     changes: MergeChange[];
   }[];
   added_in_branch: { branch: string; type_key: string; title: string; parent_in_source: string | null }[];
+}
+
+// --- reports -----------------------------------------------------------------------------------
+
+export type WidgetType =
+  | "kpi" | "chart" | "table" | "trend" | "coverage" | "matrix" | "markdown"
+  | "reuse" | "change_lead_time" | "retest_effort" | "variant_ratio" | "maturity";
+
+export interface ReportItemFilter {
+  types?: string[];
+  states?: string[];
+  q?: string | null;
+  fields?: Record<string, string>;
+  owner?: string | null;
+  suspect?: boolean | null;
+  variant?: string | null;
+}
+
+export interface ReportWidget {
+  id: string;
+  type: WidgetType;
+  title?: string;
+  width?: number;
+  filter?: ReportItemFilter;
+  metric?: "count" | "percent";
+  percent_of?: ReportItemFilter | null;
+  target?: number | null;
+  group_by?: string;
+  stack_by?: string | null;
+  chart?: "bar" | "horizontal" | "donut" | "pie";
+  columns?: string[];
+  limit?: number;
+  sort?: string;
+  interval?: "week" | "month";
+  periods?: number;
+  series?: ("created" | "released" | "changed")[];
+  cumulative?: boolean;
+  coverage_type?: string | null;
+  rows?: string | null;
+  cols?: string | null;
+  text?: string;
+  change_types?: string[];
+  variant?: string | null;
+}
+
+export interface ReportSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  visibility: "project" | "private";
+  template: string | null;
+  owner: UserRef | null;
+  mine: boolean;
+  created_at: string;
+  updated_at: string;
+  widget_count: number;
+}
+
+export interface Report extends ReportSummary {
+  widgets: ReportWidget[];
+}
+
+export interface ReportTemplate {
+  key: string;
+  title: string;
+  description: string;
+  widgets: number;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WidgetData = { ok: boolean; error?: string } & Record<string, any>;
+
+export interface ReqifImportResult {
+  dry_run: boolean;
+  applied: boolean;
+  title: string | null;
+  analysis: {
+    types: { name: string; count: number; suggested: string | null; mapped: string | null;
+      attributes: { title: string[]; description: string[]; id: string[]; fields: Record<string, string>; unmapped: string[] } }[];
+    relations: { name: string; count: number; suggested: string | null; mapped: string | null }[];
+    specifications: { name: string; top_level: number }[];
+    objects: number;
+  };
+  summary: Record<string, number>;
+  warnings: string[];
+  errors: string[];
 }

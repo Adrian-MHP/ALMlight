@@ -232,3 +232,95 @@ def test_branch_and_merge_document(page: Page):
     page.get_by_test_id("merge-to-source").click()
     expect(page.get_by_text("Branch and source are in sync")).to_be_visible()
     assert page.request.get("/api/v1/projects/DEMO/items/H-1").json()["title"] == "1 Measurement and accuracy"
+
+
+def test_reports_view_and_build(page: Page):
+    login(page, "max", DEMO_PW)
+    page.goto("/p/DEMO/reports")
+    page.get_by_test_id("report-Project KPI overview").click()
+    expect(page.get_by_test_id("report-heading")).to_have_text("Project KPI overview")
+    expect(page.get_by_test_id("kpi-value").first).to_be_visible()
+    expect(page.get_by_test_id("widget-reuse")).to_contain_text("Measuring cell")
+    expect(page.get_by_test_id("widget-lead")).to_contain_text("Change Order")
+    page.wait_for_timeout(800)  # let charts finish their entry animation for the screenshot
+    shot(page, "18-report-kpis")
+    # Build a new report from scratch.
+    page.goto("/p/DEMO/reports")
+    page.get_by_test_id("new-report").click()
+    choose(page, "report-template", "Blank report")
+    page.get_by_test_id("report-title").fill("Draft requirements")
+    page.get_by_test_id("report-create").click()
+    page.get_by_test_id("add-widget").click()
+    page.get_by_test_id("add-chart").click()
+    page.get_by_test_id("widget-title").fill("Requirements by state")
+    page.get_by_test_id("widget-types").click()
+    page.get_by_role("option", name="System Requirement").click()
+    page.keyboard.press("Escape")
+    expect(page.get_by_test_id("widget-preview").locator(".recharts-wrapper")).to_be_visible()
+    shot(page, "19-widget-editor")
+    page.get_by_test_id("widget-save").click()
+    page.get_by_test_id("report-save").click()
+    expect(page.get_by_test_id("report-heading")).to_have_text("Draft requirements")
+    expect(page.get_by_text("Requirements by state")).to_be_visible()
+
+
+def test_document_word_pdf_export(page: Page):
+    login(page, "alex", DEMO_PW)
+    page.goto("/p/DEMO/documents/SPEC-2")
+    page.get_by_test_id("doc-export").click()
+    page.get_by_test_id("export-docx").click()
+    with page.expect_download() as dl:
+        page.get_by_test_id("export-download").click()
+    assert dl.value.suggested_filename.startswith("SPEC-2") and dl.value.suggested_filename.endswith(".docx")
+    page.get_by_test_id("doc-export").click()
+    page.get_by_test_id("export-pdf").click()
+    page.get_by_text("From a baseline").click()
+    choose(page, "export-baseline", "Concept baseline")
+    with page.expect_download() as dl:
+        page.get_by_test_id("export-download").click()
+    path = dl.value.path()
+    assert open(path, "rb").read(4) == b"%PDF"
+
+
+REQIF = """<?xml version="1.0" encoding="UTF-8"?>
+<REQ-IF xmlns="http://www.omg.org/spec/ReqIF/20110401/reqif.xsd" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <THE-HEADER><REQ-IF-HEADER IDENTIFIER="h"><TITLE>OEM requirements</TITLE></REQ-IF-HEADER></THE-HEADER>
+  <CORE-CONTENT><REQ-IF-CONTENT>
+    <DATATYPES><DATATYPE-DEFINITION-XHTML IDENTIFIER="x" LONG-NAME="XHTML"/><DATATYPE-DEFINITION-STRING IDENTIFIER="s" LONG-NAME="S" MAX-LENGTH="99"/></DATATYPES>
+    <SPEC-TYPES>
+      <SPEC-OBJECT-TYPE IDENTIFIER="t" LONG-NAME="OEM Requirement"><SPEC-ATTRIBUTES>
+        <ATTRIBUTE-DEFINITION-STRING IDENTIFIER="a-name" LONG-NAME="ReqIF.Name"><TYPE><DATATYPE-DEFINITION-STRING-REF>s</DATATYPE-DEFINITION-STRING-REF></TYPE></ATTRIBUTE-DEFINITION-STRING>
+        <ATTRIBUTE-DEFINITION-XHTML IDENTIFIER="a-text" LONG-NAME="ReqIF.Text"><TYPE><DATATYPE-DEFINITION-XHTML-REF>x</DATATYPE-DEFINITION-XHTML-REF></TYPE></ATTRIBUTE-DEFINITION-XHTML>
+      </SPEC-ATTRIBUTES></SPEC-OBJECT-TYPE>
+      <SPECIFICATION-TYPE IDENTIFIER="st" LONG-NAME="Spec"/>
+    </SPEC-TYPES>
+    <SPEC-OBJECTS>
+      <SPEC-OBJECT IDENTIFIER="oem-1"><TYPE><SPEC-OBJECT-TYPE-REF>t</SPEC-OBJECT-TYPE-REF></TYPE><VALUES>
+        <ATTRIBUTE-VALUE-STRING THE-VALUE="Withstand 2x overpressure"><DEFINITION><ATTRIBUTE-DEFINITION-STRING-REF>a-name</ATTRIBUTE-DEFINITION-STRING-REF></DEFINITION></ATTRIBUTE-VALUE-STRING>
+        <ATTRIBUTE-VALUE-XHTML><DEFINITION><ATTRIBUTE-DEFINITION-XHTML-REF>a-text</ATTRIBUTE-DEFINITION-XHTML-REF></DEFINITION><THE-VALUE><xhtml:div><xhtml:p>The device shall withstand twice the upper range value.</xhtml:p></xhtml:div></THE-VALUE></ATTRIBUTE-VALUE-XHTML>
+      </VALUES></SPEC-OBJECT>
+    </SPEC-OBJECTS>
+    <SPECIFICATIONS><SPECIFICATION IDENTIFIER="sp" LONG-NAME="OEM specification"><TYPE><SPECIFICATION-TYPE-REF>st</SPECIFICATION-TYPE-REF></TYPE>
+      <CHILDREN><SPEC-HIERARCHY IDENTIFIER="h1"><OBJECT><SPEC-OBJECT-REF>oem-1</SPEC-OBJECT-REF></OBJECT></SPEC-HIERARCHY></CHILDREN></SPECIFICATION></SPECIFICATIONS>
+  </REQ-IF-CONTENT></CORE-CONTENT>
+</REQ-IF>"""
+
+
+def test_reqif_import_wizard(page: Page, tmp_path):
+    login(page, "alex", DEMO_PW)
+    page.goto("/p/DEMO/settings")
+    page.get_by_test_id("tab-io").click()
+    f = tmp_path / "oem.reqif"
+    f.write_text(REQIF)
+    page.get_by_test_id("reqif-file").click()
+    page.locator("input[type=file]").last.set_input_files(str(f))
+    page.get_by_test_id("reqif-analyse").click()
+    expect(page.get_by_test_id("reqif-types")).to_contain_text("OEM Requirement")
+    choose(page, "reqif-map-OEM Requirement", "Stakeholder Requirement")
+    page.get_by_test_id("reqif-analyse").click()
+    expect(page.get_by_text("created: 2")).to_be_visible()
+    shot(page, "20-reqif")
+    page.get_by_test_id("reqif-apply").click()
+    expect(page.get_by_text("Imported", exact=True)).to_be_visible()
+    found = page.request.get("/api/v1/projects/DEMO/items?q=overpressure").json()
+    assert found["total"] == 1 and found["items"][0]["type_key"] == "stakeholder_requirement"

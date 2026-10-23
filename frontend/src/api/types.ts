@@ -953,3 +953,48 @@ export interface Resources {
 export interface LevelResult extends ScheduleResult {
   remaining_overloads: { user: UserRef | null; week: string; planned: number; capacity: number }[];
 }
+
+// --- Git (Code page, linked revisions) ---
+export interface RepoRef { name: string; kind: "branch" | "tag"; sha: string; date: string | null }
+export interface Repo {
+  id: string; name: string; url: string; provider: "github" | "gitlab" | "bitbucket" | "azure" | "git"; web_url: string | null;
+  default_branch: string | null; enabled: boolean; has_token: boolean; auth_user: string | null; commit_count: number;
+  branch_count: number; tag_count: number; last_sync_at: string | null; last_error: string | null; can_push: boolean;
+  pull_requests?: { checked?: number; linked?: number; error?: string } | null; refs?: RepoRef[];
+}
+export interface CommitItemRef { link_id: string; key: string; title: string; source: "message" | "manual" }
+export interface Commit {
+  repository: { id: string; name: string; provider: string }; sha: string; short: string; title: string; message: string;
+  author: string; author_email: string; authored_at: string; committed_at: string; parents: string[]; additions: number;
+  deletions: number; file_count: number; url: string | null; items?: CommitItemRef[];
+}
+export interface CommitFile { path: string; old_path: string; status: string; binary: boolean; patch: string; additions: number; deletions: number }
+export interface CommitDetail extends Commit { files: CommitFile[]; truncated: boolean; branches: string[] }
+export interface TreeEntry { name: string; path: string; kind: "dir" | "file" | "submodule"; size: number | null }
+export interface TreeView { ref: string; sha: string; path: string; entries: TreeEntry[]; commit: Commit | null; url: string | null }
+export interface FileView {
+  ref: string; sha: string; path: string; size: number; binary: boolean; too_big: boolean; text: string | null; language: string;
+  history: Commit[]; url: string | null;
+}
+export interface BranchInfo extends RepoRef { default: boolean; items: { key: string; title: string }[]; head: Commit | null; url: string | null }
+export interface ItemRevisions {
+  revisions: (Commit & { link_id: string; source: "message" | "manual" })[];
+  branches: { repository: { id: string; name: string }; name: string; sha: string; date: string | null; url: string | null }[];
+  pull_requests: { id: string; external_id: string; title: string | null; status: string | null; url: string | null; system: string; data: Record<string, unknown> }[];
+  repositories: { id: string; name: string; provider: string; can_push: boolean; default_branch: string | null }[];
+  branch_name: string;
+}
+
+// --- connectors ---
+export interface ConnectorInfo { key: string; name: string; vendor: string; kind: "file" | "server"; directions: string[]; formats: string[]; description: string; page?: string }
+export interface ConnectorResult {
+  dry_run: boolean; applied: boolean; system: string; source: string;
+  analysis: {
+    types: { kind: string; count: number; suggested: string | null; mapped: string | null; sample: string; attributes: Record<string, string | null> }[];
+    relations: { kind: string; count: number; suggested: string | null; mapped: string | null }[];
+    objects: number; packages: { id: string; name: string; path: string }[];
+  };
+  summary: { created: number; updated: number; unchanged: number; conflicts: number; frozen: number; skipped: number; links: number };
+  warnings: string[]; errors: string[];
+}
+export interface SysmlSettings { configured: boolean; base_url?: string; project_id?: string | null; project_name?: string | null; has_token?: boolean }

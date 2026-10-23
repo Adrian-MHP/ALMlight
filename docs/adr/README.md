@@ -32,5 +32,7 @@
 | [0028](0028-scheduling-on-a-working-day-calendar.md) | Scheduling on a working-day calendar with typed dependencies, auto-scheduling and levelling | accepted |
 | [0029](0029-time-records-outside-item-versions.md) | Time records are separate facts, not item versions, with restricted visibility | accepted |
 | [0030](0030-internationalisation-with-english-source-keys.md) | Internationalisation: English source texts as keys, server-side translation of server texts | accepted |
+| [0031](0031-git-mirrors-and-linked-revisions.md) | Git: server-side mirrors, an indexed commit history and linked revisions | accepted |
+| [0032](0032-connector-framework.md) | Connectors share one neutral model and one import pipeline | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

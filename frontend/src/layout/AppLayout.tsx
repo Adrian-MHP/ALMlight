@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
-  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconClock, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
+  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconClock, IconGitBranch, IconPlugConnected, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
   IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
   IconLogout, IconLanguage, IconCheck, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
   IconTopologyStar3, IconUser, IconUsers, type Icon,
@@ -32,6 +32,7 @@ export const PROJECT_NAV: NavGroup[] = [
     { to: "documents", label: tx("Documents"), icon: IconFileText, hint: tx("Live documents, co-editing, Word & ReqIF") },
     { to: "structure", label: tx("Structure"), icon: IconSitemap, hint: tx("Product and system structure") },
     { to: "traceability", label: tx("Traceability"), icon: IconRoute, hint: tx("Matrix, coverage and impact") },
+    { to: "code", label: tx("Code"), icon: IconGitBranch, hint: tx("Git repositories: commits linked to items, diffs, files, branches") },
   ] },
   { group: tx("Change & quality"), color: "orange", items: [
     { to: "changes", label: tx("Changes"), icon: IconGitCompare, hint: tx("Change requests and orders") },
@@ -41,6 +42,7 @@ export const PROJECT_NAV: NavGroup[] = [
   { group: tx("Configuration"), color: "violet", items: [
     { to: "variants", label: tx("Variants"), icon: IconTopologyStar3, hint: tx("Features, variants, 150% model") },
     { to: "baselines", label: tx("Baselines"), icon: IconBinaryTree, hint: tx("Baselines and release collections") },
+    { to: "connectors", label: tx("Connectors"), icon: IconPlugConnected, hint: tx("Enterprise Architect, medini analyze, SysML v2, ReqIF, Git") },
   ] },
   { group: tx("Planning"), color: "cyan", items: [
     { to: "plans", label: tx("Plans"), icon: IconCalendarStats, hint: tx("Releases, iterations, capacity, planning board") },

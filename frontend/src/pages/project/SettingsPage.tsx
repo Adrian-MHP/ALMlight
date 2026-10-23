@@ -20,7 +20,7 @@ export function SettingsPage() {
   return (
     <>
       <PageHeader title={tx("Settings")} subtitle={tx("Team, information model, integrations and data exchange")} />
-      <Tabs defaultValue="members">
+      <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") ?? "members"}>
         <Tabs.List mb="md">
           <Tabs.Tab value="members">{tx("Members")}</Tabs.Tab>
           <Tabs.Tab value="model" data-testid="tab-model">{tx("Information model")}</Tabs.Tab>

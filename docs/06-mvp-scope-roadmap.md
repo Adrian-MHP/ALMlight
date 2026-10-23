@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP, 0.2 – 0.7 increments)
+## 6.1 Implemented (v0.1 MVP, 0.2 – 0.8 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -91,6 +91,12 @@ resource load per person and week against capacity with resource levelling, Germ
 model labels per customer, server messages, notifications, e-mail digests, document view and exports). See
 [15-work-management](15-work-management.md) and [16-languages](16-languages.md).
 
+**Code and connectors (0.8)**: Git repositories (GitHub, GitLab, Bitbucket, Azure Repos, any Git server) with
+server-side mirrors, linked revisions from commit messages or by hand, a repository browser (commits, diffs, files,
+branches), GitHub pull requests and branches per item; connector framework with Enterprise Architect (import .qea/XMI,
+export XMI, write-back into .qea), medini analyze (HARA with ISO 26262 ASIL and FMEA both ways, safety requirements
+via ReqIF) and SysML v2 API (SysON, Cameo) imports. See [17-code-and-connectors](17-code-and-connectors.md).
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check, SMTP and OIDC
 configuration
 
@@ -107,20 +113,19 @@ configuration
 
 ## 6.3 Roadmap
 
-**Next increment (0.8) — scale and comfort**
+**Next increment (0.9) — scale and comfort**
 - Visual template editor, template versioning; personal calendars (holidays, absences) for scheduling and levelling
 - Live sessions across several app processes (shared bus), comments anchored to text ranges
 - Effectivity on change orders (date / serial number), BOM substitutes and alternates
 - Parametrised test runs and test run templates; skills/roles for resource planning
-- Lookup-table computed fields (e.g. ISO 26262 ASIL determination); group → project role mapping for SSO
+- Group → project role mapping for SSO; Jira and OSLC connectors; write-back to SysML v2 servers
 - Scheduled report e-mails; S3-compatible / Azure Blob file storage; PDF export in customer templates
 
-**0.9 — digital thread**
-- SysML v2 API connector (link items to model elements, e.g. SysON)
+**1.0 — digital thread**
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**1.0 — assisted engineering (governed AI)**
+**1.1 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

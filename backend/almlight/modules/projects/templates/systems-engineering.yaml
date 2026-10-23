@@ -14,7 +14,7 @@ label: Systems Engineering (generic)
 description: >
   Requirements from stakeholder to module level, RFLP architecture, verification,
   closed-loop change management, variants and maturity tracking.
-version: 4
+version: 5
 revision_scheme: letters
 
 item_types:
@@ -70,6 +70,13 @@ item_types:
         options: [test, analysis, inspection, demonstration]
         default: test
       - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
+      - key: asil
+        label: ASIL
+        type: enum
+        options: [{key: qm, label: QM}, {key: a, label: ASIL A}, {key: b, label: ASIL B}, {key: c, label: ASIL C}, {key: d, label: ASIL D}]
+        help: Automotive Safety Integrity Level (ISO 26262), inherited from the safety goal
+      - {key: safe_state, label: Safe state, type: string}
+      - {key: ftti, label: FTTI, type: string, help: "Fault tolerant time interval, e.g. 100 ms"}
       - {key: rationale, label: Rationale, type: text}
       - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
@@ -93,6 +100,13 @@ item_types:
         default: test
       - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
       - {key: rationale, label: Rationale, type: text}
+      - key: asil
+        label: ASIL
+        type: enum
+        options: [{key: qm, label: QM}, {key: a, label: ASIL A}, {key: b, label: ASIL B}, {key: c, label: ASIL C}, {key: d, label: ASIL D}]
+        help: Automotive Safety Integrity Level (ISO 26262), inherited from the safety goal
+      - {key: safe_state, label: Safe state, type: string}
+      - {key: ftti, label: FTTI, type: string, help: "Fault tolerant time interval, e.g. 100 ms"}
       - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: function
@@ -189,6 +203,27 @@ item_types:
         type: enum
         options: [{key: low, label: Low, color: green}, {key: medium, label: Medium, color: yellow}, {key: high, label: High, color: red}]
         classify: {field: rpn_after, bands: [[1, low], [80, medium], [200, high]]}
+
+  - key: hazard
+    label: Hazard
+    prefix: HAZ
+    category: risk
+    workflow: risk
+    description: Hazardous event of the hazard analysis and risk assessment (HARA, ISO 26262) — rated by severity, exposure and controllability; the ASIL follows from the standard's table; mitigated by safety goals.
+    fields:
+      - {key: malfunction, label: Malfunction, type: string}
+      - {key: operational_situation, label: Operational situation, type: string}
+      - {key: hazardous_event, label: Hazardous event, type: text}
+      - {key: s, label: Severity S (0-3), type: integer, min: 0, max: 3}
+      - {key: e, label: Exposure E (0-4), type: integer, min: 0, max: 4}
+      - {key: c, label: Controllability C (0-3), type: integer, min: 0, max: 3}
+      - {key: asil_score, label: ASIL score, type: integer, formula: "min(s, 1) * min(e, 1) * min(c, 1) * (s + e + c)", help: "S + E + C (0 when any is 0); ISO 26262-3 table: 10 = D, 9 = C, 8 = B, 7 = A"}
+      - key: asil
+        label: ASIL
+        type: enum
+        options: [{key: qm, label: QM, color: gray}, {key: a, label: ASIL A, color: yellow}, {key: b, label: ASIL B, color: orange}, {key: c, label: ASIL C, color: red}, {key: d, label: ASIL D, color: grape}]
+        classify: {field: asil_score, bands: [[0, qm], [7, a], [8, b], [9, c], [10, d]]}
+      - {key: external_id, label: External ID, type: string, help: "ID in the safety analysis tool (e.g. medini analyze)"}
 
   - key: release
     label: Release
@@ -423,7 +458,7 @@ link_types:
     label: mitigated by
     reverse_label: mitigates
     description: A requirement, design element or test that reduces a risk.
-    sources: [risk]
+    sources: [risk, hazard]
     targets: [stakeholder_requirement, system_requirement, element_requirement, system_element, function, test_case]
     suspect_on_target_change: true
 
@@ -431,7 +466,7 @@ link_types:
     label: risk for
     reverse_label: has risk
     description: The function, element or interface a risk applies to.
-    sources: [risk]
+    sources: [risk, hazard]
     targets: [function, system_element, interface]
 
   - key: planned_in
@@ -654,6 +689,28 @@ workflows:
 # rest of the model; the user interface falls back to English for anything not listed.
 translations:
   de:
+    "Hazard": "Gefährdung"
+    "Malfunction": "Fehlfunktion"
+    "Operational situation": "Betriebssituation"
+    "Hazardous event": "Gefährdungsereignis"
+    "Severity S (0-3)": "Schwere S (0-3)"
+    "Exposure E (0-4)": "Häufigkeit E (0-4)"
+    "Controllability C (0-3)": "Kontrollierbarkeit C (0-3)"
+    "ASIL score": "ASIL-Punktzahl"
+    "ASIL": "ASIL"
+    "QM": "QM"
+    "ASIL A": "ASIL A"
+    "ASIL B": "ASIL B"
+    "ASIL C": "ASIL C"
+    "ASIL D": "ASIL D"
+    "Safe state": "Sicherer Zustand"
+    "FTTI": "FTTI"
+    "External ID": "Externe ID"
+    "Automotive Safety Integrity Level (ISO 26262), inherited from the safety goal": "Automotive Safety Integrity Level (ISO 26262), vom Sicherheitsziel geerbt"
+    "Fault tolerant time interval, e.g. 100 ms": "Fehlertolerante Zeitspanne, z. B. 100 ms"
+    "S + E + C (0 when any is 0); ISO 26262-3 table: 10 = D, 9 = C, 8 = B, 7 = A": "S + E + C (0, wenn ein Wert 0 ist); Tabelle ISO 26262-3: 10 = D, 9 = C, 8 = B, 7 = A"
+    "ID in the safety analysis tool (e.g. medini analyze)": "ID im Sicherheitsanalyse-Werkzeug (z. B. medini analyze)"
+    "Hazardous event of the hazard analysis and risk assessment (HARA, ISO 26262) — rated by severity, exposure and controllability; the ASIL follows from the standard's table; mitigated by safety goals.": "Gefährdungsereignis der Gefährdungs- und Risikoanalyse (HARA, ISO 26262) — bewertet nach Schwere, Häufigkeit und Kontrollierbarkeit; der ASIL ergibt sich aus der Tabelle der Norm; abgesichert durch Sicherheitsziele."
     "1 = certain detection ... 10 = undetectable": "1 = sichere Entdeckung … 10 = nicht entdeckbar"
     "1 = no effect ... 10 = hazardous without warning": "1 = keine Auswirkung … 10 = gefährlich ohne Vorwarnung"
     "1 = remote ... 10 = very high": "1 = unwahrscheinlich … 10 = sehr hoch"

@@ -62,3 +62,11 @@ def iso(dt: datetime | None) -> str | None:
 
 def drop_none(d: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
+
+
+def form_flag(value: str | None, default: bool) -> bool:
+    """A yes/no field of a multipart form. FastAPI reads a missing boolean form field as false (like an unticked
+    HTML checkbox) even when the declared default is true; read it as text so that the default holds."""
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() in ("true", "1", "yes", "on")

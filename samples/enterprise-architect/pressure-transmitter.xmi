@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="windows-1252"?>
+<xmi:XMI xmi:version="2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1"
+  xmlns:SysML="http://www.omg.org/spec/SysML/20150709/SysML">
+  <xmi:Documentation exporter="Enterprise Architect" exporterVersion="6.5" exporterID="1628"/>
+  <uml:Model xmi:type="uml:Model" name="EA_Model" visibility="public">
+    <packagedElement xmi:type="uml:Package" xmi:id="EAPK_1A2B3C4D_0000_4000_8000_000000000001" name="Model" visibility="public">
+      <packagedElement xmi:type="uml:Package" xmi:id="EAPK_1A2B3C4D_0000_4000_8000_000000000004" name="System" visibility="public">
+        <packagedElement xmi:type="uml:Class" xmi:id="EAID_5E6F7A8B_0000_4000_8000_000000000012" name="Measure gauge pressure" visibility="public"/>
+        <packagedElement xmi:type="uml:Class" xmi:id="EAID_5E6F7A8B_0000_4000_8000_000000000013" name="Report diagnostics" visibility="public">
+          <ownedComment xmi:type="uml:Comment" xmi:id="EAID_c1"><body>Diagnostics per NAMUR NE 107.</body></ownedComment>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Class" xmi:id="EAID_5E6F7A8B_0000_4000_8000_000000000014" name="Sensor module" visibility="public"/>
+        <packagedElement xmi:type="uml:Class" xmi:id="EAID_5E6F7A8B_0000_4000_8000_000000000018" name="Full-scale test" visibility="public"/>
+        <packagedElement xmi:type="uml:Abstraction" xmi:id="EAID_ABS1" visibility="public" client="EAID_5E6F7A8B_0000_4000_8000_000000000014" supplier="EAID_5E6F7A8B_0000_4000_8000_000000000012"/>
+        <packagedElement xmi:type="uml:Dependency" xmi:id="EAID_DEP1" visibility="public" client="EAID_5E6F7A8B_0000_4000_8000_000000000013" supplier="EAID_5E6F7A8B_0000_4000_8000_000000000012"/>
+      </packagedElement>
+    </packagedElement>
+  </uml:Model>
+  <SysML:Requirement xmi:id="EAID_S1" base_Class="EAID_5E6F7A8B_0000_4000_8000_000000000012" id="REQ-1" text="The transmitter shall measure gauge pressure."/>
+  <xmi:Extension extender="Enterprise Architect" extenderID="6.5">
+    <elements>
+      <element xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000012" xmi:type="uml:Requirement" name="Measure gauge pressure" scope="public">
+        <properties isSpecification="false" sType="Requirement" nType="0" scope="public" stereotype="functionalRequirement" alias="REQ-1" status="Approved"/>
+        <project author="jdoe" version="1.1" phase="1.0" complexity="1" status="Approved"/>
+        <tags><tag xmi:id="EAID_T1" name="Priority" value="must" modelElement="EAID_5E6F7A8B_0000_4000_8000_000000000012"/></tags>
+      </element>
+      <element xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000014" xmi:type="uml:Class" name="Sensor module" scope="public">
+        <properties documentation="Measuring cell and electronics." stereotype="block"/>
+      </element>
+      <element xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000018" xmi:type="uml:Class" name="Full-scale test" scope="public">
+        <properties documentation="Apply 0 and 10 bar." stereotype="testCase"/>
+      </element>
+    </elements>
+    <connectors>
+      <connector xmi:idref="EAID_ABS1"><source xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000014"/><target xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000012"/>
+        <properties ea_type="Abstraction" stereotype="satisfy" direction="Source -&gt; Destination"/></connector>
+      <connector xmi:idref="EAID_VER1"><source xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000018"/><target xmi:idref="EAID_5E6F7A8B_0000_4000_8000_000000000012"/>
+        <properties ea_type="Abstraction" stereotype="verify" direction="Source -&gt; Destination"/></connector>
+    </connectors>
+  </xmi:Extension>
+</xmi:XMI>

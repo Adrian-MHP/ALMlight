@@ -1,6 +1,6 @@
 # 13 Feature catalogue — Ariadne compared with an enterprise engineering backbone
 
-This catalogue lists what Ariadne 0.7 delivers, grouped by the capability areas customers know from the enterprise
+This catalogue lists what Ariadne 0.8 delivers, grouped by the capability areas customers know from the enterprise
 suites: **Polarion ALM** for requirements, tests, documents and process, and **Teamcenter** for product structure,
 change and data management. The reference column describes the capability as users of those suites expect it; it is
 an orientation based on publicly documented functionality, not a feature-by-feature statement about a specific
@@ -10,13 +10,13 @@ release of those products.
 
 ## 13.1 Summary
 
-| Capability area | Reference | Ariadne 0.7 |
+| Capability area | Reference | Ariadne 0.8 |
 |---|---|---|
 | Requirements & live documents | Polarion | ● |
 | Traceability & impact analysis | Polarion | ● |
 | Workflow, review, e-signature, audit | Polarion / Teamcenter | ● |
 | Test management | Polarion | ● (no parametrised test runs yet) |
-| Risk management (FMEA) | Polarion (FMEA/risk templates) | ● (ASIL lookup tables ◐) |
+| Risk management (FMEA, HARA) | Polarion (FMEA/risk templates), medini analyze | ● FMEA, HARA with ISO 26262 ASIL, safety goals |
 | Release planning | Polarion Plans | ● releases, iterations, milestones, capacity, planning board |
 | Kanban boards | Polarion boards | ● configurable, drag & drop runs workflow transitions |
 | Schedule / timeline | Teamcenter Schedule Manager | ● Gantt, FS/SS/FF/SF dependencies with lag, critical path, baseline comparison, auto-schedule |
@@ -30,7 +30,8 @@ release of those products.
 | Collaboration & notifications | Polarion / Active Workspace | ● |
 | Reporting & dashboards | Polarion LiveReports / Teamcenter reporting | ● |
 | Search & saved queries | both | ● query language, saved views with columns |
-| Integration & identity | both | ● REST, webhooks, ReqIF, OIDC (OSLC, Jira ○) |
+| Integration & identity | both | ● REST, webhooks, ReqIF, OIDC, Git, Enterprise Architect, medini analyze, SysML v2 (OSLC, Jira ○) |
+| Code / version control | Polarion Git integration | ● linked revisions, repository browser, branches per item |
 | Localisation | both | ● English and German (interface, model labels, server messages, e-mails, exports) |
 | Scale-out & multi-site | Teamcenter | — single site, one app process |
 
@@ -91,7 +92,7 @@ release of those products.
 | Risk matrix before/after mitigation | risk dashboards | ● | Click-to-filter register |
 | Mitigation traceability | both | ● | `mitigated by` → requirements, design, tests (suspect on change) |
 | Residual-risk acceptance with e-signature | regulated processes | ● | Approval workflow |
-| HARA/ASIL determination tables | ISO 26262 templates | ◐ | Possible with computed fields; lookup-table type ○ |
+| HARA/ASIL determination tables | ISO 26262 templates, medini analyze | ● | Hazard type with S/E/C, ASIL computed per ISO 26262-3; HARA import/export |
 
 ## 13.7 Planning and work management
 
@@ -168,9 +169,13 @@ release of those products.
 |---|---|---|---|
 | REST API with OpenAPI, API tokens | both | ● | |
 | Webhooks in (GitHub, Azure DevOps) and out (signed) | both | ● | Transactional outbox |
+| Git repositories: linked revisions, repository browser | Polarion (SVN/Git) | ● | GitHub, GitLab, Bitbucket, Azure Repos, any Git server; commits by item key or by hand; diffs, files, branches; GitHub pull requests; branch per item |
+| Enterprise Architect connector | Polarion connector for EA (partner products) | ● | Import .qea/XMI with mapping and GUID identity, export EA XMI, write-back into .qea |
+| medini analyze connector | medini–Polarion integration | ● | HARA and FMEA (Excel/CSV) both ways, safety requirements via ReqIF |
+| SysML v2 API connector | Cameo/SysML v2 integrations | ● | Requirements, parts, actions, interfaces with satisfy relations (tested with SysON); read-only |
 | CSV/Excel import/export, project archives | both | ● | Dry run, all-or-nothing |
 | Single sign-on | both | ● | OpenID Connect (Entra ID, Keycloak, Okta); LDAP/SAML via an IdP broker (◐) |
-| OSLC, Jira/GitLab connectors, SysML v2 API | Polarion/Teamcenter connectors | ○ | Roadmap |
+| OSLC, Jira connectors | Polarion/Teamcenter connectors | ○ | Roadmap (the connector framework makes them parsers/clients only) |
 | Localised UI | both | ● | English and German; model labels translated per customer; further languages by adding dictionaries |
 | Deployment | server installation | ● | Two containers, automatic migrations, backup/restore |
 | High availability, multi-site replication | Teamcenter | — | Single app process per installation |

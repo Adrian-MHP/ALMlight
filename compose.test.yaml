@@ -53,6 +53,7 @@ services:
     working_dir: /e2e
     volumes:
       - ./e2e:/e2e
+      - ./samples:/samples:ro
     environment:
       BASE_URL: http://app:8000
       ADMIN_PASSWORD: admin-e2e-password

@@ -80,6 +80,8 @@ BUILTIN: dict[str, tuple[str, str]] = {
     "watched": ("bool", "Watched by me"),
     "checkedout": ("bool", "Has checked-out files"),
     "attachments": ("bool", "Has files"),
+    "commits": ("bool", "Has linked commits"),
+    "commit": ("text", "Linked commit (hash)"),
     "release": ("release", "Planned in"),
 }
 _KIND_OF_FIELD = {"enum": "enum", "user": "user", "string": "text", "text": "text", "url": "text", "integer": "number",
@@ -362,6 +364,17 @@ def condition_sql(ctx: Context, c: Condition) -> ColumnElement[bool]:
     elif name == "attachments":
         has = func.jsonb_array_length(Item.attachments) > 0
         expr = has if _bool(vals) else not_(has)
+    elif name in ("commits", "commit"):  # linked revisions (Git)
+        from almlight.modules.vcs.models import CommitLink, RepoCommit
+
+        linked = select(CommitLink.item_id)
+        prefixes = [str(v).strip().lower() for v in vals if str(v).strip() and str(v).strip() != "*"]
+        if name == "commit" and c.op in ("contains", "in") and prefixes:
+            linked = linked.join(RepoCommit, RepoCommit.id == CommitLink.commit_id).where(
+                or_(*[RepoCommit.sha.like(f"{p}%") for p in prefixes]))
+            expr = Item.id.in_(linked)
+        else:
+            expr = Item.id.in_(linked) if _bool(vals or [True]) else Item.id.not_in(linked)
     else:  # pragma: no cover — guarded by field_info
         raise ValidationFailed(f"Unknown query field '{name}'")
     expr = func.coalesce(expr, False)

@@ -237,3 +237,14 @@ a.item-key:hover { text-decoration: underline; }
 .rs-l4 { background: var(--mantine-color-red-filled); color: var(--mantine-color-white); font-weight: 700; }
 .rs-head { font-size: 11px; color: var(--mantine-color-dimmed); text-align: center; white-space: nowrap; }
 .rs-name { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding-right: 6px; }
+
+/* code: diffs and file view */
+.diff, .code-view { margin: 0; font-family: var(--mantine-font-family-monospace); font-size: 12px; line-height: 1.5; min-width: max-content; }
+.diff > div, .code-view > div { padding: 0 12px; white-space: pre; }
+.diff-add { background: color-mix(in srgb, var(--mantine-color-teal-filled) 14%, transparent); }
+.diff-del { background: color-mix(in srgb, var(--mantine-color-red-filled) 12%, transparent); }
+.diff-hunk { color: var(--mantine-color-blue-6); background: var(--mantine-color-default-hover); }
+.diff-add-text { color: var(--mantine-color-teal-7); }
+.diff-del-text { color: var(--mantine-color-red-7); }
+.diff-file-head { border-bottom: 1px solid var(--mantine-color-default-border); background: var(--mantine-color-default-hover); }
+.code-ln { display: inline-block; width: 44px; margin-right: 12px; color: var(--mantine-color-dimmed); text-align: right; user-select: none; }

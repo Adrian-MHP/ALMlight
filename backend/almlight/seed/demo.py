@@ -489,6 +489,16 @@ def seed_demo(db: Session) -> None:
     worked(alex, template, range(-7, -2), 2)
     worked(alex, emc, range(-7, 1), 5, "Pre-compliance measurements")
     db.flush()
+
+    # --- source code: a firmware repository whose commits mention the items (Code page, linked revisions) --
+    from almlight.seed.demo_repo import seed_firmware_repository
+
+    defect = db.execute(select(Item).where(Item.project_id == project.id, Item.type_key == "problem_report",
+                                           Item.title.like("Temperature drift%"))).scalars().first()
+    seed_firmware_repository(db, project, max_, keys={
+        "range": sysr["range"].key, "temp": sysr["temp"].key, "accuracy": sysr["accuracy"].key,
+        "hart": sysr["hart"].key, "comp": mrq_comp.key, "tc_range": tcs["range"].key, "emc": emc.key,
+        "defect": defect.key if defect else sysr["temp"].key})
     baselines.create_baseline(db, project, max_, name="Schedule baseline",
                               description="Plan agreed at the sprint 1 kick-off")
     # the qualification slips by three days: the timeline shows the baseline and the conflicts with DR2 and

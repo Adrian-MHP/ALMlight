@@ -254,3 +254,34 @@ curl -H "Authorization: Bearer $TOKEN" -H 'Accept-Language: de' "$ALM/projects/D
 | Capacity | `PUT /projects/{k}/members` with `hours_per_day` (0–24); `GET /projects/{k}/members` returns it |
 | Language | `PUT /auth/me/locale` (`{"locale": "de"}`, `"en"` or `null`); `GET /auth/me` returns `locale`. Requests without a saved language use `Accept-Language`; messages, activity, notifications, document views and exports follow it |
 
+## 9.15 Git repositories and connectors (0.8)
+
+See [17-code-and-connectors](17-code-and-connectors.md).
+
+```bash
+# connect a repository (manager) — indexes it right away; then the linked revisions of an item
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/repositories" \
+  -d '{"name": "firmware", "url": "https://github.com/acme/firmware.git", "token": "<read token, optional>"}'
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items/SYS-1/revisions"
+# Enterprise Architect: preview, then import with a mapping; export XMI
+curl -X POST -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/connectors/ea/import" -F file=@model.qea
+curl -X POST -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/connectors/ea/import" -F file=@model.qea \
+  -F dry_run=false -F 'mapping={"types": {"Requirement": "stakeholder_requirement"}, "document": "SPEC-2"}'
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/connectors/ea/export.xmi?ql=type:system_requirement" -o ea.xmi
+# medini analyze HARA
+curl -X POST -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/connectors/medini/import" -F kind=hara -F file=@hara.xlsx -F dry_run=false
+```
+
+| Area | Endpoints |
+|---|---|
+| Repositories | `GET`/`POST /projects/{k}/repositories` (`name`, `url`, `token`, `auth_user`, `web_url`; manager), `GET`/`PATCH`/`DELETE /projects/{k}/repositories/{id}`, `POST …/{id}/sync` |
+| Browsing | `GET …/{id}/commits?q=&ref=&path=&item=&limit=&offset=`, `GET …/{id}/commits/{sha}` (files with diffs, linked items, branches), `GET …/{id}/tree?ref=&path=`, `GET …/{id}/file?ref=&path=`, `GET …/{id}/raw?ref=&path=`, `GET …/{id}/branches`, `POST …/{id}/branches` (`name`, `source`, `item`) |
+| Linked revisions | `GET /projects/{k}/items/{key}/revisions` (revisions, branches, pull requests, suggested branch name), `POST …/revisions` (`repository`, `sha`), `DELETE …/revisions/{link_id}` (manual links) |
+| Query | `commits:true`, `NOT commits:true`, `commit:<hash prefix>`; JSON `{"field": "commits", "op": "is", "values": [true]}` |
+| Catalogue | `GET /connectors` |
+| Enterprise Architect | `POST /projects/{k}/connectors/ea/import` (multipart `file`, `dry_run` default true, `mapping` JSON: `types`, `relations` — link key or `key:reverse` —, `document`), `GET …/ea/export.xmi` (item list filter), `POST …/ea/writeback` (`file`, `package` GUID, `ql`) → `.qea`, header `X-Ariadne-Counts` |
+| medini analyze | `POST /projects/{k}/connectors/medini/import` (`file`, `kind` = `hara`/`fmea`, `dry_run`, `mapping`), `GET …/medini/hara.xlsx`, `GET …/medini/fmea.xlsx` |
+| SysML v2 | `GET`/`PUT /projects/{k}/connectors/sysml/settings` (`base_url`, `project_id`, `token`; manager — returns the server's projects), `POST …/sysml/import` (`mapping`, `dry_run`, `refresh`) |
+
+All upload imports preview by default when `dry_run` is omitted (since 0.8 also for the CSV, ReqIF and Word
+round-trip imports — see the beta report).

@@ -24,6 +24,7 @@ from almlight.modules.notifications.models import Notification, Subscription
 from almlight.modules.projects.models import Project, ProjectCounter, ProjectMember
 from almlight.modules.queries.models import SavedQuery
 from almlight.modules.reports.models import Report
+from almlight.modules.vcs.models import CommitLink, RepoCommit, Repository
 from almlight.modules.verification.models import TestRecord
 from almlight.modules.workflow.models import ApprovalRequest, ApprovalVote, WorkflowEvent
 from almlight.modules.worklog.models import WorkRecord
@@ -39,6 +40,7 @@ __all__ = [
     "BaselineLink",
     "Blob",
     "Board",
+    "CommitLink",
     "Branch",
     "BranchItem",
     "CollabDraft",
@@ -59,6 +61,8 @@ __all__ = [
     "ProjectCounter",
     "ProjectMember",
     "Report",
+    "RepoCommit",
+    "Repository",
     "SavedQuery",
     "Subscription",
     "TestRecord",

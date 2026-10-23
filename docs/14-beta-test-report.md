@@ -200,7 +200,52 @@ in template updates), 48 browser E2E tests (new: OR group built with chips and t
 label, auto-schedule, time recording, timesheet, resource heatmap and levelling, German user interface following the
 user), translation check in the frontend build (1,440 texts).
 
-## 14.7 Known limitations
+## 14.7 Round 5 — Git interface and connectors (0.8)
+
+**Method**: the 50 browser E2E tests on a fresh stack, 81 hostile-input and permission checks against the running
+application (repository URLs, paths, revisions, branch names, uploads, roles), a live connection of a public GitHub
+repository and of a SysON server, and the connector round trips in the backend tests.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | Imports without the *dry_run* form field applied the data: the API framework reads a missing boolean form field as false | bug | Upload endpoints read the field themselves and default to the preview (also ReqIF, CSV/Excel and Word imports); regression test |
+| 2 | HARA export and re-import created a second safety goal | bug | The export writes the medini IDs kept with the items |
+| 3 | Connecting a repository while the background fetch picked it up indexed the commits twice — the connect request failed | bug | One sync per repository at a time (row lock): a request waits and indexes only what is still new, the background fetch skips a busy repository; regression test |
+| 4 | A path with a control character (NUL) gave a server error in the repository browser | bug | Paths with control characters are rejected |
+| 5 | A missing folder showed as an empty folder; an extensionless file (e.g. `CHANGES`) opened as a folder | UI | Missing folders give "not found"; the browser marks folders itself instead of guessing from the name |
+| 6 | Paths were read as Git pathspecs (`:(exclude)…` changed the meaning of a filter) | hardening | Literal pathspecs only |
+| 7 | Uploaded EA model files are SQLite databases: a crafted file (endless view, huge tables, odd column names) could keep the server busy | hardening | Time limit, row limit and size limit for the write-back copy; column names quoted; no trusted schema |
+| 8 | Imported parts and functions were placed into the requirements document along with the requirements | logic | Only requirement types go into the document; other elements keep their package path as reference |
+
+**Hostile input** (all rejected with a message, none reached Git or the file system): SSH and `git@` URLs, `file://`,
+`ext::`, option-like URLs (`--upload-pack=…`), paths outside the permitted folder; `..`, absolute and NUL paths;
+option-like and shell-like revisions (`--output=…`, `$(id)`, `HEAD;id`); invalid branch names (`../x`, `--force`,
+`a..b`, `x~1`); XML external entities and entity expansion in XMI; non-EA SQLite files; SysML server URLs other than
+HTTP(S). Tokens never appear in an answer; downloads carry a sandboxing Content-Security-Policy.
+
+**Permission matrix (0.8 endpoints)**
+
+| Action | Viewer | Non-member | Contributor | Reviewer | Manager |
+|---|---|---|---|---|---|
+| Read repositories, commits, files, linked revisions | 200 | 404 | 200 | 200 | 200 |
+| Connect, change, disconnect a repository | 403 | 404 | 403 | 403 | 201/200 |
+| Fetch now, create a branch, link a revision | 403 | 404 | 200/201 | 200/201 | 200/201 |
+| Import (EA, medini, SysML v2) | 403 | 404 | 200 | 200 | 200 |
+| Export (EA XMI, HARA, FMEA) | 200 | 404 | 200 | 200 | 200 |
+| Write back into a .qea | 403 | 404 | 200 | 200 | 200 |
+| Configure the SysML v2 server | 403 | 404 | 403 | 403 | 200 |
+
+**Live checks**: the public repository of this product connected without a token (15 commits, branches, the pull
+request check of GitHub) in about three seconds; SysON reached from the container (`host.docker.internal`) with
+the import preview of a drone architecture (requirements, parts, part decomposition).
+
+**Automated tests at the end of round 5**: 183 backend tests (new: repositories, sync and linked revisions,
+browsing and branches, pull requests and push webhook, concurrent syncs, EA import/identity/conflicts, XMI round
+trip, write-back, hostile model files, medini HARA and FMEA, SysML v2, preview default of uploads), 50 browser E2E
+tests (new: Code page with commit, diff and linked items, linked revisions and branch of an item, EA import wizard,
+medini HARA import).
+
+## 14.8 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
 - Two interface languages (English, German); request-validation details from the API framework stay English.
@@ -211,4 +256,9 @@ user), translation check in the frontend build (1,440 texts).
 - The demo data is created in one go, so the demo burn-up shows a single step.
 - Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
+- Git over HTTPS only (no SSH); pull requests are read from GitHub (GitLab/Bitbucket/Azure Repos: commits, branches
+  and links, no merge requests yet).
+- The EA write-back was checked against the EA 16 database layout in tests, not yet by opening the result in an EA
+  installation; `.eap`/`.eapx` files have to be saved as `.qea` first. medini analyze is connected through its
+  Excel/CSV and ReqIF exchange, not through its API.
 - Out of scope by design: manufacturing BOM/bill of process, CAD-authoring integrations, multi-site replication.

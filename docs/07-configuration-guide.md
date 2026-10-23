@@ -121,6 +121,11 @@ estimate as hours; the capacity per person is the member's *hours per day* (Sett
 release field `kind` (`release`, `iteration`, `milestone`) controls how a plan is shown. BOM columns come from the attributes `quantity`, `unit`,
 `find_number`, `effective_from` and `effective_to` of the structural link.
 
+The shipped template (version 5) also contains the ISO 26262 **hazard** type: integer fields `s` (0–3), `e` (0–4)
+and `c` (0–3), `asil_score` with the formula `min(s, 1) * min(e, 1) * min(c, 1) * (s + e + c)` and `asil` classified
+from it (`[[0, qm], [7, a], [8, b], [9, c], [10, d]]` — the ISO 26262-3 table expressed as bands), plus `asil`,
+`safe_state` and `ftti` on system and subsystem requirements. The medini analyze connector and ReqIF imports fill them.
+
 State categories: `draft`, `review`, `released`, `obsolete`, `open`, `in_progress`, `closed`. Flags:
 `frozen` locks content and owned links; `released` marks the released version and enables *Revise*;
 `implementation_open` (change orders) allows revising affected items under it.

@@ -22,6 +22,10 @@ erDiagram
     ITEM ||--o{ TEST_RECORD : "test run results"
     PROJECT ||--o{ AUDIT_ENTRY : "hash-chained"
     ITEM ||--o{ WORK_RECORD : "hours per user and day"
+    PROJECT ||--o{ REPOSITORY : "Git mirror"
+    REPOSITORY ||--o{ REPO_COMMIT : "indexed commits"
+    REPO_COMMIT ||--o{ COMMIT_LINK : "linked revisions"
+    ITEM ||--o{ COMMIT_LINK : "linked revisions"
 ```
 
 ## 4.2 Information model (configuration)
@@ -175,3 +179,14 @@ and reports the first broken entry.
 - **Language**: `users.locale` (`en`, `de` or empty = browser language) — used for the interface, server messages,
   e-mail digests and exports. Stored texts (audit summaries, notifications) remain English and are translated when
   read.
+
+## 4.16 Repositories, linked revisions and external identities
+
+- **Repositories** (`repositories`): clone URL, provider (github, gitlab, bitbucket, azure, git), web URL, sealed
+  token, branches and tags (refs), sync state. The mirror itself is a bare Git repository in `<data dir>/vcs`.
+- **Commits** (`repo_commits`): indexed metadata per repository (hash, parents, author, dates, message, changed files
+  with line counts). **Linked revisions** (`commit_links`): commit ↔ item, source `message` (key in the commit
+  message) or `manual`.
+- **External identities**: imported elements of other tools are external references of the item (system `ea`,
+  `medini`, `sysml`, kind `element`, the source id, a hash of the imported content and the item version after the
+  import) — the basis for updates, conflict detection and round trips.

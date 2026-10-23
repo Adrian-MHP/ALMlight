@@ -12,7 +12,7 @@ from almlight.core.db import get_db
 from almlight.core.deps import current_user, ui_locale
 from almlight.core.errors import ValidationFailed
 from almlight.core.i18n import tr
-from almlight.core.schemas import UserDirectory
+from almlight.core.schemas import UserDirectory, form_flag
 from almlight.modules.collab.router import flush_project
 from almlight.modules.documents import service, word_roundtrip
 from almlight.modules.identity.models import User
@@ -23,6 +23,7 @@ from almlight.modules.items.router import comment_threads
 from almlight.modules.projects.access import get_project
 
 router = APIRouter(prefix="/projects/{project_key}", tags=["documents"])
+DRY_RUN = "true (default): preview only; false: apply"
 MAX_DOCX = 50 * 1024 * 1024
 
 
@@ -76,8 +77,10 @@ def compare_documents(project_key: str, body: CompareIn, user: User = Depends(cu
 
 
 @router.post("/items/{item_key}/import-docx", summary="Word round trip: import edits and comments (dry run first)")
-def import_docx(project_key: str, item_key: str, file: UploadFile = File(...), dry_run: bool = Form(default=True),
+def import_docx(project_key: str, item_key: str, file: UploadFile = File(...),
+                dry_run_raw: str | None = Form(default=None, alias="dry_run", description=DRY_RUN),
                 user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+    dry_run = form_flag(dry_run_raw, True)
     project = get_project(db, project_key, user, "contributor")
     doc = items_svc.get_item(db, project, item_key)
     content = file.file.read(MAX_DOCX + 1)

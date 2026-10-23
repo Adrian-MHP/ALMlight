@@ -21,6 +21,7 @@ from almlight.modules.boards.router import router as boards_router
 from almlight.modules.bom.router import router as bom_router
 from almlight.modules.branches.router import router as branches_router
 from almlight.modules.collab import router as collab
+from almlight.modules.connectors.router import router as connectors_router
 from almlight.modules.doc_collections.router import router as collections_router
 from almlight.modules.doctemplates.router import router as doctemplates_router
 from almlight.modules.documents.router import router as documents_router
@@ -42,6 +43,7 @@ from almlight.modules.queries.router import router as queries_router
 from almlight.modules.reports.router import router as reports_router
 from almlight.modules.risks.router import router as risks_router
 from almlight.modules.variants.router import router as variants_router
+from almlight.modules.vcs.router import router as vcs_router
 from almlight.modules.verification.router import router as verification_router
 from almlight.modules.workflow.router import router as workflow_router
 from almlight.modules.worklog.router import router as worklog_router
@@ -85,14 +87,17 @@ async def lifespan(app: FastAPI):
     recovered = recover_drafts()
     if recovered:
         log.warning("Saved %d live editing session(s) interrupted by the last shutdown", recovered)
-    worker = None
-    if settings.outbox_worker:
-        worker = OutboxWorker()
-        worker.start()
+    workers: list = []
+    if settings.outbox_worker:  # background jobs: webhooks and e-mails, Git repository sync
+        from almlight.modules.vcs.service import GitSyncWorker
+
+        workers = [OutboxWorker(), GitSyncWorker()]
+        for w in workers:
+            w.start()
     log.info("%s %s started", PRODUCT, __version__)
     yield
-    if worker:
-        worker.stop()
+    for w in workers:
+        w.stop()
 
 
 def create_app() -> FastAPI:
@@ -130,7 +135,8 @@ def create_app() -> FastAPI:
               baselines_router, variants_router, verification_router, io_router, integrations_router, branches_router,
               reports_router, documents_router, collections_router, images_router, collab.router, live_router,
               risks_router, bom_router, planning_router, notifications_router, queries_router, files_router,
-              doctemplates_router, boards_router, worklog_router):
+              doctemplates_router, boards_router, worklog_router, vcs_router,
+              connectors_router):
         app.include_router(r, prefix=API_PREFIX)
     collab.install()
 

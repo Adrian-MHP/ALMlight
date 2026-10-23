@@ -33,6 +33,10 @@ ALMlight.)*
 
 ![German user interface](docs/images/german.png)
 
+![Code: a commit linked to its requirement, with the diff](docs/images/code.png)
+
+![Enterprise Architect import: mapping wizard with preview](docs/images/connectors.png)
+
 ## Highlights
 
 - **Live co-editing**: several people edit the same text at the same time with live cursors and names; presence
@@ -80,6 +84,12 @@ ALMlight.)*
   bars to reschedule, or auto-schedule along the dependencies with a preview.
 - **Time and resources**: record hours on items, a weekly timesheet with spent and remaining effort, resource load
   per person and week against capacity, and resource levelling with a preview.
+- **Code (Git) like Polarion**: connect GitHub, GitLab, Bitbucket, Azure Repos or any Git server; commits that
+  mention an item key become linked revisions of the item (or are linked by hand); a repository browser with
+  commits, diffs, files and branches; GitHub pull requests; a branch per item in one click.
+- **Connectors**: Enterprise Architect (import `.qea`/XMI with mapping and GUID identity, export EA XMI, write back
+  into the `.qea`), medini analyze (HARA with ISO 26262 ASIL and FMEA both ways, safety requirements via ReqIF) and
+  SysML v2 servers (SysON, Cameo) — every import previewed, repeatable, conflicts reported instead of overwritten.
 - **English and German**: the whole interface, the labels of the information model (translated per customer),
   server messages, notifications, e-mail digests and document exports follow the user's language.
 - **Workflow viewer**: every item shows its state diagram with the path taken and the transitions possible now.
@@ -154,16 +164,18 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 173 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 183 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 48 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 50 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.7: boolean queries across fields, all four dependency types with lag and auto-scheduling, time recording
-with a weekly timesheet, resource load and levelling, and a German user interface — on top of 0.6 (query builder and
+Version 0.8: Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
+analyze and SysML v2 servers ([guide](docs/17-code-and-connectors.md), sample files in `samples/`) — on top of 0.7
+(boolean queries, dependency types and auto-scheduling, time recording, resources and levelling, German user
+interface), 0.6 (query builder and
 query language, bulk edit, Kanban boards, plans with capacity, Gantt timeline with critical path, workflow viewer),
 0.5 (tests, risks, BOM, files, notifications, Word templates, SSO)
 and 0.4 (rich text, real-time co-editing, live documents with time travel, branches, reports, Word/ReqIF round trips).

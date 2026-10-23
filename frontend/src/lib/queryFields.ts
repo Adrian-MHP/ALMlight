@@ -56,6 +56,8 @@ export function queryFields(model: Model, opts: { users: UserRef[]; releases: QO
     { id: "watched", label: tx("Watched by me"), kind: "bool", group: tx("Flags") },
     { id: "checkedout", label: tx("Has checked-out files"), kind: "bool", group: tx("Flags") },
     { id: "attachments", label: tx("Has files"), kind: "bool", group: tx("Flags") },
+    { id: "commits", label: tx("Has linked commits"), kind: "bool", group: tx("Code") },
+    { id: "commit", label: tx("Linked commit (hash)"), kind: "text", group: tx("Code") },
   ];
   if (model.releaseType) {
     out.push({ id: "release", label: tx("Planned in"), kind: "release", group: tx("Planning"),

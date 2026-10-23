@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from almlight.core.db import get_db
 from almlight.core.deps import admin_user, current_user, ui_locale
 from almlight.core.errors import ValidationFailed
+from almlight.core.schemas import form_flag
 from almlight.modules.collab.router import flush_project
 from almlight.modules.identity.models import User
 from almlight.modules.io import archive, reqif, reqif_import, tabular
@@ -20,6 +21,7 @@ from almlight.modules.items import service as items_svc
 from almlight.modules.projects.access import get_project
 
 router = APIRouter(tags=["import-export"])
+DRY_RUN = "true (default): preview only; false: apply"
 MAX_IMPORT = 50 * 1024 * 1024
 
 
@@ -78,9 +80,11 @@ def export_xlsx(project_key: str, f: ExportFilter = Depends(), user: User = Depe
 
 
 @router.post("/projects/{project_key}/import", summary="Import items from CSV or Excel (dry run by default)")
-def import_items(project_key: str, file: UploadFile = File(...), dry_run: bool = Form(default=True),
+def import_items(project_key: str, file: UploadFile = File(...),
+                 dry_run_raw: str | None = Form(default=None, alias="dry_run", description=DRY_RUN),
                  default_type: str | None = Form(default=None), user: User = Depends(current_user),
                  db: Session = Depends(get_db)) -> dict[str, Any]:
+    dry_run = form_flag(dry_run_raw, True)
     project = get_project(db, project_key, user, "contributor")
     content = file.file.read(MAX_IMPORT + 1)
     if len(content) > MAX_IMPORT:
@@ -133,10 +137,12 @@ def item_reqif(project_key: str, item_key: str, format: str = Query(default="aut
 
 
 @router.post("/projects/{project_key}/import-reqif", summary="Import a ReqIF file (.reqif/.reqifz), dry run by default")
-def import_reqif(project_key: str, file: UploadFile = File(...), dry_run: bool = Form(default=True),
+def import_reqif(project_key: str, file: UploadFile = File(...),
+                 dry_run_raw: str | None = Form(default=None, alias="dry_run", description=DRY_RUN),
                  mapping: str | None = Form(default=None, description='{"types": {...}, "relations": {...}}'),
                  default_type: str | None = Form(default=None), user: User = Depends(current_user),
                  db: Session = Depends(get_db)) -> dict[str, Any]:
+    dry_run = form_flag(dry_run_raw, True)
     project = get_project(db, project_key, user, "contributor")
     content = file.file.read(MAX_IMPORT + 1)
     if len(content) > MAX_IMPORT:

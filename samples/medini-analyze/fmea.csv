@@ -1,0 +1,3 @@
+Nr;Funktion;Fehlerart;Fehlerfolge;Bedeutung;Fehlerursache;Auftreten;Entdeckung;Empfohlene Maßnahme
+FM-1;Measuring cell;Drift at low temperature;Wrong pressure value;8;Ageing of the gel;4;5;Temperature compensation per SYS-1
+FM-2;Current output;Output stuck;No alarm;9;DAC defect;2;3;Read-back check

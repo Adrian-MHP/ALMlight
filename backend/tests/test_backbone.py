@@ -42,7 +42,7 @@ def test_template_updates_are_additive(admin, project):
     cfg = admin.get(f"/projects/{project}/config")["config"]
     assert admin.get(f"/projects/{project}/template-updates")["count"] == 0  # created from the current template
     old = json.loads(json.dumps(cfg))
-    old["item_types"] = [t for t in old["item_types"] if t["key"] not in ("risk", "release")]
+    old["item_types"] = [t for t in old["item_types"] if t["key"] not in ("risk", "release", "hazard")]
     old["link_types"] = [lt for lt in old["link_types"]
                          if lt["key"] not in ("mitigated_by", "risk_for", "planned_in", "part_of", "depends_on")]
     old["workflows"] = [w for w in old["workflows"] if w["key"] not in ("risk", "release")]
@@ -52,7 +52,7 @@ def test_template_updates_are_additive(admin, project):
     contains["attributes"] = [a for a in contains["attributes"] if a["key"] == "quantity"]
     admin.put(f"/projects/{project}/config", {"config": old})
     diff = admin.get(f"/projects/{project}/template-updates")
-    assert {t["key"] for t in diff["item_types"]} == {"risk", "release"}
+    assert {t["key"] for t in diff["item_types"]} == {"risk", "release", "hazard"}
     assert {lt["key"] for lt in diff["link_types"]} == {"mitigated_by", "risk_for", "planned_in", "part_of",
                                                         "depends_on"}
     assert {w["key"] for w in diff["workflows"]} == {"risk", "release"}

@@ -6,6 +6,7 @@ import { useProjectMutation, useRefs } from "@/api/hooks";
 import type { ItemDetail } from "@/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
+import { RevisionsSection } from "./RevisionsSection";
 import { tx } from "@/lib/i18n";
 
 const SYSTEMS = [
@@ -32,6 +33,8 @@ export function DevelopmentTab({ item }: { item: ItemDetail }) {
   const del = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/items/${item.key}/external-refs/${id}`));
   return (
     <>
+      <RevisionsSection item={item} />
+      <Text fw={600} mb={4}>{tx("Other references")}</Text>
       <Text size="sm" c="dimmed" mb="sm">
         {tx("Commits, pull requests, builds, work items and CAD/PDM artefacts linked to")} {item.key}{tx(". Integrations add them automatically when a commit message, branch or work item mentions")} <span className="item-key">{item.key}</span>.
       </Text>

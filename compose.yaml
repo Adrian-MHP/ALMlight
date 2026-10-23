@@ -48,6 +48,10 @@ services:
       ALMLIGHT_OIDC_LABEL: ${ALMLIGHT_OIDC_LABEL:-Single sign-on}
       ALMLIGHT_OIDC_ADMIN_GROUP: ${ALMLIGHT_OIDC_ADMIN_GROUP:-}
       ALMLIGHT_OIDC_ALLOW_SIGNUP: ${ALMLIGHT_OIDC_ALLOW_SIGNUP:-true}
+      ALMLIGHT_GIT_SYNC_MINUTES: ${ALMLIGHT_GIT_SYNC_MINUTES:-10}
+    # tools on the Docker host (e.g. a SysML v2 server) are reachable as host.docker.internal, also on Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - app-data:/data
     ports:

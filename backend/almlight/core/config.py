@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     # Outbound webhooks and notification e-mails are delivered by an in-process worker; tests switch it off.
     outbox_worker: bool = True
 
+    # Git repositories (Code page, linked revisions): mirrors are fetched by a background worker. Local paths
+    # are accepted only below <data_dir>/repos-local unless explicitly allowed (they let the server read files).
+    git_sync_minutes: float = 10.0
+    git_allow_local_paths: bool = False
+    git_max_commits: int = 5000
+    git_timeout_seconds: int = 300
+
     # Public base URL (links in e-mails, single sign-on redirects), e.g. https://alm.example.com
     public_url: str | None = None
     # Notification e-mails (digest); disabled unless smtp_host and smtp_from are set
@@ -69,6 +76,16 @@ class Settings(BaseSettings):
     @property
     def files_dir(self) -> Path:
         return self.data_dir / "files"
+
+    @property
+    def repos_dir(self) -> Path:
+        """Bare mirrors of connected Git repositories."""
+        return self.data_dir / "vcs"
+
+    @property
+    def local_repos_dir(self) -> Path:
+        """Local repositories that may be connected by path (demo data, on-premises file shares)."""
+        return self.data_dir / "repos-local"
 
     def resolved_secret_key(self) -> str:
         if self.secret_key:

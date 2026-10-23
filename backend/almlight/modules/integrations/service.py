@@ -145,6 +145,9 @@ def handle_github(db: Session, project: Project, event: str, body: bytes, signat
         return {"ok": True, "linked": 0}
     repo = (payload.get("repository") or {}).get("full_name", "")
     if event == "push":
+        from almlight.modules.vcs.service import request_sync
+
+        request_sync(db, project, (payload.get("repository") or {}).get("html_url"))
         for c in payload.get("commits", []):
             for item in _items_mentioned(db, project, c.get("message")):
                 upsert_ref(db, project, item, system="github", kind="commit", external_id=c.get("id", ""),

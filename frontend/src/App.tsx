@@ -31,6 +31,8 @@ import { PlansPage } from "./pages/project/PlansPage";
 import { BoardsPage } from "./pages/project/BoardsPage";
 import { TimelinePage } from "./pages/project/TimelinePage";
 import { TimesheetPage } from "./pages/project/TimesheetPage";
+import { CodePage } from "./pages/project/CodePage";
+import { ConnectorsPage } from "./pages/project/ConnectorsPage";
 import { NotFound } from "./components/NotFound";
 import { RouteError } from "./components/RouteError";
 
@@ -71,6 +73,8 @@ export const router = createBrowserRouter([
           { path: "boards", element: <BoardsPage /> },
           { path: "timeline", element: <TimelinePage /> },
           { path: "timesheet", element: <TimesheetPage /> },
+          { path: "code", element: <CodePage /> },
+          { path: "connectors", element: <ConnectorsPage /> },
         ] }],
       },
       { path: "/home", element: <Navigate to="/" replace /> },

@@ -62,6 +62,9 @@ backend/almlight/
     planning/      plan hierarchy, capacity, burn-up/down; timeline (schedule.py: calendar, dependency types, slack,
                    auto-scheduling, levelling); resource load
     worklog/       time records, timesheet, spent/remaining effort
+    vcs/           Git repositories: bare mirrors (git CLI), commit index, linked revisions, browsing, branches
+    connectors/    connector framework (neutral model + import pipeline): Enterprise Architect, medini analyze,
+                   SysML v2 API
     bom/           multi-level BOM, effectivity, roll-up, exports, where-used
     files/         file check-out / check-in locks
     doctemplates/  customer Word templates (storage; rendering in io/word_template.py)

@@ -6,6 +6,7 @@ import type { FeatureNode } from "@/api/types";
 import { ItemLink, StateBadge } from "@/components/badges";
 import { PageHeader } from "@/components/PageHeader";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 /** Feature model, product variants and an interactive configurator (150% → 100% view). */
 export function VariantsPage() {
@@ -28,35 +29,35 @@ export function VariantsPage() {
 
   return (
     <>
-      <PageHeader title="Variants" subtitle="Feature model with constraints, product variants and a configurator that filters the 150% model" />
+      <PageHeader title={tx("Variants")} subtitle={tx("Feature model with constraints, product variants and a configurator that filters the 150% model")} />
       {fm && fm.unknown_codes.length > 0 && (
-        <Alert color="yellow" mb="md" icon={<IconAlertTriangle size={16} />} title="Applicability expressions reference unknown features">
+        <Alert color="yellow" mb="md" icon={<IconAlertTriangle size={16} />} title={tx("Applicability expressions reference unknown features")}>
           {fm.unknown_codes.map((u) => `${u.key}: ${u.missing.join(", ")}`).join(" · ")}
         </Alert>
       )}
       <Grid>
         <Grid.Col span={{ base: 12, md: 5 }}>
           <Card withBorder mb="md">
-            <Title order={5} mb="xs">Feature model</Title>
-            {fm?.roots.length === 0 && <Text c="dimmed" size="sm">No features yet. Create items of the feature type and arrange them in a tree.</Text>}
+            <Title order={5} mb="xs">{tx("Feature model")}</Title>
+            {fm?.roots.length === 0 && <Text c="dimmed" size="sm">{tx("No features yet. Create items of the feature type and arrange them in a tree.")}</Text>}
             {fm?.roots.map((r) => <FeatureRow key={r.code} node={r} parent={null} depth={0} selected={selected} onToggle={toggle} />)}
             {fm && (fm.requires.length > 0 || fm.excludes.length > 0) && (
               <Stack gap={2} mt="sm">
-                <Text size="xs" c="dimmed">Constraints</Text>
-                {fm.requires.map((c, i) => <Text size="xs" key={`r${i}`} className="mono">{c.from} requires {c.to}</Text>)}
-                {fm.excludes.map((c, i) => <Text size="xs" key={`e${i}`} className="mono">{c.from} excludes {c.to}</Text>)}
+                <Text size="xs" c="dimmed">{tx("Constraints")}</Text>
+                {fm.requires.map((c, i) => <Text size="xs" key={`r${i}`} className="mono">{tx("{from} requires {to}", { from: c.from, to: c.to })}</Text>)}
+                {fm.excludes.map((c, i) => <Text size="xs" key={`e${i}`} className="mono">{tx("{from} excludes {to}", { from: c.from, to: c.to })}</Text>)}
               </Stack>
             )}
           </Card>
           <Card withBorder>
-            <Title order={5} mb="xs">Defined variants</Title>
+            <Title order={5} mb="xs">{tx("Defined variants")}</Title>
             <Table>
               <Table.Tbody>
                 {fm?.variants.map((v) => (
                   <Table.Tr key={v.key}>
                     <Table.Td><ItemLink item={v} withTitle /></Table.Td>
-                    <Table.Td>{v.errors.length ? <Badge color="red" size="sm">{v.errors.length} issue(s)</Badge> : <Badge color="green" size="sm" variant="light">valid</Badge>}</Table.Td>
-                    <Table.Td><Button size="xs" variant="subtle" onClick={() => setSelection(v.selection)} data-testid={`load-${v.key}`}>Load</Button></Table.Td>
+                    <Table.Td>{v.errors.length ? <Badge color="red" size="sm">{tx("{length} issue(s)", { length: v.errors.length })}</Badge> : <Badge color="green" size="sm" variant="light">{tx("valid")}</Badge>}</Table.Td>
+                    <Table.Td><Button size="xs" variant="subtle" onClick={() => setSelection(v.selection)} data-testid={`load-${v.key}`}>{tx("Load")}</Button></Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>
@@ -66,36 +67,36 @@ export function VariantsPage() {
         <Grid.Col span={{ base: 12, md: 7 }}>
           <Card withBorder data-testid="configurator">
             <Group justify="space-between" mb="xs">
-              <Title order={5}>Configuration</Title>
-              {selection && <Button size="xs" variant="subtle" onClick={() => setSelection(null)}>Clear</Button>}
+              <Title order={5}>{tx("Configuration")}</Title>
+              {selection && <Button size="xs" variant="subtle" onClick={() => setSelection(null)}>{tx("Clear")}</Button>}
             </Group>
-            {!selection && <Text c="dimmed" size="sm">Select features on the left or load a variant to see which items apply.</Text>}
+            {!selection && <Text c="dimmed" size="sm">{tx("Select features on the left or load a variant to see which items apply.")}</Text>}
             {selection && resolved.data && (
               <Stack>
                 <Group gap={4}>{[...selected].sort().map((c) => <Badge key={c} variant="light" className="mono" style={{ textTransform: "none" }}>{c}</Badge>)}</Group>
                 {resolved.data.errors.length ? (
-                  <Alert color="red" icon={<IconAlertTriangle size={16} />} title="Invalid configuration" data-testid="config-errors">
+                  <Alert color="red" icon={<IconAlertTriangle size={16} />} title={tx("Invalid configuration")} data-testid="config-errors">
                     {resolved.data.errors.map((e) => <Text key={e} size="sm">{e}</Text>)}
                   </Alert>
                 ) : (
-                  <Alert color="green" icon={<IconCircleCheck size={16} />} data-testid="config-valid">Valid configuration</Alert>
+                  <Alert color="green" icon={<IconCircleCheck size={16} />} data-testid="config-valid">{tx("Valid configuration")}</Alert>
                 )}
                 <Table>
-                  <Table.Thead><Table.Tr><Table.Th>Type</Table.Th><Table.Th ta="right">Included</Table.Th><Table.Th ta="right">Excluded</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Thead><Table.Tr><Table.Th>{tx("Type")}</Table.Th><Table.Th ta="right">{tx("Included")}</Table.Th><Table.Th ta="right">{tx("Excluded")}</Table.Th></Table.Tr></Table.Thead>
                   <Table.Tbody>
                     {Object.entries(resolved.data.counts).map(([t, c]) => (
                       <Table.Tr key={t}><Table.Td>{model.typeLabel(t)}</Table.Td><Table.Td ta="right">{c.included}</Table.Td><Table.Td ta="right">{c.excluded}</Table.Td></Table.Tr>
                     ))}
                   </Table.Tbody>
                 </Table>
-                <Text size="sm" fw={600}>Variant-specific items included</Text>
+                <Text size="sm" fw={600}>{tx("Variant-specific items included")}</Text>
                 <Stack gap={2}>
                   {resolved.data.included.filter((i) => i.applicability).map((i) => (
                     <Group key={i.id} gap="xs"><ItemLink item={i} withTitle /><StateBadge item={i} size="xs" />
                       <Text size="xs" className="mono" c="pink">{i.applicability}</Text></Group>
                   ))}
                 </Stack>
-                <Text size="sm" fw={600}>Excluded items</Text>
+                <Text size="sm" fw={600}>{tx("Excluded items")}</Text>
                 <Stack gap={2}>
                   {resolved.data.excluded.map((i) => (
                     <Group key={i.id} gap="xs" opacity={0.7}><ItemLink item={i} withTitle /><Text size="xs" className="mono" c="pink">{i.applicability}</Text></Group>
@@ -124,9 +125,9 @@ function FeatureRow({ node, parent, depth, selected, onToggle }: {
     <Group gap={6} wrap="nowrap">
       <Text size="sm" className="mono" fw={600}>{node.code}</Text>
       <Text size="sm">{node.title}</Text>
-      {node.kind === "mandatory" && <Badge size="xs" variant="outline">mandatory</Badge>}
-      {node.group !== "none" && <Badge size="xs" color="grape" variant="light">{node.group === "alternative" ? "choose one" : "choose ≥1"}</Badge>}
-      {node.obsolete && <Badge size="xs" color="gray">obsolete</Badge>}
+      {node.kind === "mandatory" && <Badge size="xs" variant="outline">{tx("mandatory")}</Badge>}
+      {node.group !== "none" && <Badge size="xs" color="grape" variant="light">{node.group === "alternative" ? tx("choose one") : tx("choose ≥1")}</Badge>}
+      {node.obsolete && <Badge size="xs" color="gray">{tx("obsolete")}</Badge>}
     </Group>
   );
   return (

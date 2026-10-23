@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import type { Item, VerificationStatus } from "@/api/types";
 import { CATEGORY_COLORS, stateColor } from "@/lib/model";
 import { useProjectCtx } from "@/pages/project/ProjectLayout";
+import { tm, tx } from "@/lib/i18n";
 
 export function StateBadge({ item, size = "sm" }: { item: Pick<Item, "lifecycle">; size?: "xs" | "sm" | "md" }) {
   const lc = item.lifecycle;
@@ -11,7 +12,7 @@ export function StateBadge({ item, size = "sm" }: { item: Pick<Item, "lifecycle"
   return (
     <Badge size={size} variant="light" color={stateColor(lc.color, lc.category)}
       leftSection={lc.frozen ? <IconLock size={10} /> : undefined}>
-      {lc.label ?? lc.state}
+      {tm(lc.label) ?? lc.state}
     </Badge>
   );
 }
@@ -47,11 +48,11 @@ export function ItemLink({ item, withTitle = false }: { item: { key: string; tit
 }
 
 const VERIFICATION: Record<VerificationStatus, { color: string; label: string; icon: typeof IconCircleCheck }> = {
-  passed: { color: "green", label: "Verified", icon: IconCircleCheck },
-  failed: { color: "red", label: "Failed", icon: IconCircleX },
-  retest: { color: "orange", label: "Re-test", icon: IconRefresh },
-  not_run: { color: "gray", label: "Not run", icon: IconCircleDashed },
-  none: { color: "gray", label: "No tests", icon: IconCircleDashed },
+  passed: { color: "green", label: tx("Verified"), icon: IconCircleCheck },
+  failed: { color: "red", label: tx("Failed"), icon: IconCircleX },
+  retest: { color: "orange", label: tx("Re-test"), icon: IconRefresh },
+  not_run: { color: "gray", label: tx("Not run"), icon: IconCircleDashed },
+  none: { color: "gray", label: tx("No tests"), icon: IconCircleDashed },
 };
 
 export function VerificationBadge({ status }: { status: VerificationStatus }) {
@@ -75,8 +76,8 @@ export function MaturityDot({ value, label }: { value: "done" | "partial" | "non
 
 export function SuspectBadge({ reason }: { reason?: string | null }) {
   return (
-    <Tooltip label={reason ?? "The linked item changed — review this link"}>
-      <Badge size="sm" color="orange" variant="light" leftSection={<IconAlertTriangle size={11} />}>suspect</Badge>
+    <Tooltip label={reason ?? tx("The linked item changed — review this link")}>
+      <Badge size="sm" color="orange" variant="light" leftSection={<IconAlertTriangle size={11} />}>{tx("suspect")}</Badge>
     </Tooltip>
   );
 }

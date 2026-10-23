@@ -1,4 +1,5 @@
 import type { FieldDef } from "@/api/types";
+import { tx } from "@/lib/i18n";
 
 /**
  * Preview of computed fields while a form is edited — the same small language as the server
@@ -17,7 +18,7 @@ export function evalFormula(expr: string, values: Record<string, unknown>): numb
   const peek = () => tokens[i];
   const take = (t?: string) => {
     const tok = tokens[i++];
-    if (t !== undefined && tok !== t) throw new Error(`expected ${t}`);
+    if (t !== undefined && tok !== t) throw new Error(tx("expected {t}", { t: t }));
     return tok;
   };
   const primary = (): number => {
@@ -42,7 +43,7 @@ export function evalFormula(expr: string, values: Record<string, unknown>): numb
     let v = primary();
     while (["*", "/", "//", "%"].includes(peek() ?? "")) {
       const op = take(), r = primary();
-      if ((op === "/" || op === "//" || op === "%") && r === 0) throw new Missing("division by zero");
+      if ((op === "/" || op === "//" || op === "%") && r === 0) throw new Missing(tx("division by zero"));
       v = op === "*" ? v * r : op === "/" ? v / r : op === "//" ? Math.floor(v / r) : v - r * Math.floor(v / r);
     }
     return v;

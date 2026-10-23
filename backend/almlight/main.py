@@ -44,6 +44,7 @@ from almlight.modules.risks.router import router as risks_router
 from almlight.modules.variants.router import router as variants_router
 from almlight.modules.verification.router import router as verification_router
 from almlight.modules.workflow.router import router as workflow_router
+from almlight.modules.worklog.router import router as worklog_router
 
 log = logging.getLogger("almlight")
 API_PREFIX = "/api/v1"
@@ -129,7 +130,7 @@ def create_app() -> FastAPI:
               baselines_router, variants_router, verification_router, io_router, integrations_router, branches_router,
               reports_router, documents_router, collections_router, images_router, collab.router, live_router,
               risks_router, bom_router, planning_router, notifications_router, queries_router, files_router,
-              doctemplates_router, boards_router):
+              doctemplates_router, boards_router, worklog_router):
         app.include_router(r, prefix=API_PREFIX)
     collab.install()
 

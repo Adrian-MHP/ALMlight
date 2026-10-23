@@ -6,13 +6,14 @@ import { useCompare } from "@/api/hooks";
 import type { CompareResult, DocStateRef } from "@/api/types";
 import { RichDiff, RichText } from "@/components/rich/RichText";
 import { useProjectCtx } from "../ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 const STATUS = {
-  added: { color: "green", label: "added" },
-  removed: { color: "red", label: "removed" },
-  changed: { color: "orange", label: "changed" },
-  moved: { color: "blue", label: "moved" },
-  unchanged: { color: "gray", label: "unchanged" },
+  added: { color: "green", label: tx("added") },
+  removed: { color: "red", label: tx("removed") },
+  changed: { color: "orange", label: tx("changed") },
+  moved: { color: "blue", label: tx("moved") },
+  unchanged: { color: "gray", label: tx("unchanged") },
 } as const;
 
 type Row = CompareResult["rows"][number];
@@ -33,7 +34,7 @@ function DiffText({ diff, side }: { diff: { op: string; text: string }[]; side: 
 function Side({ row, side }: { row: Row; side: "left" | "right" }) {
   const { key } = useProjectCtx();
   const node = row[side];
-  if (!node) return <Text size="sm" c="dimmed" fs="italic">{side === "left" ? "— not present —" : "— removed —"}</Text>;
+  if (!node) return <Text size="sm" c="dimmed" fs="italic">{side === "left" ? tx("— not present —") : tx("— removed —")}</Text>;
   const titleDiff = row.changes.find((c) => c.field === "title")?.diff;
   const descHtml = row.changes.find((c) => c.field === "description")?.html_diff;
   return (
@@ -75,23 +76,23 @@ export function CompareView() {
   return (
     <>
       <Breadcrumbs mb="xs" separator="›">
-        <Anchor component={Link} to={`/p/${key}/documents`} size="sm">Documents</Anchor>
+        <Anchor component={Link} to={`/p/${key}/documents`} size="sm">{tx("Documents")}</Anchor>
         <Anchor component={Link} to={`/p/${key}/documents/${docKey}`} size="sm" className="item-key">{docKey}</Anchor>
-        <Text size="sm">Compare</Text>
+        <Text size="sm">{tx("Compare")}</Text>
       </Breadcrumbs>
-      <Title order={2} size="h3" mb="sm">Compare documents</Title>
+      <Title order={2} size="h3" mb="sm">{tx("Compare documents")}</Title>
       {isLoading && <Center mt="xl"><Loader /></Center>}
       {error && <Alert color="red">{error.message}</Alert>}
       {data && (
         <Stack data-testid="compare-view">
           <Grid>
             <Grid.Col span={6}><Card withBorder padding="sm" bg="var(--mantine-color-red-light)">
-              <Text size="xs" c="dimmed">Left</Text>
+              <Text size="xs" c="dimmed">{tx("Left")}</Text>
               <Text fw={600}>{data.left.project}/{data.left.document} — {data.left.title}</Text>
               <Text size="sm">{data.left.source}</Text>
             </Card></Grid.Col>
             <Grid.Col span={6}><Card withBorder padding="sm" bg="var(--mantine-color-green-light)">
-              <Text size="xs" c="dimmed">Right</Text>
+              <Text size="xs" c="dimmed">{tx("Right")}</Text>
               <Text fw={600}>{data.right.project}/{data.right.document} — {data.right.title}</Text>
               <Text size="sm">{data.right.source}</Text>
             </Card></Grid.Col>
@@ -104,15 +105,15 @@ export function CompareView() {
                 ))}
               </Group>
             </Chip.Group>
-            <MultiSelect size="xs" w={320} placeholder="Compare all fields" data={fieldOptions} value={fields} onChange={setFields} clearable
-              label="Fields to compare" />
+            <MultiSelect size="xs" w={320} placeholder={tx("Compare all fields")} data={fieldOptions} value={fields} onChange={setFields} clearable
+              label={tx("Fields to compare")} />
           </Group>
-          {rows.length === 0 && <Text c="dimmed">No differences in the selected categories.</Text>}
+          {rows.length === 0 && <Text c="dimmed">{tx("No differences in the selected categories.")}</Text>}
           {rows.map((r, i) => (
             <Card key={i} withBorder padding="sm" data-testid={`cmp-${(r.right ?? r.left)!.key}`}>
               <Group gap={6} mb={6}>
                 <Badge color={STATUS[r.status].color} variant="light">{STATUS[r.status].label}</Badge>
-                {r.moved && r.status !== "moved" && <Badge color="blue" variant="light" leftSection={<IconArrowsMove size={10} />}>moved</Badge>}
+                {r.moved && r.status !== "moved" && <Badge color="blue" variant="light" leftSection={<IconArrowsMove size={10} />}>{tx("moved")}</Badge>}
                 {r.changes.filter((c) => !["title", "description"].includes(c.field)).map((c) => (
                   <Badge key={c.field} size="sm" variant="outline" color="gray" style={{ textTransform: "none" }}>
                     {c.field.replace("fields.", "")}: {String(c.old ?? "∅")} → {String(c.new ?? "∅")}

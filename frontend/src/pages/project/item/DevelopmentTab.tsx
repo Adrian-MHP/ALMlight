@@ -6,11 +6,12 @@ import { useProjectMutation, useRefs } from "@/api/hooks";
 import type { ItemDetail } from "@/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 const SYSTEMS = [
-  { value: "github", label: "GitHub" }, { value: "gitlab", label: "GitLab" }, { value: "azure_devops", label: "Azure DevOps" },
-  { value: "git", label: "Git" }, { value: "cad", label: "CAD" }, { value: "pdm", label: "PDM" }, { value: "ci", label: "CI/CD" },
-  { value: "url", label: "Web link" }, { value: "other", label: "Other" },
+  { value: "github", label: tx("GitHub") }, { value: "gitlab", label: tx("GitLab") }, { value: "azure_devops", label: tx("Azure DevOps") },
+  { value: "git", label: tx("Git") }, { value: "cad", label: tx("CAD") }, { value: "pdm", label: tx("PDM") }, { value: "ci", label: tx("CI/CD") },
+  { value: "url", label: tx("Web link") }, { value: "other", label: tx("Other") },
 ];
 
 function SystemIcon({ system }: { system: string }) {
@@ -27,26 +28,25 @@ export function DevelopmentTab({ item }: { item: ItemDetail }) {
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const add = useProjectMutation(key, () => api.post(`/projects/${key}/items/${item.key}/external-refs`, { system, kind, url: url || null, title: title || null }),
-    { success: "Reference added", onSuccess: () => { setUrl(""); setTitle(""); } });
+    { success: tx("Reference added"), onSuccess: () => { setUrl(""); setTitle(""); } });
   const del = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/items/${item.key}/external-refs/${id}`));
   return (
     <>
       <Text size="sm" c="dimmed" mb="sm">
-        Commits, pull requests, builds, work items and CAD/PDM artefacts linked to {item.key}. Integrations add them automatically when
-        a commit message, branch or work item mentions <span className="item-key">{item.key}</span>.
+        {tx("Commits, pull requests, builds, work items and CAD/PDM artefacts linked to")} {item.key}{tx(". Integrations add them automatically when a commit message, branch or work item mentions")} <span className="item-key">{item.key}</span>.
       </Text>
       {can("contributor") && (
         <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-default-hover)">
           <Group align="flex-end" wrap="wrap">
-            <Select label="System" data={SYSTEMS} value={system} onChange={setSystem} w={150} allowDeselect={false} />
-            <TextInput label="Kind" value={kind} onChange={(e) => setKind(e.currentTarget.value)} w={130} placeholder="cad_model" />
-            <TextInput label="URL" value={url} onChange={(e) => setUrl(e.currentTarget.value)} style={{ flex: 1, minWidth: 220 }} placeholder="https://…" />
-            <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} w={220} />
-            <Button leftSection={<IconPlus size={16} />} onClick={() => add.mutate(undefined)} disabled={!url && !title}>Add</Button>
+            <Select label={tx("System")} data={SYSTEMS} value={system} onChange={setSystem} w={150} allowDeselect={false} />
+            <TextInput label={tx("Kind")} value={kind} onChange={(e) => setKind(e.currentTarget.value)} w={130} placeholder={tx("cad_model")} />
+            <TextInput label={tx("URL")} value={url} onChange={(e) => setUrl(e.currentTarget.value)} style={{ flex: 1, minWidth: 220 }} placeholder={tx("https://…")} />
+            <TextInput label={tx("Title")} value={title} onChange={(e) => setTitle(e.currentTarget.value)} w={220} />
+            <Button leftSection={<IconPlus size={16} />} onClick={() => add.mutate(undefined)} disabled={!url && !title}>{tx("Add")}</Button>
           </Group>
         </Card>
       )}
-      {refs.length === 0 ? <Text c="dimmed">No external references.</Text> : (
+      {refs.length === 0 ? <Text c="dimmed">{tx("No external references.")}</Text> : (
         <Card withBorder padding={0}>
           <Table>
             <Table.Tbody>

@@ -8,6 +8,7 @@ import type { CommentThread } from "@/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { Markdown } from "./Markdown";
 import { emphasizeMentions, MentionTextarea } from "./MentionTextarea";
+import { tx } from "@/lib/i18n";
 
 interface Props {
   projectKey: string;
@@ -38,8 +39,8 @@ export function CommentThreads({ projectKey, threads, itemKey, documentKey, canW
   return (
     <Stack gap="sm">
       <Group justify="space-between">
-        <Text size="sm" c="dimmed">{threads.length - resolvedCount} open thread(s){resolvedCount ? `, ${resolvedCount} resolved` : ""}</Text>
-        {resolvedCount > 0 && <Switch size="xs" label="Show resolved" checked={showResolved} onChange={(e) => setShowResolved(e.currentTarget.checked)} />}
+        <Text size="sm" c="dimmed">{tx("{v} open thread(s){v1}", { v: threads.length - resolvedCount, v1: resolvedCount ? tx(", {resolvedCount} resolved", { resolvedCount: resolvedCount }) : "" })}</Text>
+        {resolvedCount > 0 && <Switch size="xs" label={tx("Show resolved")} checked={showResolved} onChange={(e) => setShowResolved(e.currentTarget.checked)} />}
       </Group>
       {visible.map((t) => (
         <Card key={t.id} withBorder padding="sm" style={{ opacity: t.resolved ? 0.7 : 1 }} data-testid={`thread-${t.id}`}>
@@ -51,28 +52,28 @@ export function CommentThreads({ projectKey, threads, itemKey, documentKey, canW
           )}
           <Group justify="space-between" mt="xs">
             <Group gap={6}>
-              {t.resolved && <Badge size="xs" color="green" variant="light">resolved by {t.resolved_by?.display_name}</Badge>}
+              {t.resolved && <Badge size="xs" color="green" variant="light">{tx("resolved by {display_name}", { display_name: t.resolved_by?.display_name })}</Badge>}
             </Group>
             <Group gap={4}>
               {canWrite && t.item_key && (
                 t.resolved
-                  ? <Tooltip label="Reopen"><ActionIcon variant="subtle" size="sm" onClick={() => resolve.mutate({ item: t.item_key!, id: t.id, resolved: false })}><IconArrowBackUp size={14} /></ActionIcon></Tooltip>
-                  : <Tooltip label="Resolve"><ActionIcon variant="subtle" size="sm" color="green" onClick={() => resolve.mutate({ item: t.item_key!, id: t.id, resolved: true })} data-testid="resolve-thread"><IconCheck size={14} /></ActionIcon></Tooltip>
+                  ? <Tooltip label={tx("Reopen")}><ActionIcon variant="subtle" size="sm" onClick={() => resolve.mutate({ item: t.item_key!, id: t.id, resolved: false })}><IconArrowBackUp size={14} /></ActionIcon></Tooltip>
+                  : <Tooltip label={tx("Resolve")}><ActionIcon variant="subtle" size="sm" color="green" onClick={() => resolve.mutate({ item: t.item_key!, id: t.id, resolved: true })} data-testid="resolve-thread"><IconCheck size={14} /></ActionIcon></Tooltip>
               )}
               {(t.author?.id === me.id || canModerate) && t.item_key && (
-                <Tooltip label="Delete thread"><ActionIcon variant="subtle" size="sm" color="red" onClick={() => del.mutate({ item: t.item_key!, id: t.id })}><IconTrash size={14} /></ActionIcon></Tooltip>
+                <Tooltip label={tx("Delete thread")}><ActionIcon variant="subtle" size="sm" color="red" onClick={() => del.mutate({ item: t.item_key!, id: t.id })}><IconTrash size={14} /></ActionIcon></Tooltip>
               )}
             </Group>
           </Group>
           {canWrite && t.item_key && <ReplyBox onSend={(text) => add.mutate({ item: t.item_key!, body: text, parent_id: t.id })} />}
         </Card>
       ))}
-      {visible.length === 0 && <Text size="sm" c="dimmed">No comments.</Text>}
+      {visible.length === 0 && <Text size="sm" c="dimmed">{tx("No comments.")}</Text>}
       {canWrite && itemKey && (
         <Card withBorder padding="sm">
-          <MentionTextarea placeholder="Write a comment — @name notifies a colleague" autosize minRows={2} value={body} onChange={setBody} data-testid="comment-body" />
+          <MentionTextarea placeholder={tx("Write a comment — @name notifies a colleague")} autosize minRows={2} value={body} onChange={setBody} data-testid="comment-body" />
           <Group justify="flex-end" mt="xs">
-            <Button size="xs" onClick={() => add.mutate({ item: itemKey, body })} disabled={!body.trim()} loading={add.isPending} data-testid="comment-add">Comment</Button>
+            <Button size="xs" onClick={() => add.mutate({ item: itemKey, body })} disabled={!body.trim()} loading={add.isPending} data-testid="comment-add">{tx("Comment")}</Button>
           </Group>
         </Card>
       )}
@@ -87,7 +88,7 @@ function CommentBody({ c, projectKey, showItemKey }: { c: CommentThread; project
       <Group gap="xs" mb={2}>
         <Avatar size={22} radius="xl" color={c.external_author ? "orange" : "indigo"}>{name.slice(0, 2).toUpperCase()}</Avatar>
         <Text size="sm" fw={600}>{name}</Text>
-        {c.source === "word" && <Badge size="xs" variant="light" color="orange">from Word</Badge>}
+        {c.source === "word" && <Badge size="xs" variant="light" color="orange">{tx("from Word")}</Badge>}
         {showItemKey && c.item_key && <Link to={`/p/${projectKey}/items/${c.item_key}?tab=comments`} className="item-key">{c.item_key}</Link>}
         <Text size="xs" c="dimmed">{fmtDateTime(c.created_at)}</Text>
       </Group>
@@ -99,11 +100,11 @@ function CommentBody({ c, projectKey, showItemKey }: { c: CommentThread; project
 function ReplyBox({ onSend }: { onSend: (text: string) => void }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  if (!open) return <Button size="compact-xs" variant="subtle" mt={4} leftSection={<IconMessageReply size={12} />} onClick={() => setOpen(true)} data-testid="reply">Reply</Button>;
+  if (!open) return <Button size="compact-xs" variant="subtle" mt={4} leftSection={<IconMessageReply size={12} />} onClick={() => setOpen(true)} data-testid="reply">{tx("Reply")}</Button>;
   return (
     <Group mt="xs" align="flex-end" wrap="nowrap">
-      <div style={{ flex: 1 }}><MentionTextarea autosize minRows={1} value={text} onChange={setText} placeholder="Reply… (@name to notify)" data-testid="reply-body" /></div>
-      <Button size="xs" disabled={!text.trim()} onClick={() => { onSend(text); setText(""); setOpen(false); }} data-testid="reply-send">Send</Button>
+      <div style={{ flex: 1 }}><MentionTextarea autosize minRows={1} value={text} onChange={setText} placeholder={tx("Reply… (@name to notify)")} data-testid="reply-body" /></div>
+      <Button size="xs" disabled={!text.trim()} onClick={() => { onSend(text); setText(""); setOpen(false); }} data-testid="reply-send">{tx("Send")}</Button>
     </Group>
   );
 }

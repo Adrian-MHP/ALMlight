@@ -5,6 +5,7 @@ import { useConfig, useProject } from "@/api/hooks";
 import type { Project, Role } from "@/api/types";
 import { Model } from "@/lib/model";
 import { NotFound } from "@/components/NotFound";
+import { tx } from "@/lib/i18n";
 
 interface ProjectCtx {
   project: Project;
@@ -38,7 +39,7 @@ export function ProjectLayout() {
     };
   }, [project.data, config.data, key]);
 
-  if (project.isError) return <NotFound message={`Project ${key} not found or not accessible.`} />;
+  if (project.isError) return <NotFound message={tx("Project {key} not found or not accessible.", { key: key })} />;
   if (!value) return <Center mt={80}><Loader /></Center>;
   return (
     <Ctx.Provider value={value}>

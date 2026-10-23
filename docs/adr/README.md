@@ -29,5 +29,8 @@
 | [0025](0025-file-check-out-and-word-templates.md) | File check-out beside the version; Word templates with placeholders | accepted |
 | [0026](0026-structured-queries-and-query-language.md) | Structured query conditions with a Polarion-like query language | accepted |
 | [0027](0027-bulk-edit-boards-and-timeline-through-services.md) | Bulk edit, boards and the timeline change items only through the normal services | accepted |
+| [0028](0028-scheduling-on-a-working-day-calendar.md) | Scheduling on a working-day calendar with typed dependencies, auto-scheduling and levelling | accepted |
+| [0029](0029-time-records-outside-item-versions.md) | Time records are separate facts, not item versions, with restricted visibility | accepted |
+| [0030](0030-internationalisation-with-english-source-keys.md) | Internationalisation: English source texts as keys, server-side translation of server texts | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

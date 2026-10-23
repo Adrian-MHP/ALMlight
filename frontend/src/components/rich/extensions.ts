@@ -14,6 +14,7 @@ import { getUploadImageExtension } from "@mantine/tiptap";
 import Document from "@tiptap/extension-document";
 import Paragraph from "@tiptap/extension-paragraph";
 import Text from "@tiptap/extension-text";
+import { tx } from "@/lib/i18n";
 
 export interface ItemRefSuggestion { key: string; title: string; type?: string }
 
@@ -58,7 +59,7 @@ export interface BodyOptions {
   suggestion?: Omit<SuggestionOptions<ItemRefSuggestion>, "editor"> | null;
 }
 
-const noUpload = () => Promise.reject(new Error("Image upload is not available here"));
+const noUpload = () => Promise.reject(new Error(tx("Image upload is not available here")));
 
 /** Extensions of an item text. Options must not change the schema (all clients must build identical documents). */
 export function bodyExtensions(opts: BodyOptions = {}): Extensions {
@@ -78,7 +79,7 @@ export function bodyExtensions(opts: BodyOptions = {}): Extensions {
     Subscript,
     Superscript,
     TextAlign.configure({ types: ["heading", "paragraph"] }),
-    Placeholder.configure({ placeholder: opts.placeholder ?? "Write the text… (type # to reference an item)" }),
+    Placeholder.configure({ placeholder: opts.placeholder ?? tx("Write the text… (type # to reference an item)") }),
     ItemRef.configure({ suggestion: opts.suggestion ?? null }),
   ];
 }
@@ -86,6 +87,6 @@ export function bodyExtensions(opts: BodyOptions = {}): Extensions {
 /** A single-line title: one paragraph of plain text. */
 export const TitleDocument = Document.extend({ content: "paragraph" });
 
-export function titleExtensions(placeholder = "Title"): Extensions {
+export function titleExtensions(placeholder = tx("Title")): Extensions {
   return [TitleDocument, Paragraph, Text, Placeholder.configure({ placeholder })];
 }

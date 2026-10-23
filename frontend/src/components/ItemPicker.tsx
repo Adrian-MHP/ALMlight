@@ -3,6 +3,7 @@ import { Select } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useItems } from "@/api/hooks";
 import { useProjectCtx } from "@/pages/project/ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 interface Props {
   label?: string;
@@ -14,11 +15,12 @@ interface Props {
   required?: boolean;
   description?: string;
   testId?: string;
+  w?: number;
 }
 
 /** Searchable item selector (by key or title) limited to the given item types. */
-export function ItemPicker({ label, placeholder = "Search by key or title…", value, onChange, types, exclude = [], required,
-  description, testId }: Props) {
+export function ItemPicker({ label, placeholder = tx("Search by key or title…"), value, onChange, types, exclude = [], required,
+  description, testId, w }: Props) {
   const { key } = useProjectCtx();
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 250);
@@ -30,6 +32,6 @@ export function ItemPicker({ label, placeholder = "Search by key or title…", v
   return (
     <Select label={label} placeholder={placeholder} data={options} value={value} onChange={onChange} searchable
       searchValue={search} onSearchChange={setSearch} filter={({ options }) => options} clearable required={required}
-      description={description} nothingFoundMessage="No matching items" data-testid={testId} />
+      description={description} nothingFoundMessage={tx("No matching items")} data-testid={testId} w={w} />
   );
 }

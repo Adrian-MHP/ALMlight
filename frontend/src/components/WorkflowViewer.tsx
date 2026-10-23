@@ -5,6 +5,7 @@ import { api } from "@/api/client";
 import { pk, useTransitions } from "@/api/hooks";
 import type { Item } from "@/api/types";
 import { stateColor, type Model } from "@/lib/model";
+import { tm, tx } from "@/lib/i18n";
 
 interface WfEvent { from: string | null; to: string; transition: string; at: string }
 
@@ -37,14 +38,10 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
     }
     const maxLevel = Math.max(0, ...level.values());
     for (const s of wf.states) if (!level.has(s.key)) level.set(s.key, maxLevel + 1);
+    // boxes and gaps grow with the labels (German labels are longer)
+    const w = Math.max(W, ...wf.states.map((s) => Math.ceil(s.label.length * 7.2 + 20)));
     const rows = new Map<number, number>();
     const pos = new Map<string, { x: number; y: number }>();
-    for (const s of wf.states) {
-      const l = level.get(s.key)!;
-      const r = rows.get(l) ?? 0;
-      rows.set(l, r + 1);
-      pos.set(s.key, { x: PAD + l * (W + GX), y: PAD + r * (H + GY) });
-    }
     const edges = new Map<string, { from: string; to: string; labels: string[]; keys: string[] }>();
     for (const t of wf.transitions) {
       for (const f of t.from) {
@@ -54,10 +51,19 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
         edges.set(id, e);
       }
     }
-    const width = PAD * 2 + (Math.max(...level.values()) + 1) * (W + GX) - GX;
+    const forwardLabels = [...edges.values()].filter((e) => (level.get(e.to) ?? 0) > (level.get(e.from) ?? 0))
+      .map((e) => e.labels.join(" / ").length);
+    const gx = compact ? GX : Math.max(GX, ...forwardLabels.map((n) => Math.ceil(n * 5.8 + 28)));
+    for (const s of wf.states) {
+      const l = level.get(s.key)!;
+      const r = rows.get(l) ?? 0;
+      rows.set(l, r + 1);
+      pos.set(s.key, { x: PAD + l * (w + gx), y: PAD + r * (H + GY) });
+    }
+    const width = PAD * 2 + (Math.max(...level.values()) + 1) * (w + gx) - gx;
     const height = PAD * 2 + Math.max(...rows.values()) * (H + GY) - GY + 40;
-    return { pos, edges: [...edges.values()], width, height, level };
-  }, [wf]);
+    return { pos, edges: [...edges.values()], width, height, level, w, gx };
+  }, [wf, compact]);
   if (!wf || !layout) return null;
   const visited = new Set(events.flatMap((e) => [e.to, e.from].filter(Boolean) as string[]));
   const taken = new Set(events.map((e) => `${e.from}>${e.to}`));
@@ -65,7 +71,7 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
     <div data-testid="workflow-viewer">
       <div style={{ overflowX: "auto" }}>
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} width={layout.width} height={layout.height} style={{ display: "block", maxWidth: "none" }}
-        role="img" aria-label={`Workflow ${wf.label}, current state ${item.lifecycle.label ?? item.lifecycle.state}`}>
+        role="img" aria-label={tx("Workflow {label}, current state {label1}", { label: wf.label, label1: tm(item.lifecycle.label) ?? item.lifecycle.state })}>
         <defs>
           {["muted", "taken", "next"].map((k) => (
             <marker key={k} id={`wf-arrow-${k}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -81,11 +87,11 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
           const stroke = isNext ? "var(--mantine-primary-color-filled)" : isTaken ? "var(--mantine-color-dark-3)" : "var(--mantine-color-gray-5)";
           let d: string, lx: number, ly: number;
           if (forward) {
-            const x1 = a.x + W, y1 = a.y + H / 2, x2 = b.x - 2, y2 = b.y + H / 2;
-            d = `M${x1},${y1} C${x1 + GX / 2},${y1} ${x2 - GX / 2},${y2} ${x2},${y2}`;
+            const x1 = a.x + layout.w, y1 = a.y + H / 2, x2 = b.x - 2, y2 = b.y + H / 2;
+            d = `M${x1},${y1} C${x1 + layout.gx / 2},${y1} ${x2 - layout.gx / 2},${y2} ${x2},${y2}`;
             lx = (x1 + x2) / 2; ly = (y1 + y2) / 2 - 4;
           } else {
-            const x1 = a.x + W / 2 + 10, y1 = a.y + H, x2 = b.x + W / 2 - 10, y2 = b.y + H + 2;
+            const x1 = a.x + layout.w / 2 + 10, y1 = a.y + H, x2 = b.x + layout.w / 2 - 10, y2 = b.y + H + 2;
             const dip = Math.max(y1, y2) + 26 + (i % 2) * 8;
             d = `M${x1},${y1} C${x1},${dip} ${x2},${dip} ${x2},${y2}`;
             lx = (x1 + x2) / 2; ly = dip - 4;
@@ -107,9 +113,9 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
           const color = cssColor(stateColor(s.color, s.category));
           return (
             <g key={s.key} data-testid={`wf-state-${s.key}`} data-current={current ? "true" : undefined}>
-              <rect x={p.x} y={p.y} width={W} height={H} rx={8} fill={current ? color : "var(--mantine-color-body)"}
+              <rect x={p.x} y={p.y} width={layout.w} height={H} rx={8} fill={current ? color : "var(--mantine-color-body)"}
                 stroke={current || visited.has(s.key) ? color : "var(--mantine-color-default-border)"} strokeWidth={current ? 2.5 : visited.has(s.key) ? 2 : 1} />
-              <text x={p.x + W / 2} y={p.y + H / 2 + 4} textAnchor="middle" fontSize="12" fontWeight={current ? 700 : 500}
+              <text x={p.x + layout.w / 2} y={p.y + H / 2 + 4} textAnchor="middle" fontSize="12" fontWeight={current ? 700 : 500}
                 fill={current ? "#fff" : "var(--mantine-color-text)"}>{s.label}</text>
             </g>
           );
@@ -118,9 +124,9 @@ export function WorkflowViewer({ projectKey, item, model, compact = false }: { p
       </div>
       {!compact && (
         <Group gap="md" mt={4}>
-          <Legend color="var(--mantine-primary-color-filled)" label="possible for you now" />
-          <Legend color="var(--mantine-color-dark-3)" label="path taken" />
-          <Legend color="var(--mantine-color-gray-5)" dashed label="other transitions" />
+          <Legend color="var(--mantine-primary-color-filled)" label={tx("possible for you now")} />
+          <Legend color="var(--mantine-color-dark-3)" label={tx("path taken")} />
+          <Legend color="var(--mantine-color-gray-5)" dashed label={tx("other transitions")} />
         </Group>
       )}
     </div>

@@ -65,7 +65,10 @@ def test_demo_backbone_content(db, admin, app):
     tl = admin.get("/projects/DEMO/timeline")
     rows = {r["title"]: r for r in tl["rows"]}
     assert rows["Design freeze"]["kind"] == "milestone" and rows["EMC pre-compliance test"]["depends_on"]
-    assert [c["item"] for c in tl["conflicts"]] == [rows["Design review DR2"]["key"]]  # the slipped qualification
+    # the slipped qualification: DR2 (finish-to-start) and the report (start-to-start + 3 days) conflict
+    assert {c["item"]: c["type"] for c in tl["conflicts"]} == {rows["Design review DR2"]["key"]: "fs",
+                                                               rows["Qualification report"]["key"]: "ss"}
+    assert rows["Qualification report"]["dependencies"][0]["lag"] == 3
     sched = next(b for b in admin.get("/projects/DEMO/baselines") if b["name"] == "Schedule baseline")
     tlb = {r["title"]: r for r in admin.get(f"/projects/DEMO/timeline?baseline={sched['id']}")["rows"]}
     assert tlb["Temperature qualification"]["baseline"]["due_date"] != tlb["Temperature qualification"]["due_date"]

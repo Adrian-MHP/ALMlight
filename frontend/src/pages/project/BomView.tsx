@@ -6,6 +6,7 @@ import { api, downloadUrl, qs } from "@/api/client";
 import { useBom, useProjectMutation } from "@/api/hooks";
 import type { BomRow } from "@/api/types";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 /** Multi-level bill of materials with find numbers, quantities (rolled up), units and effectivity. */
 export function BomView({ rootKey }: { rootKey: string }) {
@@ -17,27 +18,27 @@ export function BomView({ rootKey }: { rootKey: string }) {
     <Stack gap="sm" data-testid="bom-view">
       <Group justify="space-between" wrap="wrap">
         <Group gap="xs">
-          <TextInput type="date" size="xs" label="Effective on" value={effective} onChange={(e) => setEffective(e.currentTarget.value)}
+          <TextInput type="date" size="xs" label={tx("Effective on")} value={effective} onChange={(e) => setEffective(e.currentTarget.value)}
             data-testid="bom-effective" />
-          {effective && <Button size="compact-xs" variant="subtle" mt={18} onClick={() => setEffective("")}>all dates</Button>}
+          {effective && <Button size="compact-xs" variant="subtle" mt={18} onClick={() => setEffective("")}>{tx("all dates")}</Button>}
         </Group>
         <Menu>
-          <Menu.Target><Button size="xs" variant="default" leftSection={<IconDownload size={14} />} data-testid="bom-export">Export BOM</Button></Menu.Target>
+          <Menu.Target><Button size="xs" variant="default" leftSection={<IconDownload size={14} />} data-testid="bom-export">{tx("Export BOM")}</Button></Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item component="a" href={downloadUrl(`/projects/${key}/items/${rootKey}/bom.xlsx${qs({ effective: effective || null })}`)}>Excel (.xlsx)</Menu.Item>
-            <Menu.Item component="a" href={downloadUrl(`/projects/${key}/items/${rootKey}/bom.csv${qs({ effective: effective || null })}`)}>CSV</Menu.Item>
+            <Menu.Item component="a" href={downloadUrl(`/projects/${key}/items/${rootKey}/bom.xlsx${qs({ effective: effective || null })}`)}>{tx("Excel (.xlsx)")}</Menu.Item>
+            <Menu.Item component="a" href={downloadUrl(`/projects/${key}/items/${rootKey}/bom.csv${qs({ effective: effective || null })}`)}>{tx("CSV")}</Menu.Item>
           </Menu.Dropdown>
         </Menu>
       </Group>
       <Table.ScrollContainer minWidth={820}>
         <Table striped highlightOnHover data-testid="bom-table">
           <Table.Thead>
-            <Table.Tr><Table.Th>Lvl</Table.Th><Table.Th>Find no.</Table.Th><Table.Th>Item</Table.Th><Table.Th>Rev</Table.Th><Table.Th>State</Table.Th>
-              <Table.Th ta="right">Qty</Table.Th><Table.Th>Unit</Table.Th><Table.Th ta="right">Total</Table.Th><Table.Th>Effectivity</Table.Th><Table.Th /></Table.Tr>
+            <Table.Tr><Table.Th>{tx("Lvl")}</Table.Th><Table.Th>{tx("Find no.")}</Table.Th><Table.Th>{tx("Item")}</Table.Th><Table.Th>{tx("Rev")}</Table.Th><Table.Th>{tx("State")}</Table.Th>
+              <Table.Th ta="right">{tx("Qty")}</Table.Th><Table.Th>{tx("Unit")}</Table.Th><Table.Th ta="right">{tx("Total")}</Table.Th><Table.Th>{tx("Effectivity")}</Table.Th><Table.Th /></Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(data?.rows ?? []).map((r) => <BomLine key={r.link_id} row={r} editable={editable} />)}
-            {data && data.rows.length === 0 && <Table.Tr><Table.Td colSpan={10}><Text c="dimmed" ta="center" py="md">No components{effective ? " effective on this date" : ""}.</Text></Table.Td></Table.Tr>}
+            {data && data.rows.length === 0 && <Table.Tr><Table.Td colSpan={10}><Text c="dimmed" ta="center" py="md">{tx("No components{v}.", { v: effective ? tx(" effective on this date") : "" })}</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
@@ -53,7 +54,7 @@ function BomLine({ row, editable }: { row: BomRow; editable: boolean }) {
   const save = useProjectMutation(key, () => api.patch(`/projects/${key}/links/${row.link_id}`, {
     attributes: { quantity: attrs.quantity, unit: attrs.unit, find_number: attrs.find_number || null,
       effective_from: attrs.effective_from || null, effective_to: attrs.effective_to || null },
-  }), { success: `Updated ${row.key} in the BOM`, onSuccess: () => setOpen(false) });
+  }), { success: tx("Updated {key} in the BOM", { key: row.key }), onSuccess: () => setOpen(false) });
   return (
     <Table.Tr data-testid={`bom-${row.key}`}>
       <Table.Td><Text size="xs" className="mono">{".".repeat(row.level)}{row.level}</Text></Table.Td>
@@ -73,13 +74,13 @@ function BomLine({ row, editable }: { row: BomRow; editable: boolean }) {
             <Popover.Target><ActionIcon size="sm" variant="subtle" onClick={() => setOpen((o) => !o)} data-testid={`bom-edit-${row.key}`}><IconEdit size={14} /></ActionIcon></Popover.Target>
             <Popover.Dropdown>
               <Stack gap="xs" w={240}>
-                <Text size="sm" fw={600}>{row.key} in its parent</Text>
-                <NumberInput size="xs" label="Quantity" min={0} value={attrs.quantity ?? ""} onChange={(v) => setAttrs({ ...attrs, quantity: v === "" ? null : Number(v) })} data-testid="bom-qty" />
-                <Select size="xs" label="Unit" clearable data={["pcs", "set", "m", "kg", "l"]} value={attrs.unit} onChange={(v) => setAttrs({ ...attrs, unit: v })} />
-                <TextInput size="xs" label="Find number" value={attrs.find_number} onChange={(e) => setAttrs({ ...attrs, find_number: e.currentTarget.value })} />
-                <TextInput size="xs" type="date" label="Effective from" value={attrs.effective_from} onChange={(e) => setAttrs({ ...attrs, effective_from: e.currentTarget.value })} />
-                <TextInput size="xs" type="date" label="Effective until" value={attrs.effective_to} onChange={(e) => setAttrs({ ...attrs, effective_to: e.currentTarget.value })} />
-                <Button size="xs" onClick={() => save.mutate(undefined)} loading={save.isPending} data-testid="bom-save">Save</Button>
+                <Text size="sm" fw={600}>{tx("{key} in its parent", { key: row.key })}</Text>
+                <NumberInput size="xs" label={tx("Quantity")} min={0} value={attrs.quantity ?? ""} onChange={(v) => setAttrs({ ...attrs, quantity: v === "" ? null : Number(v) })} data-testid="bom-qty" />
+                <Select size="xs" label={tx("Unit")} clearable data={["pcs", "set", "m", "kg", "l"]} value={attrs.unit} onChange={(v) => setAttrs({ ...attrs, unit: v })} />
+                <TextInput size="xs" label={tx("Find number")} value={attrs.find_number} onChange={(e) => setAttrs({ ...attrs, find_number: e.currentTarget.value })} />
+                <TextInput size="xs" type="date" label={tx("Effective from")} value={attrs.effective_from} onChange={(e) => setAttrs({ ...attrs, effective_from: e.currentTarget.value })} />
+                <TextInput size="xs" type="date" label={tx("Effective until")} value={attrs.effective_to} onChange={(e) => setAttrs({ ...attrs, effective_to: e.currentTarget.value })} />
+                <Button size="xs" onClick={() => save.mutate(undefined)} loading={save.isPending} data-testid="bom-save">{tx("Save")}</Button>
               </Stack>
             </Popover.Dropdown>
           </Popover>

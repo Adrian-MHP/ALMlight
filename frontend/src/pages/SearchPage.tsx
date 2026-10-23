@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useSearch } from "@/api/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtRelative } from "@/lib/format";
+import { tm, tx } from "@/lib/i18n";
 
 export function SearchPage() {
   const [params] = useSearchParams();
@@ -10,7 +11,7 @@ export function SearchPage() {
   const { data = [], isLoading } = useSearch(q);
   return (
     <>
-      <PageHeader title={`Search: “${q}”`} subtitle={isLoading ? "Searching…" : `${data.length} result(s) across your projects`} />
+      <PageHeader title={tx("Search: “{q}”", { q: q })} subtitle={isLoading ? tx("Searching…") : tx("{length} result(s) across your projects", { length: data.length })} />
       <Stack gap="xs">
         {data.map((i) => (
           <Card key={i.id} withBorder padding="sm" component={Link} to={`/p/${i.project_key}/items/${i.key}`} style={{ textDecoration: "none" }}>
@@ -21,7 +22,7 @@ export function SearchPage() {
                 <Text size="sm" truncate>{i.title}</Text>
               </Group>
               <Group gap="xs" wrap="nowrap">
-                {i.lifecycle.label && <Badge size="sm" variant="outline">{i.lifecycle.label}</Badge>}
+                {tm(i.lifecycle.label) && <Badge size="sm" variant="outline">{tm(i.lifecycle.label)}</Badge>}
                 <Text size="xs" c="dimmed">{fmtRelative(i.updated_at)}</Text>
               </Group>
             </Group>

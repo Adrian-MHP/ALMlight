@@ -440,10 +440,13 @@ def seed_demo(db: Session) -> None:
     for item, ago in ((sysr["range"], 12), (sysr["accuracy"], 8), (sysr["analog"], 4), (sysr["temp"], 2)):
         _backdate(db, item, created=30, events={"in_review": ago + 1, "approved": ago})
 
-    # --- schedule: tasks with finish-to-start dependencies and milestones (timeline) ------------------
-    def task(title: str, start: int, finish: int, plan: Item, progress: int = 0, state: str | None = None) -> Item:
-        t = new("task", title, by=max_, fields={"start_date": day(start), "due_date": day(finish),
-                                                "progress": progress})
+    # --- schedule: tasks with dependencies (finish-to-start, start-to-start with lag) and milestones ----
+    def task(title: str, start: int, finish: int, plan: Item, progress: int = 0, state: str | None = None, *,
+             owner: User = alex, hours: float | None = None) -> Item:
+        fields: dict = {"start_date": day(start), "due_date": day(finish), "progress": progress}
+        if hours:
+            fields["estimate"] = hours
+        t = new("task", title, by=max_, fields=fields, owner_id=owner.id)
         link("planned_in", t, plan)
         if state in ("in_progress", "done"):
             engine.execute_transition(db, project, max_, t, "start")
@@ -451,22 +454,45 @@ def seed_demo(db: Session) -> None:
             engine.execute_transition(db, project, max_, t, "finish")
         return t
 
-    proto = task("Build B-samples", -21, -10, sprint_a, 100, "done")
-    emc = task("EMC pre-compliance test", -7, 4, sprint_a, 60, "in_progress")
-    qual = task("Temperature qualification", 7, 18, sprint_b)
-    review_dr2 = task("Design review DR2", 21, 23, sprint_b)
+    proto = task("Build B-samples", -21, -10, sprint_a, 100, "done", hours=60)
+    emc = task("EMC pre-compliance test", -7, 4, sprint_a, 60, "in_progress", hours=64)
+    qual = task("Temperature qualification", 7, 18, sprint_b, owner=rita, hours=48)
+    review_dr2 = task("Design review DR2", 21, 23, sprint_b, owner=max_, hours=12)
     freeze = new("release", "Design freeze", by=max_, fields={"kind": "milestone", "due_date": day(23)})
-    pilot = task("Pilot production preparation", 24, 46, r10)
+    pilot = task("Pilot production preparation", 24, 46, r10, hours=120)
     sop = new("release", "Start of pilot deliveries", by=max_, fields={"kind": "milestone", "due_date": day(46)})
     for ms in (freeze, sop):
         link("part_of", ms, r10)
     for succ, pred in ((emc, proto), (qual, emc), (review_dr2, qual), (freeze, review_dr2), (pilot, freeze),
                        (sop, pilot)):
         link("depends_on", succ, pred)
-    task("Prepare EMC test report template", -7, -3, sprint_a, 100, "done")
+    # the report is written alongside the qualification: start three working days after it, finish with it
+    report = task("Qualification report", 10, 21, sprint_b, owner=rita, hours=24)
+    link("depends_on", report, qual, attributes={"dependency_type": "ss", "lag": 3})
+    template = task("Prepare EMC test report template", -7, -3, sprint_a, 100, "done", hours=8)
+    # alex is double-booked this week (EMC test and the FMEA update): the resource view shows the overload and
+    # levelling moves the FMEA update behind the EMC test
+    task("Update FMEA after EMC findings", 0, 4, sprint_a, hours=32)
+    projects.set_member(db, admin, project, rita, "reviewer", hours_per_day=6)  # part-time in this project
+
+    # --- time recording: hours worked on the tasks so far ----------------------------------------------
+    from almlight.modules.worklog.models import WorkRecord
+
+    def worked(who: User, item: Item, offsets: range, hours: float, comment: str | None = None) -> None:
+        for n in offsets:
+            d = monday + timedelta(days=n)
+            if d.weekday() < 5 and d <= today:
+                db.add(WorkRecord(project_id=project.id, item_id=item.id, user_id=who.id, day=d, hours=hours,
+                                  comment=comment))
+
+    worked(alex, proto, range(-21, -9), 6, "Sample build")
+    worked(alex, template, range(-7, -2), 2)
+    worked(alex, emc, range(-7, 1), 5, "Pre-compliance measurements")
+    db.flush()
     baselines.create_baseline(db, project, max_, name="Schedule baseline",
                               description="Plan agreed at the sprint 1 kick-off")
-    # the qualification slips by three days: the timeline shows the baseline and the conflict with DR2
+    # the qualification slips by three days: the timeline shows the baseline and the conflicts with DR2 and
+    # the report; auto-scheduling moves them
     items.update_item(db, project, max_, qual, items.ContentChange(fields={"start_date": day(10),
                                                                           "due_date": day(21)}),
                       change_note="Climate chamber booked three days later")

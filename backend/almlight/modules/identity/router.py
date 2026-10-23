@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel, Field
@@ -32,6 +33,11 @@ class MeOut(BaseModel):
     email: str | None
     is_admin: bool
     projects: dict[str, str] = Field(description="Project key -> role")
+    locale: str | None = Field(default=None, description="User interface language (en, de); none = browser")
+
+
+class LocaleIn(BaseModel):
+    locale: Literal["en", "de"] | None = None
 
 
 class UserOut(BaseModel):
@@ -94,7 +100,7 @@ def _me(db: Session, user: User) -> MeOut:
             .where(ProjectMember.user_id == user.id)
         ).all())
     return MeOut(id=user.id, username=user.username, display_name=user.display_name, email=user.email,
-                 is_admin=user.is_admin, projects=projects)
+                 is_admin=user.is_admin, projects=projects, locale=user.locale)
 
 
 def _user_out(u: User) -> UserOut:
@@ -121,6 +127,13 @@ def logout(response: Response) -> Ok:
 @router.get("/auth/me", response_model=MeOut)
 def me(user: User = Depends(current_user), db: Session = Depends(get_db)) -> MeOut:
     return _me(db, user)
+
+
+@router.put("/auth/me/locale", response_model=MeOut, summary="Set your user interface language")
+def set_locale(body: LocaleIn, user: User = Depends(current_user), db: Session = Depends(get_db)) -> MeOut:
+    db.get(User, user.id).locale = body.locale  # type: ignore[union-attr]
+    db.commit()
+    return _me(db, db.get(User, user.id))  # type: ignore[arg-type]
 
 
 @router.post("/auth/password", response_model=Ok)

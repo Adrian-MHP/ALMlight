@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import ColumnElement, Numeric, String, and_, case, cast, false, func, not_, or_, select, true
 from sqlalchemy.dialects.postgresql import ARRAY
 
@@ -368,16 +368,76 @@ def condition_sql(ctx: Context, c: Condition) -> ColumnElement[bool]:
     return not_(expr) if c.negate else expr
 
 
-def apply_conditions(stmt: Any, ctx: Context, conditions: list[Condition]) -> Any:
-    if len(conditions) > MAX_CONDITIONS:
+class Group(BaseModel):
+    """Conditions combined with OR (``{"or": [...]}``) or AND (``{"and": [...]}``), optionally negated."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    any_of: list[Node] | None = Field(default=None, alias="or", max_length=MAX_CONDITIONS)
+    all_of: list[Node] | None = Field(default=None, alias="and", max_length=MAX_CONDITIONS)
+    negate: bool = Field(default=False, alias="not")
+
+    @model_validator(mode="after")
+    def _one_kind(self) -> Group:
+        if (self.any_of is None) == (self.all_of is None):
+            raise ValueError("a group has either 'or' or 'and'")
+        if not (self.any_of or self.all_of):
+            raise ValueError("a group needs conditions")
+        return self
+
+    @property
+    def kind(self) -> str:
+        return "or" if self.any_of is not None else "and"
+
+    @property
+    def children(self) -> list[Node]:
+        return self.any_of if self.any_of is not None else (self.all_of or [])
+
+    def dump(self) -> dict[str, Any]:
+        out: dict[str, Any] = {self.kind: [c.dump() for c in self.children]}
+        if self.negate:
+            out["not"] = True
+        return out
+
+
+Node = Condition | Group
+Group.model_rebuild()
+
+
+def leaves(nodes: list[Node]) -> list[Condition]:
+    """Every field condition in a (nested) query — for validation."""
+    out: list[Condition] = []
+    for n in nodes:
+        out.extend(leaves(n.children) if isinstance(n, Group) else [n])
+    return out
+
+
+def node_sql(ctx: Context, n: Node, depth: int = 0) -> ColumnElement[bool]:
+    if isinstance(n, Condition):
+        return condition_sql(ctx, n)
+    if depth > 8:
+        raise ValidationFailed("Queries can be nested at most 8 levels deep")
+    parts = [node_sql(ctx, c, depth + 1) for c in n.children]
+    expr = or_(*parts) if n.kind == "or" else and_(*parts)
+    return not_(expr) if n.negate else expr
+
+
+def apply_conditions(stmt: Any, ctx: Context, conditions: list[Node]) -> Any:
+    if len(leaves(conditions)) > MAX_CONDITIONS:
         raise ValidationFailed(f"At most {MAX_CONDITIONS} conditions")
     for c in conditions:
-        stmt = stmt.where(condition_sql(ctx, c))
+        stmt = stmt.where(node_sql(ctx, c))
     return stmt
 
 
-def parse_conditions(raw: Any) -> list[Condition]:
-    """Conditions from JSON (API parameter ``cond``, saved queries)."""
+def _node(raw: Any) -> Node:
+    if isinstance(raw, dict) and ("or" in raw or "and" in raw):
+        return Group.model_validate(raw)
+    return Condition.model_validate(raw)
+
+
+def parse_conditions(raw: Any) -> list[Node]:
+    """Conditions from JSON (API parameter ``cond``, saved queries, boards): conditions and or/and groups."""
     import json
 
     if raw in (None, "", []):
@@ -390,7 +450,7 @@ def parse_conditions(raw: Any) -> list[Condition]:
     if not isinstance(raw, list):
         raise ValidationFailed("cond must be a JSON list of conditions")
     try:
-        return [Condition.model_validate(x) for x in raw]
+        return [_node(x) for x in raw]
     except Exception as exc:  # noqa: BLE001 — pydantic message is precise enough
         raise ValidationFailed(f"Invalid condition: {exc}") from None
 
@@ -441,92 +501,165 @@ def _field_name(project: Project, word: str) -> str:
     raise ValidationFailed(f"Unknown query field '{word}'", {"field": word})
 
 
-def parse_query(project: Project, text: str) -> tuple[str | None, list[Condition]]:
-    """Query language → (free text, conditions)."""
-    toks = _tokens(text or "")
-    i, words, conds = 0, [], []
+_KEYWORDS = ("AND", "OR", "NOT", "TO")
 
-    def peek(k: int = 0) -> tuple[str, str, int] | None:
-        return toks[i + k] if i + k < len(toks) else None
 
-    def expect(val: str) -> None:
-        nonlocal i
-        t = peek()
+class _Parser:
+    """Recursive descent: or-expression := and-expression (OR and-expression)*;
+    and-expression := unary ([AND] unary)*; unary := NOT unary | -clause | ( or-expression ) | clause | word."""
+
+    def __init__(self, project: Project, text: str) -> None:
+        self.project = project
+        self.toks = _tokens(text or "")
+        self.i = 0
+        self.top_words: list[str] = []
+
+    def peek(self, k: int = 0) -> tuple[str, str, int] | None:
+        return self.toks[self.i + k] if self.i + k < len(self.toks) else None
+
+    def where(self) -> str:
+        t = self.peek()
+        return f"position {t[2] + 1}" if t else "the end"
+
+    def expect(self, val: str) -> None:
+        t = self.peek()
         if t is None or t[1] != val:
-            where = f"position {t[2] + 1}" if t else "the end"
-            raise ValidationFailed(f"Expected '{val}' at {where}")
-        i += 1
+            raise ValidationFailed(f"Expected '{val}' at {self.where()}")
+        self.i += 1
 
-    def value() -> str:
-        nonlocal i
-        t = peek()
-        if t is None or (t[0] == "p"):
-            raise ValidationFailed(f"Expected a value at {'position ' + str(t[2] + 1) if t else 'the end'}")
-        i += 1
+    def is_word(self, val: str) -> bool:
+        t = self.peek()
+        return bool(t and t[0] == "w" and t[1] == val)
+
+    def value(self) -> str:
+        t = self.peek()
+        if t is None or t[0] == "p" or (t[0] == "w" and t[1] in ("AND", "OR", "NOT")):
+            raise ValidationFailed(f"Expected a value at {self.where()}")
+        self.i += 1
         return t[1]
 
-    while i < len(toks):
-        kind, val, pos = toks[i]
-        if kind == "w" and val == "AND":
-            i += 1
-            continue
-        if kind == "w" and val == "OR":
-            raise ValidationFailed(f"OR combines values inside parentheses, e.g. state:(draft OR in_review) "
-                                   f"(position {pos + 1})")
-        negate = False
+    def parse(self) -> tuple[str | None, list[Node]]:
+        node = self.or_expr(top=True)
+        if self.peek() is not None:
+            raise ValidationFailed(f"Unexpected '{self.peek()[1]}' at {self.where()}")
+        if node is None:
+            nodes: list[Node] = []
+        elif isinstance(node, Group) and node.kind == "and" and not node.negate:
+            nodes = list(node.children)
+        else:
+            nodes = [node]
+        return (" ".join(self.top_words) or None), nodes
+
+    def or_expr(self, top: bool = False) -> Node | None:
+        parts = [self.and_expr(top)]
+        while self.is_word("OR"):
+            self.i += 1
+            parts.append(self.and_expr(False))
+        if len(parts) > 1:
+            # free words inside an OR branch are text conditions, not the global search
+            if any(p is None for p in parts):
+                raise ValidationFailed(f"OR needs a condition on both sides (near {self.where()})")
+            return Group(any_of=parts)
+        return parts[0]
+
+    def and_expr(self, top: bool) -> Node | None:
+        parts: list[Node] = []
+        start_words = len(self.top_words)
+        while True:
+            t = self.peek()
+            if t is None or (t[0] == "p" and t[1] == ")") or self.is_word("OR"):
+                break
+            if self.is_word("AND"):
+                self.i += 1
+                continue
+            n = self.unary(top)
+            if n is not None:
+                parts.append(n)
+        if self.is_word("OR") and top and len(self.top_words) > start_words:
+            # "pressure OR drift": the words become text conditions of this branch
+            words = self.top_words[start_words:]
+            del self.top_words[start_words:]
+            parts.append(Condition(field="text", op="contains", values=words))
+        if not parts:
+            return None
+        return parts[0] if len(parts) == 1 else Group(all_of=parts)
+
+    def unary(self, top: bool) -> Node | None:
+        t = self.peek()
+        kind, val, _pos = t
         if kind == "w" and val == "NOT":
-            negate, i = True, i + 1
-            if peek() is None:
+            self.i += 1
+            if self.peek() is None:
                 raise ValidationFailed("NOT needs a clause after it")
-            kind, val, pos = toks[i]
-        elif kind == "w" and val.startswith("-") and len(val) > 1 and peek(1) and peek(1)[1] == ":":
-            negate, val = True, val[1:]
-        nxt = peek(1)
+            n = self.unary(False)
+            if n is None:
+                raise ValidationFailed("NOT applies to conditions, e.g. NOT priority:must")
+            n.negate = not n.negate
+            return n
+        if kind == "p" and val == "(":
+            self.i += 1
+            n = self.or_expr(False)
+            self.expect(")")
+            if n is None:
+                raise ValidationFailed("Empty parentheses")
+            return n
+        if kind == "p":
+            raise ValidationFailed(f"Unexpected '{val}' at {self.where()}")
+        if kind == "w" and val.startswith("-") and len(val) > 1 and self.peek(1) and self.peek(1)[1] == ":":
+            self.toks[self.i] = ("w", val[1:], t[2])
+            n = self.clause()
+            n.negate = not n.negate
+            return n
+        nxt = self.peek(1)
         if kind == "w" and nxt and nxt[1] == ":":
-            name = _field_name(project, val)
-            info = field_info(project, name)
-            i += 2
-            t = peek()
-            if t is None:
-                raise ValidationFailed(f"'{val}:' needs a value")
-            if t[1] == "(":
-                i += 1
-                vals = [value()]
-                while peek() and peek()[1] == "OR":
-                    i += 1
-                    vals.append(value())
-                expect(")")
-                op = "contains" if info.kind == "text" else "in"
-                conds.append(Condition(field=name, op=op, values=vals, negate=negate))
-            elif t[1] == "[":
-                i += 1
-                lo = value()
-                if not (peek() and peek()[1] == "TO"):
-                    raise ValidationFailed("A range is written [from TO to]")
-                i += 1
-                hi = value()
-                expect("]")
-                conds.append(Condition(field=name, op="between", values=[None if lo == "*" else lo,
-                                                                          None if hi == "*" else hi], negate=negate))
-            else:
-                v = value()
-                if v == "*":
-                    conds.append(Condition(field=name, op="exists", values=[True], negate=negate))
-                elif info.kind in ("bool",):
-                    conds.append(Condition(field=name, op="is", values=[v], negate=negate))
-                elif info.kind == "link" and v.lower() in ("true", "false"):
-                    conds.append(Condition(field=name, op="exists", values=[v.lower() == "true"], negate=negate))
-                elif info.kind == "number" or info.kind == "date":
-                    conds.append(Condition(field=name, op="between", values=[v, v], negate=negate))
-                else:
-                    conds.append(Condition(field=name, op="contains" if info.kind == "text" else "in",
-                                           values=[v], negate=negate))
-            continue
-        if negate:
-            raise ValidationFailed("NOT applies to field clauses, e.g. NOT priority:must")
-        words.append(f'"{val}"' if kind == "q" else val)
-        i += 1
-    return (" ".join(words) or None), conds
+            return self.clause()
+        self.i += 1
+        word = f'"{val}"' if kind == "q" else val
+        if top:
+            self.top_words.append(word)
+            return None
+        return Condition(field="text", op="contains", values=[val])
+
+    def clause(self) -> Condition:
+        _kind, val, _pos = self.peek()
+        name = _field_name(self.project, val)
+        info = field_info(self.project, name)
+        self.i += 2
+        t = self.peek()
+        if t is None:
+            raise ValidationFailed(f"'{val}:' needs a value")
+        if t[1] == "(":
+            self.i += 1
+            vals = [self.value()]
+            while self.is_word("OR"):
+                self.i += 1
+                vals.append(self.value())
+            self.expect(")")
+            return Condition(field=name, op="contains" if info.kind == "text" else "in", values=vals)
+        if t[1] == "[":
+            self.i += 1
+            lo = self.value()
+            if not self.is_word("TO"):
+                raise ValidationFailed("A range is written [from TO to]")
+            self.i += 1
+            hi = self.value()
+            self.expect("]")
+            return Condition(field=name, op="between", values=[None if lo == "*" else lo, None if hi == "*" else hi])
+        v = self.value()
+        if v == "*":
+            return Condition(field=name, op="exists", values=[True])
+        if info.kind == "bool":
+            return Condition(field=name, op="is", values=[v])
+        if info.kind == "link" and v.lower() in ("true", "false"):
+            return Condition(field=name, op="exists", values=[v.lower() == "true"])
+        if info.kind in ("number", "date"):
+            return Condition(field=name, op="between", values=[v, v])
+        return Condition(field=name, op="contains" if info.kind == "text" else "in", values=[v])
+
+
+def parse_query(project: Project, text: str) -> tuple[str | None, list[Node]]:
+    """Query language → (free text, conditions incl. or/and groups)."""
+    return _Parser(project, text).parse()
 
 
 _PLAIN = re.compile(r"^[^\s()\[\]:\"]+$")
@@ -540,37 +673,51 @@ def _fmt_value(v: Any) -> str:
     if isinstance(v, float) and v.is_integer():
         v = int(v)
     s = str(v)
-    return s if _PLAIN.match(s) and s not in ("AND", "OR", "NOT", "TO") else '"' + s.replace('"', '\\"') + '"'
+    return s if _PLAIN.match(s) and s not in _KEYWORDS else '"' + s.replace('"', '\\"') + '"'
 
 
-def format_query(project: Project, q: str | None, conditions: list[Condition]) -> str:
+def _fmt_condition(c: Condition, custom: dict[str, FieldDef]) -> str | None:
+    name = c.field
+    if name.startswith("field.") and name[6:] in custom and name[6:] not in BUILTIN:
+        name = name[6:]
+    neg = "NOT " if c.negate else ""
+    if c.field == "text" and c.op == "contains" and not c.negate and len(c.values) == 1:
+        return _fmt_value(c.values[0])  # a plain word
+    if c.op == "exists":
+        truthy = _bool(c.values or [True])
+        if not truthy:
+            neg = "" if c.negate else "NOT "
+        return f"{neg}{name}:*"
+    if c.op == "between":
+        lo = c.values[0] if c.values else None
+        hi = c.values[1] if len(c.values) > 1 else None
+        if lo is not None and lo == hi:
+            return f"{neg}{name}:{_fmt_value(lo)}"
+        return f"{neg}{name}:[{_fmt_value(lo)} TO {_fmt_value(hi)}]"
+    if c.op == "is":
+        return f"{neg}{name}:{_fmt_value(_bool(c.values))}"
+    vals = [_fmt_value(v) for v in c.values]
+    if not vals:
+        return None
+    return f"{neg}{name}:{vals[0]}" if len(vals) == 1 else f"{neg}{name}:({' OR '.join(vals)})"
+
+
+def _fmt_node(n: Node, custom: dict[str, FieldDef], nested: bool) -> str | None:
+    if isinstance(n, Condition):
+        return _fmt_condition(n, custom)
+    parts = [x for x in (_fmt_node(c, custom, True) for c in n.children) if x]
+    if not parts:
+        return None
+    inner = (" OR " if n.kind == "or" else " ").join(parts)
+    if n.negate:
+        return f"NOT ({inner})"
+    return f"({inner})" if (nested or n.kind == "or") and len(parts) > 1 else inner
+
+
+def format_query(project: Project, q: str | None, conditions: list[Node]) -> str:
     """(free text, conditions) → query language."""
-    parts = []
     custom = custom_fields(project)
-    for c in conditions:
-        name = c.field
-        if name.startswith("field.") and name[6:] in custom and name[6:] not in BUILTIN:
-            name = name[6:]
-        neg = "NOT " if c.negate else ""
-        if c.op == "exists":
-            truthy = _bool(c.values or [True])
-            if not truthy:
-                neg = "" if c.negate else "NOT "
-            parts.append(f"{neg}{name}:*")
-        elif c.op == "between":
-            lo = c.values[0] if c.values else None
-            hi = c.values[1] if len(c.values) > 1 else None
-            if lo is not None and lo == hi:
-                parts.append(f"{neg}{name}:{_fmt_value(lo)}")
-            else:
-                parts.append(f"{neg}{name}:[{_fmt_value(lo)} TO {_fmt_value(hi)}]")
-        elif c.op == "is":
-            parts.append(f"{neg}{name}:{_fmt_value(_bool(c.values))}")
-        else:
-            vals = [_fmt_value(v) for v in c.values]
-            if not vals:
-                continue
-            parts.append(f"{neg}{name}:{vals[0]}" if len(vals) == 1 else f"{neg}{name}:({' OR '.join(vals)})")
+    parts = [x for x in (_fmt_node(c, custom, False) for c in conditions) if x]
     if q:
         parts.append(q)
     return " ".join(parts)

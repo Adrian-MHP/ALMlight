@@ -7,6 +7,7 @@ import type { ItemDetail, LinkView } from "@/api/types";
 import { ItemLink, StateBadge, SuspectBadge, TypeBadge } from "@/components/badges";
 import { ItemPicker } from "@/components/ItemPicker";
 import { useProjectCtx } from "../ProjectLayout";
+import { tm, tx } from "@/lib/i18n";
 
 export function LinksTab({ item }: { item: ItemDetail }) {
   const { key, model, can } = useProjectCtx();
@@ -19,19 +20,19 @@ export function LinksTab({ item }: { item: ItemDetail }) {
     }
     return [...g.entries()];
   }, [links]);
-  const confirm = useProjectMutation(key, (id: string) => api.post(`/projects/${key}/links/${id}/confirm`, {}), { success: "Link confirmed" });
-  const remove = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/links/${id}`), { success: "Link removed" });
+  const confirm = useProjectMutation(key, (id: string) => api.post(`/projects/${key}/links/${id}/confirm`, {}), { success: tx("Link confirmed") });
+  const remove = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/links/${id}`), { success: tx("Link removed") });
 
   return (
     <Stack>
       {can("contributor") && <AddLink item={item} />}
-      {groups.length === 0 && <Text c="dimmed">No links yet.</Text>}
+      {groups.length === 0 && <Text c="dimmed">{tx("No links yet.")}</Text>}
       {groups.map(([groupKey, rows]) => {
         const lt = model.link(rows[0].type);
         return (
           <Card withBorder key={groupKey} padding="sm">
             <Text fw={600} size="sm" mb={6}>
-              {item.key} <Text span c="indigo" fw={700}>{rows[0].label}</Text>{" "}
+              {item.key} <Text span c="indigo" fw={700}>{tm(rows[0].label)}</Text>{" "}
               <Text span c="dimmed" size="xs">({rows.length}){lt?.description ? ` — ${lt.description}` : ""}</Text>
             </Text>
             <Table>
@@ -54,11 +55,11 @@ export function LinksTab({ item }: { item: ItemDetail }) {
                       {can("contributor") && (
                         <Group gap={2} wrap="nowrap" justify="flex-end">
                           {l.suspect && (
-                            <Tooltip label="Reviewed — the link is still valid">
+                            <Tooltip label={tx("Reviewed — the link is still valid")}>
                               <ActionIcon variant="subtle" color="green" onClick={() => confirm.mutate(l.id)} data-testid="confirm-link"><IconCheck size={16} /></ActionIcon>
                             </Tooltip>
                           )}
-                          <Tooltip label="Remove link">
+                          <Tooltip label={tx("Remove link")}>
                             <ActionIcon variant="subtle" color="red" onClick={() => remove.mutate(l.id)}><IconTrash size={16} /></ActionIcon>
                           </Tooltip>
                         </Group>
@@ -83,34 +84,32 @@ function AddLink({ item }: { item: ItemDetail }) {
   const [crossProject, setCrossProject] = useState("");
   const opt = options.find((o) => o.value === choice);
   const add = useProjectMutation(key, () => {
-    if (!opt) throw new Error("choose a link type");
+    if (!opt) throw new Error(tx("choose a link type"));
     const otherRef = crossProject.trim() ? crossProject.trim().toUpperCase() : other!;
     const body = opt.direction === "outgoing"
       ? { type: opt.linkType, source: item.key, target: otherRef }
       : { type: opt.linkType, source: otherRef, target: item.key };
     return api.post(`/projects/${key}/links`, body);
-  }, { success: "Link added", onSuccess: () => { setOther(null); setCrossProject(""); } });
+  }, { success: tx("Link added"), onSuccess: () => { setOther(null); setCrossProject(""); } });
 
   return (
     <Card withBorder padding="sm" bg="var(--mantine-color-default-hover)">
       <Group align="flex-end" wrap="wrap">
-        <Select label="Relation" placeholder="Choose…" w={240} value={choice} onChange={(v) => { setChoice(v); setOther(null); }}
+        <Select label={tx("Relation")} placeholder={tx("Choose…")} w={240} value={choice} onChange={(v) => { setChoice(v); setOther(null); }}
           data={options.map((o) => ({ value: o.value, label: `${o.label}${o.direction === "incoming" ? " (incoming)" : ""}` }))}
           data-testid="link-type" searchable />
         <div style={{ flex: 1, minWidth: 260 }}>
-          <ItemPicker label="Item" types={opt?.otherTypes} value={other} onChange={setOther} exclude={[item.key]} testId="link-target" />
+          <ItemPicker label={tx("Item")} types={opt?.otherTypes} value={other} onChange={setOther} exclude={[item.key]} testId="link-target" />
         </div>
         {opt?.direction === "outgoing" && (
-          <TextInput label="or other project" placeholder="PLAT:SE-4" w={140} value={crossProject} onChange={(e) => setCrossProject(e.currentTarget.value)} />
+          <TextInput label={tx("or other project")} placeholder={tx("PLAT:SE-4")} w={140} value={crossProject} onChange={(e) => setCrossProject(e.currentTarget.value)} />
         )}
         <Button leftSection={<IconPlus size={16} />} onClick={() => add.mutate(undefined)} loading={add.isPending}
-          disabled={!opt || (!other && !crossProject.trim())} data-testid="link-add">Add link</Button>
+          disabled={!opt || (!other && !crossProject.trim())} data-testid="link-add">{tx("Add link")}</Button>
       </Group>
       {opt && (
         <Text size="xs" c="dimmed" mt={6}>
-          {opt.direction === "outgoing" ? `${item.key} ${opt.label} …` : `… ${model.link(opt.linkType)?.label} ${item.key}`}
-          {" "}· allowed: {opt.otherTypes.map((t) => model.typeLabel(t)).join(", ")}
-        </Text>
+          {tx("{v}{v1}· allowed: {otherTypes}", { v: opt.direction === "outgoing" ? `${item.key} ${opt.label} …` : `… ${model.link(opt.linkType)?.label} ${item.key}`, v1: " ", otherTypes: opt.otherTypes.map((t) => model.typeLabel(t)).join(", ") })}</Text>
       )}
     </Card>
   );

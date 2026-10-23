@@ -32,7 +32,7 @@ class QueryIn(BaseModel):
 
 
 def _clean(query: dict[str, Any], project: Any = None) -> dict[str, Any]:
-    from almlight.modules.items.query import field_info, parse_conditions
+    from almlight.modules.items.query import field_info, leaves, parse_conditions
 
     unknown = set(query) - ALLOWED
     if unknown:
@@ -40,7 +40,7 @@ def _clean(query: dict[str, Any], project: Any = None) -> dict[str, Any]:
     if query.get("conditions"):
         conds = parse_conditions(query["conditions"])
         if project is not None:
-            for c in conds:
+            for c in leaves(conds):
                 field_info(project, c.field)
         query = {**query, "conditions": [c.dump() for c in conds]}
     cols = query.get("columns")

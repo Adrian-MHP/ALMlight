@@ -1,7 +1,8 @@
 // Fields offered by the query builder — the same names the server's query engine understands.
 
-import type { Condition, FieldDef, UserRef } from "@/api/types";
+import type { CondGroup, Condition, FieldDef, QNode, UserRef } from "@/api/types";
 import type { Model } from "./model";
+import { tx } from "@/lib/i18n";
 
 export type QKind = "enum" | "user" | "text" | "number" | "date" | "bool" | "link" | "release" | "multi";
 
@@ -19,9 +20,9 @@ export interface QField {
 }
 
 const CATEGORY_OPTIONS: QOption[] = [
-  { value: "draft", label: "Draft" }, { value: "review", label: "In review" }, { value: "released", label: "Released" },
-  { value: "open", label: "Open" }, { value: "in_progress", label: "In progress" }, { value: "closed", label: "Closed" },
-  { value: "obsolete", label: "Obsolete" },
+  { value: "draft", label: tx("Draft") }, { value: "review", label: tx("In review") }, { value: "released", label: tx("Released") },
+  { value: "open", label: tx("Open") }, { value: "in_progress", label: tx("In progress") }, { value: "closed", label: tx("Closed") },
+  { value: "obsolete", label: tx("Obsolete") },
 ];
 
 const KIND_OF: Record<string, QKind> = {
@@ -34,36 +35,36 @@ export function queryFields(model: Model, opts: { users: UserRef[]; releases: QO
   const types = opts.types?.length ? model.config.item_types.filter((t) => opts.types!.includes(t.key)) : model.config.item_types;
   const stateMap = new Map<string, string>();
   for (const t of types) for (const s of model.workflow(t.key)?.states ?? []) if (!stateMap.has(s.key)) stateMap.set(s.key, s.label);
-  const userOptions: QOption[] = [{ value: "me", label: "Me" }, { value: "none", label: "Nobody" },
+  const userOptions: QOption[] = [{ value: "me", label: tx("Me") }, { value: "none", label: tx("Nobody") },
     ...opts.users.map((u) => ({ value: u.username, label: u.display_name }))];
   const out: QField[] = [
-    { id: "type", label: "Type", kind: "enum", group: "Common", options: model.config.item_types.map((t) => ({ value: t.key, label: t.label })) },
-    { id: "state", label: "Status", kind: "enum", group: "Common", options: [...stateMap].map(([value, label]) => ({ value, label })) },
-    { id: "category", label: "Status category", kind: "enum", group: "Common", options: CATEGORY_OPTIONS },
-    { id: "owner", label: "Owner", kind: "user", group: "Common", options: userOptions },
-    { id: "title", label: "Title", kind: "text", group: "Common" },
-    { id: "text", label: "Text", kind: "text", group: "Common" },
-    { id: "key", label: "Key", kind: "enum", group: "Common", free: true, options: [] },
-    { id: "created", label: "Created", kind: "date", group: "Dates & people" },
-    { id: "updated", label: "Updated", kind: "date", group: "Dates & people" },
-    { id: "author", label: "Created by", kind: "user", group: "Dates & people", options: userOptions },
-    { id: "revision", label: "Revision", kind: "enum", group: "Lifecycle", free: true, options: "ABCDEF".split("").map((r) => ({ value: r, label: r })) },
-    { id: "released", label: "Has a released version", kind: "bool", group: "Lifecycle" },
-    { id: "frozen", label: "Frozen", kind: "bool", group: "Lifecycle" },
-    { id: "applicability", label: "Applicability", kind: "text", group: "Lifecycle" },
-    { id: "suspect", label: "Has suspect links", kind: "bool", group: "Flags" },
-    { id: "watched", label: "Watched by me", kind: "bool", group: "Flags" },
-    { id: "checkedout", label: "Has checked-out files", kind: "bool", group: "Flags" },
-    { id: "attachments", label: "Has files", kind: "bool", group: "Flags" },
+    { id: "type", label: tx("Type"), kind: "enum", group: tx("Common"), options: model.config.item_types.map((t) => ({ value: t.key, label: t.label })) },
+    { id: "state", label: tx("Status"), kind: "enum", group: tx("Common"), options: [...stateMap].map(([value, label]) => ({ value, label })) },
+    { id: "category", label: tx("Status category"), kind: "enum", group: tx("Common"), options: CATEGORY_OPTIONS },
+    { id: "owner", label: tx("Owner"), kind: "user", group: tx("Common"), options: userOptions },
+    { id: "title", label: tx("Title"), kind: "text", group: tx("Common") },
+    { id: "text", label: tx("Text"), kind: "text", group: tx("Common") },
+    { id: "key", label: tx("Key"), kind: "enum", group: tx("Common"), free: true, options: [] },
+    { id: "created", label: tx("Created"), kind: "date", group: tx("Dates & people") },
+    { id: "updated", label: tx("Updated"), kind: "date", group: tx("Dates & people") },
+    { id: "author", label: tx("Created by"), kind: "user", group: tx("Dates & people"), options: userOptions },
+    { id: "revision", label: tx("Revision"), kind: "enum", group: tx("Lifecycle"), free: true, options: "ABCDEF".split("").map((r) => ({ value: r, label: r })) },
+    { id: "released", label: tx("Has a released version"), kind: "bool", group: tx("Lifecycle") },
+    { id: "frozen", label: tx("Frozen"), kind: "bool", group: tx("Lifecycle") },
+    { id: "applicability", label: tx("Applicability"), kind: "text", group: tx("Lifecycle") },
+    { id: "suspect", label: tx("Has suspect links"), kind: "bool", group: tx("Flags") },
+    { id: "watched", label: tx("Watched by me"), kind: "bool", group: tx("Flags") },
+    { id: "checkedout", label: tx("Has checked-out files"), kind: "bool", group: tx("Flags") },
+    { id: "attachments", label: tx("Has files"), kind: "bool", group: tx("Flags") },
   ];
   if (model.releaseType) {
-    out.push({ id: "release", label: "Planned in", kind: "release", group: "Planning",
-      options: [{ value: "none", label: "Not planned" }, ...opts.releases] });
+    out.push({ id: "release", label: tx("Planned in"), kind: "release", group: tx("Planning"),
+      options: [{ value: "none", label: tx("Not planned") }, ...opts.releases] });
   }
   for (const lt of model.config.link_types) {
     if (lt.structural) continue;
-    out.push({ id: `link.${lt.key}.out`, label: cap(lt.label), kind: "link", group: "Traceability" });
-    out.push({ id: `link.${lt.key}.in`, label: cap(lt.reverse_label), kind: "link", group: "Traceability" });
+    out.push({ id: `link.${lt.key}.out`, label: cap(lt.label), kind: "link", group: tx("Traceability") });
+    out.push({ id: `link.${lt.key}.in`, label: cap(lt.reverse_label), kind: "link", group: tx("Traceability") });
   }
   const seen = new Set<string>();
   for (const t of types) {
@@ -73,7 +74,7 @@ export function queryFields(model: Model, opts: { users: UserRef[]; releases: QO
       const kind = KIND_OF[f.type] ?? "text";
       const options = kind === "user" ? userOptions
         : f.options?.length ? f.options.map((o) => ({ value: o.key, label: o.label })) : undefined;
-      out.push({ id: `field.${f.key}`, label: f.label, kind, group: opts.types?.length ? "Fields" : "Fields (all types)",
+      out.push({ id: `field.${f.key}`, label: f.label, kind, group: opts.types?.length ? tx("Fields") : tx("Fields (all types)"),
         options, free: kind === "multi" && !f.options?.length, def: f });
     }
   }
@@ -97,7 +98,7 @@ export function conditionLabel(c: Condition, f: QField | undefined): string {
   if (c.op === "exists") {
     const has = c.values[0] !== false;
     const positive = c.not ? !has : has;
-    return f?.kind === "link" ? `${name}: ${positive ? "any" : "none"}` : `${name}: ${positive ? "has a value" : "empty"}`;
+    return f?.kind === "link" ? `${name}: ${positive ? tx("any") : tx("none")}` : `${name}: ${positive ? tx("has a value") : tx("empty")}`;
   } else if (c.op === "between") {
     const [a, b] = c.values as (string | number | null)[];
     value = a != null && a === b ? String(a) : `${a ?? "…"} → ${b ?? "…"}`;
@@ -110,9 +111,49 @@ export function conditionLabel(c: Condition, f: QField | undefined): string {
   return `${c.not ? "NOT " : ""}${name}: ${value}`;
 }
 
+export function isGroup(n: QNode): n is CondGroup {
+  return "or" in n || "and" in n;
+}
+
+export function groupKind(g: CondGroup): "or" | "and" {
+  return g.or ? "or" : "and";
+}
+
+export function children(g: CondGroup): QNode[] {
+  return g.or ?? g.and ?? [];
+}
+
+export function makeGroup(kind: "or" | "and", nodes: QNode[], not = false): CondGroup {
+  return kind === "or" ? { or: nodes, ...(not ? { not } : {}) } : { and: nodes, ...(not ? { not } : {}) };
+}
+
+/** A group reduced to one member becomes that member; the group's negation moves onto it. */
+export function collapse(g: CondGroup): QNode {
+  const kids = children(g);
+  if (kids.length !== 1) return g;
+  const only = kids[0];
+  return g.not ? { ...only, not: !only.not } : only;
+}
+
+/** Top-level leaf conditions (implicitly AND-combined) — what pages use to infer types or plans. */
+export function topLeaves(nodes: QNode[]): Condition[] {
+  return nodes.filter((n): n is Condition => !isGroup(n));
+}
+
+/** Chip text for a condition or a group, e.g. "(Priority: Must OR Owner: Nobody)". */
+export function nodeLabel(n: QNode, byId: Map<string, QField>, nested = false): string {
+  if (!isGroup(n)) return conditionLabel(n, byId.get(n.field));
+  const kids = children(n);
+  const sep = groupKind(n) === "or" ? " OR " : " AND ";
+  const parts = kids.map((k) => nodeLabel(k, byId, true));
+  const body = parts.length > 3 ? `${parts.slice(0, 2).join(sep)}${sep}+${parts.length - 2}` : parts.join(sep);
+  const wrapped = n.not || nested || groupKind(n) === "or" ? `(${body})` : body;
+  return `${n.not ? "NOT " : ""}${wrapped}`;
+}
+
 /** Older saved views stored separate keys; express them as conditions. */
-export function legacyToConditions(q: Record<string, unknown>): Condition[] {
-  const out: Condition[] = [];
+export function legacyToConditions(q: Record<string, unknown>): QNode[] {
+  const out: QNode[] = [];
   const type = q.type as string[] | undefined;
   if (type?.length) out.push({ field: "type", op: "in", values: type });
   const state = q.state as string[] | undefined;
@@ -122,5 +163,5 @@ export function legacyToConditions(q: Record<string, unknown>): Condition[] {
   if (q.link_type) {
     out.push({ field: `link.${q.link_type}.${q.link_dir === "in" ? "in" : "out"}`, op: "exists", values: [true], not: q.link_exists === false });
   }
-  return [...out, ...((q.conditions as Condition[] | undefined) ?? [])];
+  return [...out, ...((q.conditions as QNode[] | undefined) ?? [])];
 }

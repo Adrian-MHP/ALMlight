@@ -8,6 +8,7 @@ import { ItemLink } from "@/components/badges";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
 import { ExecuteRecord } from "./ExecuteRecord";
+import { tx } from "@/lib/i18n";
 
 const RESULT_COLORS: Record<string, string> = { passed: "green", failed: "red", blocked: "orange", skipped: "gray", not_run: "gray" };
 
@@ -16,12 +17,12 @@ export function RecordsTab({ item }: { item: ItemDetail }) {
   const records = useRecords(key, item.key).data ?? [];
   const editable = can("contributor") && !item.lifecycle.frozen;
   const locked = editable ? null : item.lifecycle.frozen
-    ? `The run is ${(item.lifecycle.label ?? "frozen").toLowerCase()} — its results are locked.`
-    : "Recording results needs the contributor role in this project.";
+    ? tx("The run is {v} — its results are locked.", { v: (item.lifecycle.label ?? "frozen").toLowerCase() })
+    : tx("Recording results needs the contributor role in this project.");
   const [selected, setSelected] = useState<string[]>([]);
   const testCases = useItems(key, { type: model.config.semantics.test_case_types, limit: 500 }, editable).data?.items ?? [];
   const add = useProjectMutation(key, () => api.post(`/projects/${key}/test-runs/${item.key}/records`, { test_cases: selected }),
-    { success: "Test cases added", onSuccess: () => setSelected([]) });
+    { success: tx("Test cases added"), onSuccess: () => setSelected([]) });
   const existing = new Set(records.map((r) => r.test_case));
   const summary = records.reduce<Record<string, number>>((acc, r) => ({ ...acc, [r.result]: (acc[r.result] ?? 0) + 1 }), {});
   return (
@@ -31,18 +32,18 @@ export function RecordsTab({ item }: { item: ItemDetail }) {
       </Group>
       {editable && (
         <Group align="flex-end" mb="md">
-          <MultiSelect label="Add test cases" searchable style={{ flex: 1 }} value={selected} onChange={setSelected}
+          <MultiSelect label={tx("Add test cases")} searchable style={{ flex: 1 }} value={selected} onChange={setSelected}
             data={testCases.filter((t) => !existing.has(t.key)).map((t) => ({ value: t.key, label: `${t.key} — ${t.title}` }))} />
-          <Button onClick={() => add.mutate(undefined)} disabled={!selected.length} loading={add.isPending}>Add</Button>
+          <Button onClick={() => add.mutate(undefined)} disabled={!selected.length} loading={add.isPending}>{tx("Add")}</Button>
         </Group>
       )}
       <Card withBorder padding={0}>
         <Table.ScrollContainer minWidth={760}>
           <Table data-testid="records-table">
-            <Table.Thead><Table.Tr><Table.Th>Test case</Table.Th><Table.Th>Result</Table.Th><Table.Th>Comment</Table.Th><Table.Th>Tested version</Table.Th><Table.Th>Executed</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+            <Table.Thead><Table.Tr><Table.Th>{tx("Test case")}</Table.Th><Table.Th>{tx("Result")}</Table.Th><Table.Th>{tx("Comment")}</Table.Th><Table.Th>{tx("Tested version")}</Table.Th><Table.Th>{tx("Executed")}</Table.Th><Table.Th /></Table.Tr></Table.Thead>
             <Table.Tbody>
               {records.map((r) => <RecordRow key={r.id} rec={r} runKey={item.key} editable={editable} locked={locked} />)}
-              {records.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="md">No test cases in this run.</Text></Table.Td></Table.Tr>}
+              {records.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="md">{tx("No test cases in this run.")}</Text></Table.Td></Table.Tr>}
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
@@ -72,14 +73,14 @@ function RecordRow({ rec, runKey, editable, locked }: { rec: TestRecord; runKey:
           onBlur={() => comment !== (rec.comment ?? "") && save.mutate(rec.result)} /> : <Text size="sm">{rec.comment}</Text>}
       </Table.Td>
       <Table.Td w={130}>
-        <Text size="xs" className="mono">rev {rec.tested_version}</Text>
-        {rec.outdated && <Tooltip label={`Test case is now ${rec.current_version}`}><Badge size="xs" color="orange">outdated</Badge></Tooltip>}
+        <Text size="xs" className="mono">{tx("rev {tested_version}", { tested_version: rec.tested_version })}</Text>
+        {rec.outdated && <Tooltip label={tx("Test case is now {current_version}", { current_version: rec.current_version })}><Badge size="xs" color="orange">{tx("outdated")}</Badge></Tooltip>}
       </Table.Td>
       <Table.Td w={160}><Text size="xs">{rec.executed_by?.display_name}<br />{fmtDateTime(rec.executed_at)}</Text></Table.Td>
       <Table.Td w={150}>
         <Button size="compact-xs" variant={rec.steps.length ? "light" : "subtle"} onClick={() => setExecuting(true)}
-          data-testid={`execute-${rec.test_case}`}>{editable ? "Execute" : "Steps"}{rec.steps.length ? ` (${rec.steps.length})` : ""}</Button>
-        {failedSteps > 0 && <Badge size="xs" color="red" ml={4}>{failedSteps} failed</Badge>}
+          data-testid={`execute-${rec.test_case}`}>{editable ? tx("Execute") : tx("Steps")}{rec.steps.length ? ` (${rec.steps.length})` : ""}</Button>
+        {failedSteps > 0 && <Badge size="xs" color="red" ml={4}>{tx("{failedSteps} failed", { failedSteps: failedSteps })}</Badge>}
         {rec.defect && <Badge size="xs" color="red" variant="outline" ml={4} component={Link} to={`/p/${key}/items/${rec.defect}`} className="clickable">{rec.defect}</Badge>}
         <ExecuteRecord rec={rec} runKey={runKey} opened={executing} onClose={() => setExecuting(false)} editable={editable} locked={locked} />
       </Table.Td>

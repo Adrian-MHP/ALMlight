@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP, 0.2 – 0.6 increments)
+## 6.1 Implemented (v0.1 MVP, 0.2 – 0.7 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -84,6 +84,13 @@ hierarchy (release → iterations, milestones) with estimates, capacity, burn-do
 with tasks, dependencies, critical path, conflicts, baseline comparison and drag-to-reschedule, workflow viewer.
 See [15-work-management](15-work-management.md).
 
+**Scheduling, time and languages (0.7)**: boolean queries across fields (OR/AND groups, NOT on groups, in chips and
+query text), timeline dependencies finish-to-start, start-to-start, finish-to-finish and start-to-finish with lag,
+auto-scheduling with preview, time recording on items with a weekly timesheet (spent and remaining effort),
+resource load per person and week against capacity with resource levelling, German user interface (interface texts,
+model labels per customer, server messages, notifications, e-mail digests, document view and exports). See
+[15-work-management](15-work-management.md) and [16-languages](16-languages.md).
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check, SMTP and OIDC
 configuration
 
@@ -100,20 +107,20 @@ configuration
 
 ## 6.3 Roadmap
 
-**Next increment (0.7) — scale and comfort**
-- German user interface (i18n), visual template editor, template versioning
+**Next increment (0.8) — scale and comfort**
+- Visual template editor, template versioning; personal calendars (holidays, absences) for scheduling and levelling
 - Live sessions across several app processes (shared bus), comments anchored to text ranges
 - Effectivity on change orders (date / serial number), BOM substitutes and alternates
-- Parametrised test runs and test run templates; time recording; start-to-start / finish-to-finish dependencies
+- Parametrised test runs and test run templates; skills/roles for resource planning
 - Lookup-table computed fields (e.g. ISO 26262 ASIL determination); group → project role mapping for SSO
 - Scheduled report e-mails; S3-compatible / Azure Blob file storage; PDF export in customer templates
 
-**0.8 — digital thread**
+**0.9 — digital thread**
 - SysML v2 API connector (link items to model elements, e.g. SysON)
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**0.9 — assisted engineering (governed AI)**
+**1.0 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

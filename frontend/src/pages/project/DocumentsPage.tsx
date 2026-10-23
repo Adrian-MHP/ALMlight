@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { fmtRelative } from "@/lib/format";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 export function DocumentsPage() {
   const { key, model, can } = useProjectCtx();
@@ -16,9 +17,9 @@ export function DocumentsPage() {
   const [creating, setCreating] = useState(false);
   return (
     <>
-      <PageHeader title="Documents" subtitle="Live documents: specifications assembled from individually versioned and traceable items"
+      <PageHeader title={tx("Documents")} subtitle={tx("Live documents: specifications assembled from individually versioned and traceable items")}
         actions={can("contributor") && docTypes.length > 0 && (
-          <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-document">New document</Button>)} />
+          <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-document">{tx("New document")}</Button>)} />
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {data?.items.map((d) => (
           <Card key={d.id} withBorder component={Link} to={`/p/${key}/documents/${d.key}`} style={{ textDecoration: "none" }} data-testid={`doc-${d.key}`}>
@@ -27,11 +28,11 @@ export function DocumentsPage() {
               <Group gap={4}><StateBadge item={d} /><Badge variant="default" className="mono">{d.version}</Badge></Group>
             </Group>
             <Text fw={600}>{d.title}</Text>
-            <Text size="xs" c="dimmed" mt={4}>Updated {fmtRelative(d.updated_at)}</Text>
+            <Text size="xs" c="dimmed" mt={4}>{tx("Updated {updated_at}", { updated_at: fmtRelative(d.updated_at) })}</Text>
           </Card>
         ))}
       </SimpleGrid>
-      {data?.items.length === 0 && <Text c="dimmed">No documents yet.</Text>}
+      {data?.items.length === 0 && <Text c="dimmed">{tx("No documents yet.")}</Text>}
       <ItemFormModal opened={creating} onClose={() => setCreating(false)} types={docTypes} defaultType={docTypes[0]} navigateOnCreate={false} />
     </>
   );

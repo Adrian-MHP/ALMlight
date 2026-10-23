@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import DOMPurify from "dompurify";
 import { Text } from "@mantine/core";
 import { useNavigate, useParams } from "react-router-dom";
+import { tx } from "@/lib/i18n";
 
 // Mirrors the server's canonical HTML (core/richtext.py); diffs add <ins>/<del>.
 const ALLOWED_TAGS = ["p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "em", "u", "s", "sub", "sup", "code",
@@ -56,7 +57,7 @@ export function htmlToText(html: string): string {
 }
 
 /** Renders stored rich text (sanitised again in the browser). Item references navigate to the item. */
-export function RichText({ html, empty = "No description.", className, projectKey, testId }: {
+export function RichText({ html, empty = tx("No description."), className, projectKey, testId }: {
   html: string | null | undefined; empty?: string; className?: string; projectKey?: string; testId?: string;
 }) {
   const navigate = useNavigate();

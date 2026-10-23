@@ -28,7 +28,7 @@ from typing import Any
 from sqlalchemy import event, select, text
 from sqlalchemy.orm import Session
 
-from almlight.core import events
+from almlight.core import events, i18n
 from almlight.core.config import get_settings
 from almlight.core.db import utcnow
 from almlight.modules.identity.models import User
@@ -230,14 +230,17 @@ def send_digests(db: Session, *, min_age_seconds: float = 30.0) -> int:
     base = (s.public_url or "").rstrip("/")
     for user, notes in by_user.values():
         msg = EmailMessage()
-        msg["Subject"] = f"[{_product()}] {len(notes)} new notification{'s' if len(notes) != 1 else ''}"
+        lang = user.locale or "en"  # the digest is written in the recipient's language
+        msg["Subject"] = i18n.t(lang, "[{product}] 1 new notification" if len(notes) == 1
+                                else "[{product}] {count} new notifications", product=_product(), count=len(notes))
         msg["From"] = s.smtp_from
         msg["To"] = user.email
-        lines = [f"Hello {user.display_name},", "", "here is what happened since the last e-mail:", ""]
+        lines = [i18n.t(lang, "Hello {name},", name=user.display_name), "",
+                 i18n.t(lang, "here is what happened since the last e-mail:"), ""]
         for n in notes:
             link = f"{base}/p/{_project_key(db, n.project_id)}/items/{n.item_key}" if base and n.item_key else ""
-            lines.append(f"- {n.title}" + (f"\n  {link}" if link else ""))
-        lines += ["", "You can switch these e-mails off on your account page."]
+            lines.append(f"- {i18n.tr(n.title, lang)}" + (f"\n  {link}" if link else ""))
+        lines += ["", i18n.t(lang, "You can switch these e-mails off on your account page.")]
         msg.set_content("\n".join(lines))
         try:
             _send(msg)

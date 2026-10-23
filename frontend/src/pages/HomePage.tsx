@@ -8,10 +8,11 @@ import { TAGLINE } from "@/lib/product";
 import { useRecent } from "@/lib/recent";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { ProjectCard } from "./ProjectsPage";
+import { tx } from "@/lib/i18n";
 
 function greeting(): string {
   const h = new Date().getHours();
-  return h < 11 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return h < 11 ? tx("Good morning") : h < 17 ? tx("Good afternoon") : tx("Good evening");
 }
 
 function Tile({ icon: Icon, label, value, to, color, testId }: {
@@ -47,30 +48,30 @@ export function HomePage() {
         <Text c="dimmed" size="sm">{TAGLINE}</Text>
       </div>
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }}>
-        <Tile icon={IconBell} label="Approvals for me" value={mine.length} to="/approvals" color={mine.length ? "red" : "gray"} testId="tile-approvals" />
-        <Tile icon={IconFolders} label="Projects" value={projects.length} to="/projects" color="petrol" testId="tile-projects" />
-        <Tile icon={IconClock} label="Recently opened" value={recent.length} to="#recent" color="navy" />
-        <Tile icon={IconUsers} label="Pending reviews" value={inbox.length} to="/approvals" color="orange" />
+        <Tile icon={IconBell} label={tx("Approvals for me")} value={mine.length} to="/approvals" color={mine.length ? "red" : "gray"} testId="tile-approvals" />
+        <Tile icon={IconFolders} label={tx("Projects")} value={projects.length} to="/projects" color="petrol" testId="tile-projects" />
+        <Tile icon={IconClock} label={tx("Recently opened")} value={recent.length} to="#recent" color="navy" />
+        <Tile icon={IconUsers} label={tx("Pending reviews")} value={inbox.length} to="/approvals" color="orange" />
       </SimpleGrid>
       <Grid>
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Group justify="space-between" mb="xs">
-            <Title order={4}>Your projects</Title>
-            <Anchor component={Link} to="/projects" size="sm">All projects</Anchor>
+            <Title order={4}>{tx("Your projects")}</Title>
+            <Anchor component={Link} to="/projects" size="sm">{tx("All projects")}</Anchor>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             {projects.map((p) => <ProjectCard key={p.key} p={p} />)}
           </SimpleGrid>
-          {projects.length === 0 && <Card withBorder p="xl"><Text c="dimmed">You are not a member of any project yet.</Text></Card>}
+          {projects.length === 0 && <Card withBorder p="xl"><Text c="dimmed">{tx("You are not a member of any project yet.")}</Text></Card>}
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <Card withBorder mb="md" id="recent">
             <Group justify="space-between" mb="xs">
-              <Text fw={600}>Recently opened</Text>
-              {recent.length > 0 && <Button size="compact-xs" variant="subtle" color="gray" onClick={clearRecent}>Clear</Button>}
+              <Text fw={600}>{tx("Recently opened")}</Text>
+              {recent.length > 0 && <Button size="compact-xs" variant="subtle" color="gray" onClick={clearRecent}>{tx("Clear")}</Button>}
             </Group>
             <Stack gap={6}>
-              {recent.length === 0 && <Text size="sm" c="dimmed">Items and documents you open appear here.</Text>}
+              {recent.length === 0 && <Text size="sm" c="dimmed">{tx("Items and documents you open appear here.")}</Text>}
               {recent.map((r) => (
                 <Group key={`${r.project}-${r.kind}-${r.key}`} gap="xs" wrap="nowrap">
                   {r.kind === "document" ? <IconFileText size={16} /> : <IconListDetails size={16} />}
@@ -84,12 +85,12 @@ export function HomePage() {
           </Card>
           {checkouts.length > 0 && (
             <Card withBorder mb="md" data-testid="home-checkouts">
-              <Group gap={6} mb="xs"><IconLock size={16} color="var(--mantine-color-orange-6)" /><Text fw={600}>Checked out by me</Text></Group>
+              <Group gap={6} mb="xs"><IconLock size={16} color="var(--mantine-color-orange-6)" /><Text fw={600}>{tx("Checked out by me")}</Text></Group>
               <Stack gap={6}>
                 {checkouts.map((c) => (
                   <Group key={`${c.project}-${c.item_key}-${c.attachment_id}`} gap="xs" wrap="nowrap">
                     <Anchor component={Link} size="sm" className="item-key" to={`/p/${c.project}/items/${c.item_key}?tab=files`}>{c.item_key}</Anchor>
-                    <Text size="sm" truncate style={{ flex: 1 }}>{c.filename} <Text span size="xs" c="dimmed">rev {c.revision}</Text></Text>
+                    <Text size="sm" truncate style={{ flex: 1 }}>{c.filename} <Text span size="xs" c="dimmed">{tx("rev {revision}", { revision: c.revision })}</Text></Text>
                     <Text size="xs" c="dimmed">{fmtRelative(c.checked_out_at)}</Text>
                   </Group>
                 ))}
@@ -97,9 +98,9 @@ export function HomePage() {
             </Card>
           )}
           <Card withBorder mb="md" data-testid="home-watching">
-            <Text fw={600} mb="xs">Watching</Text>
+            <Text fw={600} mb="xs">{tx("Watching")}</Text>
             <Stack gap={6}>
-              {watching.length === 0 && <Text size="sm" c="dimmed">Use “Watch” on an item or document to follow its changes.</Text>}
+              {watching.length === 0 && <Text size="sm" c="dimmed">{tx("Use “Watch” on an item or document to follow its changes.")}</Text>}
               {watching.slice(0, 8).map((w) => (
                 <Group key={`${w.project}-${w.key}`} gap="xs" wrap="nowrap">
                   <Anchor component={Link} size="sm" className="item-key" to={`/p/${w.project}/items/${w.key}`}>{w.key}</Anchor>
@@ -111,11 +112,11 @@ export function HomePage() {
           </Card>
           <Card withBorder>
             <Group justify="space-between" mb="xs">
-              <Text fw={600}>Waiting for my approval</Text>
-              <Anchor component={Link} to="/approvals" size="sm">Open inbox</Anchor>
+              <Text fw={600}>{tx("Waiting for my approval")}</Text>
+              <Anchor component={Link} to="/approvals" size="sm">{tx("Open inbox")}</Anchor>
             </Group>
             <Stack gap={6}>
-              {mine.length === 0 && <Text size="sm" c="dimmed">Nothing to approve right now.</Text>}
+              {mine.length === 0 && <Text size="sm" c="dimmed">{tx("Nothing to approve right now.")}</Text>}
               {mine.slice(0, 6).map((r) => (
                 <Group key={r.id} gap="xs" wrap="nowrap">
                   <Anchor component={Link} to={`/p/${r.project_key}/items/${r.item_key}`} size="sm" className="item-key">{r.item_key}</Anchor>

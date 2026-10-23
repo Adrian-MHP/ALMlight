@@ -60,15 +60,20 @@ def _body(code: str, message: str, details: dict[str, Any] | None = None) -> dic
 
 
 def install_error_handlers(app: FastAPI) -> None:
+    from almlight.core.i18n import request_locale, tr
+
     @app.exception_handler(DomainError)
-    async def _domain(_: Request, exc: DomainError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content=_body(exc.code, exc.message, exc.details))
+    async def _domain(request: Request, exc: DomainError) -> JSONResponse:
+        message = tr(exc.message, request_locale(request)) or exc.message
+        return JSONResponse(status_code=exc.status_code, content=_body(exc.code, message, exc.details))
 
     @app.exception_handler(RequestValidationError)
-    async def _validation(_: Request, exc: RequestValidationError) -> JSONResponse:
+    async def _validation(request: Request, exc: RequestValidationError) -> JSONResponse:
         errors = [
             {"loc": list(e.get("loc", [])), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()
         ]
         return JSONResponse(
-            status_code=422, content=_body("validation_failed", "Request validation failed", {"errors": errors})
+            status_code=422, content=_body("validation_failed",
+                                           tr("Request validation failed", request_locale(request)) or "",
+                                           {"errors": errors})
         )

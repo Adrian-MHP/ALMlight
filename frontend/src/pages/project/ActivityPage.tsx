@@ -4,11 +4,12 @@ import { useAudit } from "@/api/hooks";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 const ACTIONS = [
-  { value: "item.", label: "Items" }, { value: "link.", label: "Links" }, { value: "approval.", label: "Approvals" },
-  { value: "baseline.", label: "Baselines" }, { value: "project.", label: "Project" }, { value: "member.", label: "Members" },
-  { value: "integration.", label: "Integrations" }, { value: "testrun.", label: "Test runs" },
+  { value: "item.", label: tx("Items") }, { value: "link.", label: tx("Links") }, { value: "approval.", label: tx("Approvals") },
+  { value: "baseline.", label: tx("Baselines") }, { value: "project.", label: tx("Project") }, { value: "member.", label: tx("Members") },
+  { value: "integration.", label: tx("Integrations") }, { value: "testrun.", label: tx("Test runs") },
 ];
 
 export function ActivityPage() {
@@ -17,11 +18,11 @@ export function ActivityPage() {
   const entries = useAudit(key, action).data ?? [];
   return (
     <>
-      <PageHeader title="Activity" subtitle="Tamper-evident audit trail — every change with who, when and what (hash-chained)"
-        actions={<Select placeholder="All actions" data={ACTIONS} value={action} onChange={setAction} clearable w={200} />} />
+      <PageHeader title={tx("Activity")} subtitle={tx("Tamper-evident audit trail — every change with who, when and what (hash-chained)")}
+        actions={<Select placeholder={tx("All actions")} data={ACTIONS} value={action} onChange={setAction} clearable w={200} />} />
       <Card withBorder padding={0}>
         <Table data-testid="audit-table">
-          <Table.Thead><Table.Tr><Table.Th w={170}>When</Table.Th><Table.Th w={120}>Who</Table.Th><Table.Th w={170}>Action</Table.Th><Table.Th>Summary</Table.Th><Table.Th w={90}>Hash</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th w={170}>{tx("When")}</Table.Th><Table.Th w={120}>{tx("Who")}</Table.Th><Table.Th w={170}>{tx("Action")}</Table.Th><Table.Th>{tx("Summary")}</Table.Th><Table.Th w={90}>{tx("Hash")}</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {entries.map((e) => (
               <Table.Tr key={e.id}>

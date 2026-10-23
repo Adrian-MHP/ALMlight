@@ -97,7 +97,8 @@ def update_config(db: Session, actor: User, project: Project, config: dict[str, 
     return project
 
 
-def set_member(db: Session, actor: User, project: Project, user: User, role: str) -> ProjectMember:
+def set_member(db: Session, actor: User, project: Project, user: User, role: str, *,
+               hours_per_day: float | None = None) -> ProjectMember:
     if role not in ROLE_RANK:
         raise ValidationFailed(f"role must be one of {list(ROLE_RANK)}")
     member = db.get(ProjectMember, (project.id, user.id))
@@ -108,10 +109,13 @@ def set_member(db: Session, actor: User, project: Project, user: User, role: str
         if member.role == "manager" and role != "manager":
             _ensure_other_manager(db, project, user.id)
         member.role = role
+    if hours_per_day is not None:
+        member.hours_per_day = round(hours_per_day, 2)
     db.flush()
     db.info.pop("role_cache", None)
+    hours = f", {member.hours_per_day:g} h/day" if hours_per_day is not None else ""
     audit.record(db, actor=actor, action="member.set", entity_type="project", entity_id=project.id,
-                 project_id=project.id, summary=f"{user.username} is now {role} in {project.key}")
+                 project_id=project.id, summary=f"{user.username} is now {role} in {project.key}{hours}")
     return member
 
 
@@ -176,7 +180,8 @@ def template_updates(project: Project) -> dict[str, Any]:
     shipped = available_templates().get(project.template_key)
     cfg = project.model
     empty = {"template": project.template_key, "available": False, "count": 0, "item_types": [], "fields": [],
-             "link_types": [], "link_attributes": [], "link_endpoints": [], "workflows": [], "skipped": []}
+             "link_types": [], "link_attributes": [], "link_endpoints": [], "workflows": [], "translations": [],
+             "skipped": []}
     if shipped is None:
         return empty
     out = dict(empty, available=True, template_version=shipped.version)
@@ -212,8 +217,13 @@ def template_updates(project: Project) -> dict[str, Any]:
         if cfg.workflow(w.key) is None and any(t.workflow == w.key for t in shipped.item_types
                                                if t.key in new_types or cfg.item_type(t.key)):
             out["workflows"].append({"key": w.key, "label": w.label})
+    for loc, labels in shipped.translations.items():
+        have = cfg.translations.get(loc, {})
+        missing = [k for k in labels if k not in have]
+        if missing:
+            out["translations"].append({"locale": loc, "count": len(missing)})
     out["count"] = sum(len(out[k]) for k in ("item_types", "fields", "link_types", "link_attributes",
-                                              "link_endpoints", "workflows"))
+                                              "link_endpoints", "workflows", "translations"))
     return out
 
 
@@ -246,6 +256,10 @@ def apply_template_updates(db: Session, actor: User, project: Project) -> dict[s
             if ep["link"] == lt.key:
                 by_link[lt.key]["sources"] += ep["sources"]
                 by_link[lt.key]["targets"] += ep["targets"]
+    for entry in diff["translations"]:
+        own = cfg.setdefault("translations", {}).setdefault(entry["locale"], {})
+        for k, v in shipped.translations.get(entry["locale"], {}).items():
+            own.setdefault(k, v)  # tailored translations of the project are kept
     update_config(db, actor, project, cfg)
     audit.record(db, actor=actor, action="project.template_updated", entity_type="project", entity_id=project.id,
                  project_id=project.id, summary=f"Took over {diff['count']} additions from template "

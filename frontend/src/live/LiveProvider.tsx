@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import { pk } from "@/api/hooks";
 import { wsBase } from "@/collab/session";
+import { tx } from "@/lib/i18n";
 
 export interface PresenceUser {
   conn: number; user_id: string; name: string; color: string; doc: string | null; item: string | null;
@@ -62,7 +63,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
           qc.invalidateQueries({ queryKey: ["notifications"] });
           if (n.kind === "mention" || n.kind === "approval") {
             notifications.show({ color: n.kind === "mention" ? "violet" : "orange", autoClose: 6000,
-              title: n.kind === "mention" ? `${n.actor ?? "Someone"} mentioned you` : "Approval requested", message: n.title });
+              title: n.kind === "mention" ? tx("{actor} mentioned you", { actor: n.actor ?? tx("Someone") }) : tx("Approval requested"), message: n.title });
           }
         } else if (msg.type === "change" && project) {
           listeners.current.forEach((fn) => fn(msg as unknown as ChangeEvent));

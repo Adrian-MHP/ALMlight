@@ -28,6 +28,7 @@ import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
 import { CompareDialog } from "./document/CompareDialog";
 import { DocBaselineButton, HistoryDrawer } from "./document/HistoryDrawer";
+import { tx } from "@/lib/i18n";
 
 interface AddTarget { parent: string; position: number | null; existing?: boolean }
 interface Filter { q: string; types: string[]; states: string[] }
@@ -97,7 +98,7 @@ export function DocumentView() {
   useEffect(() => live.onChange((e) => {
     if (!me || e.actor_id === me.id || e.project !== key) return;
     const hit = (e.entity_id && docItemIds.has(e.entity_id)) || e.related_ids.some((r) => docItemIds.has(r));
-    if (hit) notifications.show({ title: `${e.actor} changed the document`, message: e.summary, color: "blue", autoClose: 5000 });
+    if (hit) notifications.show({ title: tx("{actor} changed the document", { actor: e.actor }), message: e.summary, color: "blue", autoClose: 5000 });
   }), [live, docItemIds, me, key]);
 
   const setParam = (k: string, v: string | null) => {
@@ -112,12 +113,11 @@ export function DocumentView() {
   if (doc.isError) {
     return (
       <Alert color={historical ? "violet" : "red"} icon={<IconHistory size={18} />} mt="md" maw={720} mx="auto"
-        title={historical ? "Not available in this state" : "The document could not be opened"} data-testid="doc-error">
-        <Text size="sm" mb="sm">{doc.error?.message}{historical
-          ? " — the baseline or point in time does not contain this document (it was created later or is outside the baseline's scope)." : ""}</Text>
+        title={historical ? tx("Not available in this state") : tx("The document could not be opened")} data-testid="doc-error">
+        <Text size="sm" mb="sm">{doc.error?.message}{historical ? tx(" — the baseline or point in time does not contain this document (it was created later or is outside the baseline's scope).") : ""}</Text>
         <Group gap="xs">
-          <Button size="xs" onClick={() => navigate(`/p/${key}/documents/${docKey}`)}>Open the live document</Button>
-          {historical && <Button size="xs" variant="default" onClick={() => navigate(`/p/${key}/baselines`)}>Baselines</Button>}
+          <Button size="xs" onClick={() => navigate(`/p/${key}/documents/${docKey}`)}>{tx("Open the live document")}</Button>
+          {historical && <Button size="xs" variant="default" onClick={() => navigate(`/p/${key}/baselines`)}>{tx("Baselines")}</Button>}
         </Group>
       </Alert>
     );
@@ -135,7 +135,7 @@ export function DocumentView() {
   return (
     <>
       <Breadcrumbs mb="xs" separator="›">
-        <Anchor component={Link} to={`/p/${key}/documents`} size="sm">Documents</Anchor>
+        <Anchor component={Link} to={`/p/${key}/documents`} size="sm">{tx("Documents")}</Anchor>
         <Text size="sm" className="item-key">{docKey}</Text>
       </Breadcrumbs>
       <Group justify="space-between" mb="sm" align="flex-start" wrap="wrap">
@@ -145,29 +145,29 @@ export function DocumentView() {
             {root.state && <Badge variant="light" color={stateColor(root.state_color, root.state_category)}>{root.state}</Badge>}
             <Badge variant="default" className="mono">{root.version}</Badge>
           </Group>
-          <Text size="xs" c="dimmed">Each block is an item with its own version, workflow and traceability. Release the document once all items are approved.</Text>
+          <Text size="xs" c="dimmed">{tx("Each block is an item with its own version, workflow and traceability. Release the document once all items are approved.")}</Text>
         </Stack>
         <Group gap="xs">
           <PresenceBar people={here} meId={me?.id} />
           {!historical && <WatchButton projectKey={key} itemKey={docKey} document />}
-          <Button variant="default" leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)} data-testid="doc-history">History</Button>
-          <Button variant="default" leftSection={<IconGitCompare size={16} />} onClick={() => setCompareOpen(true)} data-testid="doc-compare">Compare</Button>
+          <Button variant="default" leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)} data-testid="doc-history">{tx("History")}</Button>
+          <Button variant="default" leftSection={<IconGitCompare size={16} />} onClick={() => setCompareOpen(true)} data-testid="doc-compare">{tx("Compare")}</Button>
           {!historical && <DocBaselineButton docKey={docKey} />}
           <DocumentExportMenu docKey={docKey} view={{ at, baseline, variant, numbering }} />
-          <Button variant="default" leftSection={<IconMessage size={16} />} onClick={() => setCommentsFor("__doc__")} data-testid="doc-comments">Comments</Button>
+          <Button variant="default" leftSection={<IconMessage size={16} />} onClick={() => setCommentsFor("__doc__")} data-testid="doc-comments">{tx("Comments")}</Button>
           <Menu position="bottom-end">
             <Menu.Target><Button variant="default" px={10} data-testid="doc-more">…</Button></Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item leftSection={<IconExternalLink size={16} />} component={Link} to={`/p/${key}/items/${docKey}`}>Document item (workflow, approvals)</Menu.Item>
-              {can("contributor") && !historical && <Menu.Item leftSection={<IconGitBranch size={16} />} onClick={() => setBranching(true)} data-testid="create-branch">Branch document…</Menu.Item>}
+              <Menu.Item leftSection={<IconExternalLink size={16} />} component={Link} to={`/p/${key}/items/${docKey}`}>{tx("Document item (workflow, approvals)")}</Menu.Item>
+              {can("contributor") && !historical && <Menu.Item leftSection={<IconGitBranch size={16} />} onClick={() => setBranching(true)} data-testid="create-branch">{tx("Branch document…")}</Menu.Item>}
             </Menu.Dropdown>
           </Menu>
           {editable && (
             <Menu position="bottom-end">
-              <Menu.Target><Button leftSection={<IconPlus size={16} />} data-testid="doc-add">Add</Button></Menu.Target>
+              <Menu.Target><Button leftSection={<IconPlus size={16} />} data-testid="doc-add">{tx("Add")}</Button></Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item onClick={() => setAdding({ parent: docKey, position: null })} data-testid="doc-add-new">New item at the end</Menu.Item>
-                <Menu.Item onClick={() => setAdding({ parent: docKey, position: null, existing: true })} leftSection={<IconLink size={14} />}>Insert existing item (reuse)</Menu.Item>
+                <Menu.Item onClick={() => setAdding({ parent: docKey, position: null })} data-testid="doc-add-new">{tx("New item at the end")}</Menu.Item>
+                <Menu.Item onClick={() => setAdding({ parent: docKey, position: null, existing: true })} leftSection={<IconLink size={14} />}>{tx("Insert existing item (reuse)")}</Menu.Item>
               </Menu.Dropdown>
             </Menu>
           )}
@@ -176,14 +176,14 @@ export function DocumentView() {
 
       {historical && (
         <Alert color="violet" icon={<IconHistory size={18} />} mb="md" data-testid="history-banner"
-          title={baseline ? `Baseline “${doc.data.baseline?.name}” — read-only` : `As of ${fmtDateTime(at)} — read-only`}>
+          title={baseline ? tx("Baseline “{name}” — read-only", { name: doc.data.baseline?.name }) : tx("As of {at} — read-only", { at: fmtDateTime(at) })}>
           <Group justify="space-between">
-            <Text size="sm">The document exactly as it was{baseline ? ` when the baseline was taken (${fmtDateTime(doc.data.baseline?.created_at)})` : ""}: texts, versions, states and outline.</Text>
+            <Text size="sm">{tx("The document exactly as it was{v}: texts, versions, states and outline.", { v: baseline ? tx(" when the baseline was taken ({created_at})", { created_at: fmtDateTime(doc.data.baseline?.created_at) }) : "" })}</Text>
             <Group gap="xs">
               <Button size="xs" variant="light" leftSection={<IconGitCompare size={14} />}
                 onClick={() => navigate(`/p/${key}/documents/${docKey}/compare?${baseline ? `l_bl=${baseline}` : `l_at=${encodeURIComponent(at!)}`}`)}
-                data-testid="compare-with-live">Compare with live</Button>
-              <Button size="xs" onClick={() => navigate(`/p/${key}/documents/${docKey}${variant ? `?variant=${variant}` : ""}`)} data-testid="back-to-live">Back to live</Button>
+                data-testid="compare-with-live">{tx("Compare with live")}</Button>
+              <Button size="xs" onClick={() => navigate(`/p/${key}/documents/${docKey}${variant ? `?variant=${variant}` : ""}`)} data-testid="back-to-live">{tx("Back to live")}</Button>
             </Group>
           </Group>
         </Alert>
@@ -191,16 +191,16 @@ export function DocumentView() {
 
       <Card withBorder padding="xs" mb="sm">
         <Group gap="sm" wrap="wrap">
-          <TextInput size="xs" placeholder="Filter text…" leftSection={<IconSearch size={14} />} value={filter.q} w={200}
+          <TextInput size="xs" placeholder={tx("Filter text…")} leftSection={<IconSearch size={14} />} value={filter.q} w={200}
             onChange={(e) => setFilter({ ...filter, q: e.currentTarget.value })} data-testid="doc-filter" />
-          <MultiSelect size="xs" placeholder="Types" w={200} data={model.typeOptions((t) => allowedTypes.includes(t.key))} value={filter.types}
+          <MultiSelect size="xs" placeholder={tx("Types")} w={200} data={model.typeOptions((t) => allowedTypes.includes(t.key))} value={filter.types}
             onChange={(v) => setFilter({ ...filter, types: v })} clearable />
-          <MultiSelect size="xs" placeholder="States" w={180} data={stateOptions} value={filter.states} onChange={(v) => setFilter({ ...filter, states: v })} clearable />
-          <Select size="xs" placeholder="All variants (150%)" w={230} clearable value={variant} onChange={(v) => setParam("variant", v)}
+          <MultiSelect size="xs" placeholder={tx("States")} w={180} data={stateOptions} value={filter.states} onChange={(v) => setFilter({ ...filter, states: v })} clearable />
+          <Select size="xs" placeholder={tx("All variants (150%)")} w={230} clearable value={variant} onChange={(v) => setParam("variant", v)}
             data={variants.map((v) => ({ value: v.key, label: `${v.key} — ${v.title}` }))} data-testid="doc-variant" />
-          <Switch size="xs" label="Numbered headings" checked={numbering} onChange={(e) => setParam("numbering", e.currentTarget.checked ? null : "false")} />
-          {shown !== total && <Badge variant="light" data-testid="filter-count">{shown} of {total} items</Badge>}
-          {doc.data.variant && <Badge color="pink" variant="light">Variant {doc.data.variant.key}</Badge>}
+          <Switch size="xs" label={tx("Numbered headings")} checked={numbering} onChange={(e) => setParam("numbering", e.currentTarget.checked ? null : "false")} />
+          {shown !== total && <Badge variant="light" data-testid="filter-count">{tx("{shown} of {total} items", { shown: shown, total: total })}</Badge>}
+          {doc.data.variant && <Badge color="pink" variant="light">{tx("Variant {key}", { key: doc.data.variant.key })}</Badge>}
         </Group>
       </Card>
 
@@ -208,7 +208,7 @@ export function DocumentView() {
 
       <Card withBorder padding="xl" className="doc-paper" data-testid="document">
         {root.description && <div style={{ marginBottom: 12 }}><RichText html={root.description} empty="" /></div>}
-        {tree.length === 0 && <Text c="dimmed">{total ? "Nothing matches the filter." : "This document is empty. Add headings and requirements."}</Text>}
+        {tree.length === 0 && <Text c="dimmed">{total ? tx("Nothing matches the filter.") : tx("This document is empty. Add headings and requirements.")}</Text>}
         <Blocks nodes={tree} depth={0} parentKey={docKey} editable={editable && !filtering}
           historical={historical} onAdd={setAdding} onEdit={setEditing} onComments={setCommentsFor}
           live={{ block: liveBlock, open: setLiveBlock, editors: (k) => here.filter((u) => u.editing === k && u.user_id !== me?.id) }} />
@@ -232,13 +232,13 @@ function InsertExisting({ target, types, onClose }: { target: AddTarget; types: 
   const [itemKey, setItemKey] = useState<string | null>(null);
   const insert = useProjectMutation(key, () => api.post(`/projects/${key}/links`, {
     type: "contains", source: target.parent, target: itemKey, position: target.position,
-  }), { success: "Item inserted (reused — it stays one item with one history)", onSuccess: onClose });
+  }), { success: tx("Item inserted (reused — it stays one item with one history)"), onSuccess: onClose });
   return (
-    <Modal opened onClose={onClose} title="Insert an existing item">
+    <Modal opened onClose={onClose} title={tx("Insert an existing item")}>
       <Stack>
-        <Text size="sm" c="dimmed">The item is referenced, not copied: it appears in several documents but has one content, version history and workflow.</Text>
-        <ItemPicker label="Item" types={types} value={itemKey} onChange={setItemKey} testId="insert-existing" />
-        <Group justify="flex-end"><Button onClick={() => insert.mutate(undefined)} disabled={!itemKey} loading={insert.isPending} data-testid="insert-existing-go">Insert</Button></Group>
+        <Text size="sm" c="dimmed">{tx("The item is referenced, not copied: it appears in several documents but has one content, version history and workflow.")}</Text>
+        <ItemPicker label={tx("Item")} types={types} value={itemKey} onChange={setItemKey} testId="insert-existing" />
+        <Group justify="flex-end"><Button onClick={() => insert.mutate(undefined)} disabled={!itemKey} loading={insert.isPending} data-testid="insert-existing-go">{tx("Insert")}</Button></Group>
       </Stack>
     </Modal>
   );
@@ -250,7 +250,7 @@ function CommentsDrawer({ docKey, itemKey, onClose }: { docKey: string; itemKey:
   const threads = useThreads(key, isDoc ? docKey : itemKey, isDoc).data ?? [];
   return (
     <Drawer opened={!!itemKey} onClose={onClose} position="right" size="md"
-      title={<Text fw={600}>{isDoc ? `All comments in ${docKey}` : `Comments on ${itemKey}`}</Text>}>
+      title={<Text fw={600}>{isDoc ? tx("All comments in {docKey}", { docKey: docKey }) : tx("Comments on {itemKey}", { itemKey: itemKey })}</Text>}>
       {itemKey && (
         <CommentThreads projectKey={key} threads={threads} itemKey={isDoc ? docKey : itemKey} documentKey={docKey}
           canWrite={can("contributor")} canModerate={can("manager")} showItemKeys={isDoc} />
@@ -265,13 +265,13 @@ function PresenceBar({ people, meId }: { people: PresenceUser[]; meId?: string }
   const users = new Map<string, { id: string; name: string; color: string; editing: boolean }>();
   for (const u of people) {
     const prev = users.get(u.user_id);
-    users.set(u.user_id, { id: u.user_id, name: u.user_id === meId ? `${u.name} (you)` : u.name, color: u.color, editing: (prev?.editing ?? false) || !!u.editing });
+    users.set(u.user_id, { id: u.user_id, name: u.user_id === meId ? tx("{name} (you)", { name: u.name }) : u.name, color: u.color, editing: (prev?.editing ?? false) || !!u.editing });
   }
   const list = Array.from(users.values());
   if (list.length === 0) return null;
   const editing = list.filter((u) => u.editing).length;
   return (
-    <Tooltip label={`${list.length} ${list.length === 1 ? "person" : "people"} in this document${editing ? `, ${editing} editing` : ""}`}>
+    <Tooltip label={tx("{length} {v} in this document{v1}", { length: list.length, v: list.length === 1 ? tx("person") : tx("people"), v1: editing ? tx(", {editing} editing", { editing: editing }) : "" })}>
       <Group gap={6} className="presence-bar" data-testid="doc-presence">
         <ParticipantAvatars people={list} size={24} />
         <Text size="xs" c="dimmed">{list.length}</Text>
@@ -288,7 +288,7 @@ function Blocks({ nodes, depth, parentKey, editable, historical, onAdd, onEdit, 
   const move = useProjectMutation(key, (v: { item: string; position: number }) =>
     api.post(`/projects/${key}/items/${v.item}/move`, { parent: parentKey, position: v.position }));
   const restore = useProjectMutation(key, (v: { item: string; version: number }) =>
-    api.post(`/projects/${key}/items/${v.item}/restore`, { version_no: v.version }), { success: "Restored as a new version" });
+    api.post(`/projects/${key}/items/${v.item}/restore`, { version_no: v.version }), { success: tx("Restored as a new version") });
   // Positions are floats: moving between two siblings takes the midpoint of their positions.
   const pos = nodes.map((x, j) => x.position ?? j + 1);
   return (
@@ -326,7 +326,7 @@ function DocBlock({ n, depth, parentKey, editable, historical, onAdd, onEdit, on
         {editors.length > 0 && !editingHere && (
           <Group gap={6} mb={4} data-testid={`block-editors-${n.key}`}>
             <ParticipantAvatars size={18} people={editors.map((u) => ({ id: u.user_id, name: u.name, color: u.color, editing: true }))} />
-            <Text size="xs" c="orange.7">{Array.from(new Set(editors.map((u) => u.name))).join(", ")} editing live</Text>
+            <Text size="xs" c="orange.7">{tx("{Array} editing live", { Array: Array.from(new Set(editors.map((u) => u.name))).join(", ") })}</Text>
           </Group>
         )}
         {editingHere ? (
@@ -346,8 +346,8 @@ function DocBlock({ n, depth, parentKey, editable, historical, onAdd, onEdit, on
                     {n.state && <Badge size="xs" variant="light" color={stateColor(n.state_color, n.state_category)}>{n.state}</Badge>}
                     <Text size="xs" c="dimmed" className="mono">{n.version}</Text>
                     {n.applicability && <Badge size="xs" color="pink" variant="light" className="mono" style={{ textTransform: "none" }}>{n.applicability}</Badge>}
-                    {n.suspect_links > 0 && <Badge size="xs" color="orange" variant="light" leftSection={<IconAlertTriangle size={10} />} title="Has suspect links — a linked item changed">suspect</Badge>}
-                    {n.reused_in > 0 && <Badge size="xs" variant="outline" leftSection={<IconLink size={10} />} title={`Also used in ${n.reused_in} other place(s)`}>reused</Badge>}
+                    {n.suspect_links > 0 && <Badge size="xs" color="orange" variant="light" leftSection={<IconAlertTriangle size={10} />} title={tx("Has suspect links — a linked item changed")}>{tx("suspect")}</Badge>}
+                    {n.reused_in > 0 && <Badge size="xs" variant="outline" leftSection={<IconLink size={10} />} title={tx("Also used in {reused_in} other place(s)", { reused_in: n.reused_in })}>{tx("reused")}</Badge>}
                     {n.comment_count > 0 && (
                       <Badge size="xs" color="yellow" variant="light" className="clickable" leftSection={<IconMessage size={10} />}
                         onClick={() => onComments(n.key)} data-testid={`comments-${n.key}`}>{n.comment_count}</Badge>
@@ -361,31 +361,31 @@ function DocBlock({ n, depth, parentKey, editable, historical, onAdd, onEdit, on
               <Group gap={2} className="doc-actions" wrap="nowrap">
                 {historical ? (
                   <>
-                    <Tooltip label="Open this version"><ActionIcon variant="subtle" size="sm" component={Link} to={`/p/${key}/items/${n.key}?version=${n.version_no}`}><IconEye size={14} /></ActionIcon></Tooltip>
+                    <Tooltip label={tx("Open this version")}><ActionIcon variant="subtle" size="sm" component={Link} to={`/p/${key}/items/${n.key}?version=${n.version_no}`}><IconEye size={14} /></ActionIcon></Tooltip>
                     {!n.is_heading && (
-                      <Tooltip label="Restore this text in the live item (new version)">
+                      <Tooltip label={tx("Restore this text in the live item (new version)")}>
                         <ActionIcon variant="subtle" size="sm" onClick={onRestore}><IconArrowBackUp size={14} /></ActionIcon>
                       </Tooltip>
                     )}
                   </>
                 ) : (
                   <>
-                    <Tooltip label="Comments"><ActionIcon variant="subtle" size="sm" onClick={() => onComments(n.key)} data-testid={`comment-on-${n.key}`}><IconMessage size={14} /></ActionIcon></Tooltip>
+                    <Tooltip label={tx("Comments")}><ActionIcon variant="subtle" size="sm" onClick={() => onComments(n.key)} data-testid={`comment-on-${n.key}`}><IconMessage size={14} /></ActionIcon></Tooltip>
                     {editable && (
                       <>
-                        <Tooltip label="Move up"><ActionIcon variant="subtle" size="sm" disabled={upTarget === null}
+                        <Tooltip label={tx("Move up")}><ActionIcon variant="subtle" size="sm" disabled={upTarget === null}
                           onClick={() => upTarget !== null && onMove(upTarget)}><IconArrowUp size={14} /></ActionIcon></Tooltip>
-                        <Tooltip label="Move down"><ActionIcon variant="subtle" size="sm" disabled={downTarget === null}
+                        <Tooltip label={tx("Move down")}><ActionIcon variant="subtle" size="sm" disabled={downTarget === null}
                           onClick={() => downTarget !== null && onMove(downTarget)}><IconArrowDown size={14} /></ActionIcon></Tooltip>
-                        {!n.frozen && <Tooltip label="Edit text live (double-click)"><ActionIcon variant="subtle" size="sm" onClick={() => live.open(n.key)} data-testid={`edit-${n.key}`}><IconEdit size={14} /></ActionIcon></Tooltip>}
+                        {!n.frozen && <Tooltip label={tx("Edit text live (double-click)")}><ActionIcon variant="subtle" size="sm" onClick={() => live.open(n.key)} data-testid={`edit-${n.key}`}><IconEdit size={14} /></ActionIcon></Tooltip>}
                         <Menu position="bottom-end">
                           <Menu.Target><ActionIcon variant="subtle" size="sm" data-testid={`add-${n.key}`}><IconPlus size={14} /></ActionIcon></Menu.Target>
                           <Menu.Dropdown>
-                            <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget })}>Add after</Menu.Item>
-                            {(n.is_heading || n.children.length > 0) && <Menu.Item onClick={() => onAdd({ parent: n.key, position: null })}>Add inside</Menu.Item>}
-                            <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget, existing: true })}>Insert existing item after</Menu.Item>
+                            <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget })}>{tx("Add after")}</Menu.Item>
+                            {(n.is_heading || n.children.length > 0) && <Menu.Item onClick={() => onAdd({ parent: n.key, position: null })}>{tx("Add inside")}</Menu.Item>}
+                            <Menu.Item onClick={() => onAdd({ parent: parentKey, position: afterTarget, existing: true })}>{tx("Insert existing item after")}</Menu.Item>
                             {!n.frozen && <Menu.Divider />}
-                            {!n.frozen && <Menu.Item onClick={() => onEdit(n.key)} data-testid={`props-${n.key}`}>Properties (title, attributes)…</Menu.Item>}
+                            {!n.frozen && <Menu.Item onClick={() => onEdit(n.key)} data-testid={`props-${n.key}`}>{tx("Properties (title, attributes)…")}</Menu.Item>}
                           </Menu.Dropdown>
                         </Menu>
                       </>

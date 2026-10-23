@@ -1,6 +1,6 @@
 # 13 Feature catalogue — Ariadne compared with an enterprise engineering backbone
 
-This catalogue lists what Ariadne 0.6 delivers, grouped by the capability areas customers know from the enterprise
+This catalogue lists what Ariadne 0.7 delivers, grouped by the capability areas customers know from the enterprise
 suites: **Polarion ALM** for requirements, tests, documents and process, and **Teamcenter** for product structure,
 change and data management. The reference column describes the capability as users of those suites expect it; it is
 an orientation based on publicly documented functionality, not a feature-by-feature statement about a specific
@@ -10,7 +10,7 @@ release of those products.
 
 ## 13.1 Summary
 
-| Capability area | Reference | Ariadne 0.6 |
+| Capability area | Reference | Ariadne 0.7 |
 |---|---|---|
 | Requirements & live documents | Polarion | ● |
 | Traceability & impact analysis | Polarion | ● |
@@ -19,8 +19,9 @@ release of those products.
 | Risk management (FMEA) | Polarion (FMEA/risk templates) | ● (ASIL lookup tables ◐) |
 | Release planning | Polarion Plans | ● releases, iterations, milestones, capacity, planning board |
 | Kanban boards | Polarion boards | ● configurable, drag & drop runs workflow transitions |
-| Schedule / timeline | Teamcenter Schedule Manager | ● Gantt, dependencies, critical path, baseline comparison |
-| Queries, bulk edit | Polarion query builder, bulk edit | ● query builder and query language, configurable table, bulk edit with preview |
+| Schedule / timeline | Teamcenter Schedule Manager | ● Gantt, FS/SS/FF/SF dependencies with lag, critical path, baseline comparison, auto-schedule |
+| Time recording & resources | Polarion work records, Teamcenter timesheets / resource graph | ● timesheet, spent/remaining, resource load, levelling |
+| Queries, bulk edit | Polarion query builder, bulk edit | ● query builder with OR/AND groups, query language, configurable table, bulk edit with preview |
 | Change management (closed loop) | Teamcenter / Polarion | ● (change-order effectivity ○) |
 | Item/revision model & maturity | Teamcenter | ● |
 | Product structure & BOM | Teamcenter | ● for the engineering BOM (MBOM/BOP —) |
@@ -30,7 +31,7 @@ release of those products.
 | Reporting & dashboards | Polarion LiveReports / Teamcenter reporting | ● |
 | Search & saved queries | both | ● query language, saved views with columns |
 | Integration & identity | both | ● REST, webhooks, ReqIF, OIDC (OSLC, Jira ○) |
-| Localisation | both | ○ (English UI) |
+| Localisation | both | ● English and German (interface, model labels, server messages, e-mails, exports) |
 | Scale-out & multi-site | Teamcenter | — single site, one app process |
 
 ## 13.2 Requirements and live documents
@@ -101,10 +102,13 @@ release of those products.
 | Planning board (backlog ↔ plans) | Polarion planning view | ● | Drag & drop, load per column |
 | Progress, schedule status, burn-up and burn-down | Polarion Plans | ● | By items or by estimate |
 | Configurable Kanban boards | Polarion boards | ● | Columns/swimlanes by status, owner, plan, type or field; WIP limits; drag & drop runs transitions |
-| Gantt timeline with tasks, milestones, dependencies | Teamcenter Schedule Manager | ● | Finish-to-start, drag to reschedule |
-| Critical path, slack, scheduling conflicts | Teamcenter Schedule Manager | ● | Working-day slack against successors and plan deadlines |
+| Gantt timeline with tasks, milestones, dependencies | Teamcenter Schedule Manager | ● | Finish-to-start, start-to-start, finish-to-finish, start-to-finish, lag/lead in working days; drag to reschedule |
+| Critical path, slack, scheduling conflicts | Teamcenter Schedule Manager | ● | Working-day slack per dependency type against successors and plan deadlines |
+| Auto-scheduling | Teamcenter Schedule Manager, MS Project | ● | Resolve conflicts or as soon as possible; preview; per plan |
 | Schedule baseline comparison | Teamcenter Schedule Manager | ● | Baselined dates shown under every bar |
-| Resource levelling, time recording, other dependency types (SS/FF) | schedule managers | ○ | |
+| Time recording, weekly timesheet, spent/remaining effort | Polarion work records, Teamcenter timesheets | ● | Records visible to author and managers, totals to all |
+| Resource load per person and week, capacity | Teamcenter resource graph | ● | Hours per day per member; overloads with the tasks behind them |
+| Resource levelling | Teamcenter, MS Project | ● | Greedy, keeps dependencies, preview; no skills/calendars per person (◐) |
 
 ## 13.8 Change management
 
@@ -152,7 +156,7 @@ release of those products.
 | Engineering KPIs | | ● | Reuse rate, change lead time, re-test effort, variant ratio |
 | Full-text search | both | ● | |
 | Query builder with field chips (any field, links, dates, users) | Polarion query builder | ● | *is / is not*, Any/None, periods, link gaps |
-| Query language (copy, paste, edit) | Polarion Lucene queries | ● | `field:value`, `OR` in parentheses, `NOT`, ranges, relative dates; no top-level OR (◐) |
+| Query language (copy, paste, edit) | Polarion Lucene queries | ● | `field:value`, `OR`/`AND` across fields with parentheses, `NOT` on clauses and groups, ranges, relative dates |
 | Configurable table: columns, sorting, preview | Polarion work item table | ● | Custom-field columns, saved with views |
 | Bulk edit with preview | Polarion bulk edit | ● | Fields, owner, status, plan, links, watch, delete |
 | Workflow viewer | Polarion workflow viewer | ● | Current state, path taken, possible transitions |
@@ -166,8 +170,8 @@ release of those products.
 | Webhooks in (GitHub, Azure DevOps) and out (signed) | both | ● | Transactional outbox |
 | CSV/Excel import/export, project archives | both | ● | Dry run, all-or-nothing |
 | Single sign-on | both | ● | OpenID Connect (Entra ID, Keycloak, Okta); LDAP/SAML via an IdP broker (◐) |
-| OSLC, Jira/GitLab connectors, SysML v2 API | Polarion/Teamcenter connectors | ○ | Roadmap 0.6 |
-| Localised UI (German) | both | ○ | |
+| OSLC, Jira/GitLab connectors, SysML v2 API | Polarion/Teamcenter connectors | ○ | Roadmap |
+| Localised UI | both | ● | English and German; model labels translated per customer; further languages by adding dictionaries |
 | Deployment | server installation | ● | Two containers, automatic migrations, backup/restore |
 | High availability, multi-site replication | Teamcenter | — | Single app process per installation |
 

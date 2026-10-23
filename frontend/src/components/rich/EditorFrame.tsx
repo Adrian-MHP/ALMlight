@@ -3,6 +3,7 @@ import { RichTextEditor } from "@mantine/tiptap";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { notifications } from "@mantine/notifications";
 import { api } from "@/api/client";
+import { tx } from "@/lib/i18n";
 
 /** Uploads an image for rich text and returns its URL in the content-addressed image store. */
 export function uploadImage(projectKey: string) {
@@ -15,7 +16,7 @@ export function uploadImage(projectKey: string) {
 }
 
 export function uploadError(_file: File, error: unknown) {
-  notifications.show({ color: "red", title: "Image not added", message: error instanceof Error ? error.message : "Upload failed" });
+  notifications.show({ color: "red", title: tx("Image not added"), message: error instanceof Error ? error.message : tx("Upload failed") });
 }
 
 /** Toolbar + content area of a rich-text editor (standalone or live). */

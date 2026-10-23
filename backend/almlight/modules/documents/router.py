@@ -9,8 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
-from almlight.core.deps import current_user
+from almlight.core.deps import current_user, ui_locale
 from almlight.core.errors import ValidationFailed
+from almlight.core.i18n import tr
 from almlight.core.schemas import UserDirectory
 from almlight.modules.collab.router import flush_project
 from almlight.modules.documents import service, word_roundtrip
@@ -42,30 +43,34 @@ class CompareIn(BaseModel):
 @router.get("/items/{item_key}/document", summary="A document live, as of a point in time, or from a baseline")
 def document(project_key: str, item_key: str, at: str | None = None, baseline: uuid.UUID | None = None,
              variant: str | None = None, numbering: bool = True, user: User = Depends(current_user),
-             db: Session = Depends(get_db)) -> dict[str, Any]:
+             db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> dict[str, Any]:
     project = get_project(db, project_key, user)
     root = items_svc.get_item(db, project, item_key)
     snap = build_snapshot(db, project, root, at=service.parse_at(at), baseline_id=baseline, variant_key=variant,
-                          numbering=numbering)
+                          numbering=numbering, locale=locale)
     return snapshot_json(snap)
 
 
 @router.get("/items/{item_key}/document-history", summary="All changes of a document and its items")
 def document_history(project_key: str, item_key: str, limit: int = 500, user: User = Depends(current_user),
-                     db: Session = Depends(get_db)) -> dict[str, Any]:
+                     db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> dict[str, Any]:
     project = get_project(db, project_key, user)
-    return service.history(db, project, items_svc.get_item(db, project, item_key), min(limit, 2000))
+    out = service.history(db, project, items_svc.get_item(db, project, item_key), min(limit, 2000))
+    for e in out["entries"]:
+        e["summary"] = tr(e["summary"], locale)
+    return out
 
 
 @router.post("/compare-documents", summary="Compare two document states (revisions, baselines, branches, documents)")
 def compare_documents(project_key: str, body: CompareIn, user: User = Depends(current_user),
-                      db: Session = Depends(get_db)) -> dict[str, Any]:
+                      db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> dict[str, Any]:
     home = get_project(db, project_key, user)
 
     def snap(side: DocState):
         project = get_project(db, side.project, user) if side.project else home
         root = items_svc.get_item(db, project, side.document)
-        return service.snapshot_for(db, project, root, at=side.at, baseline=side.baseline, variant=side.variant)
+        return service.snapshot_for(db, project, root, at=side.at, baseline=side.baseline, variant=side.variant,
+                                    locale=locale)
 
     return service.compare(db, snap(body.left), snap(body.right), fields=body.fields)
 

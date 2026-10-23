@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { stateColor } from "@/lib/model";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { tm, tx } from "@/lib/i18n";
 
 const LEVEL_COLOR: Record<string, string> = { high: "red", medium: "yellow", low: "green" };
 const LEVEL_RANK: Record<string, number> = { low: 1, medium: 2, high: 3 };
@@ -29,7 +30,7 @@ export function RisksPage() {
   const [creating, setCreating] = useState(false);
   if (!data) return null;
   if (!data.enabled) {
-    return <><PageHeader title="Risks" /><Text c="dimmed">This project's information model has no risk type. A manager can take it over from the template (Settings → Information model).</Text></>;
+    return <><PageHeader title={tx("Risks")} /><Text c="dimmed">{tx("This project's information model has no risk type. A manager can take it over from the template (Settings → Information model).")}</Text></>;
   }
   const scale = data.scale ?? 10;
   const matrix = (view === "before" ? data.matrix : data.residual_matrix) ?? [];
@@ -47,11 +48,11 @@ export function RisksPage() {
   }
   return (
     <>
-      <PageHeader title="Risks" subtitle="Failure modes and hazards rated by severity, occurrence and detection (FMEA); mitigated by requirements, design and tests"
-        actions={can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-risk">New {data.type_label}</Button>} />
+      <PageHeader title={tx("Risks")} subtitle={tx("Failure modes and hazards rated by severity, occurrence and detection (FMEA); mitigated by requirements, design and tests")}
+        actions={can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-risk">{tx("New {type_label}", { type_label: tm(data.type_label) })}</Button>} />
       <SimpleGrid cols={{ base: 2, md: 5 }} mb="md">
-        {[["Risks", s.total, "gray"], ["High", s.high, "red"], ["High without mitigation", s.high_unmitigated, s.high_unmitigated ? "red" : "green"],
-          ["High residual risk", s.residual_high, s.residual_high ? "red" : "green"], ["Accepted", s.accepted, "green"]].map(([label, value, color]) => (
+        {[[tx("Risks"), s.total, "gray"], [tx("High"), s.high, "red"], [tx("High without mitigation"), s.high_unmitigated, s.high_unmitigated ? "red" : "green"],
+          [tx("High residual risk"), s.residual_high, s.residual_high ? "red" : "green"], [tx("Accepted"), s.accepted, "green"]].map(([label, value, color]) => (
           <Card key={label as string} withBorder padding="sm" data-testid={`risk-kpi-${label}`}>
             <Text size="xs" tt="uppercase" fw={600} c="dimmed">{label}</Text>
             <Text fz={26} fw={650} c={value ? (color as string) : undefined}>{value}</Text>
@@ -62,12 +63,12 @@ export function RisksPage() {
         <Grid.Col span={{ base: 12, lg: 5 }}>
           <Card withBorder>
             <Group justify="space-between" mb="sm">
-              <Text fw={600}>Risk matrix</Text>
+              <Text fw={600}>{tx("Risk matrix")}</Text>
               <SegmentedControl size="xs" value={view} onChange={(v) => { setView(v as "before" | "after"); setCell(null); }}
-                data={[{ value: "before", label: "Initial" }, { value: "after", label: "After mitigation" }]} data-testid="risk-view" />
+                data={[{ value: "before", label: tx("Initial") }, { value: "after", label: tx("After mitigation") }]} data-testid="risk-view" />
             </Group>
             <div className="risk-matrix" data-testid="risk-matrix">
-              <div className="risk-axis-y">Severity →</div>
+              <div className="risk-axis-y">{tx("Severity →")}</div>
               <table>
                 <tbody>
                   {Array.from({ length: scale }, (_, i) => scale - i).map((sev) => (
@@ -89,16 +90,16 @@ export function RisksPage() {
                   <tr><th />{Array.from({ length: scale }, (_, j) => <th key={j}>{j + 1}</th>)}</tr>
                 </tbody>
               </table>
-              <div className="risk-axis-x">Occurrence →</div>
+              <div className="risk-axis-x">{tx("Occurrence →")}</div>
             </div>
-            {cell && <Button size="compact-xs" variant="subtle" mt="xs" onClick={() => setCell(null)}>Show all (filtered: S{cell.s} × O{cell.o})</Button>}
+            {cell && <Button size="compact-xs" variant="subtle" mt="xs" onClick={() => setCell(null)}>{tx("Show all (filtered: S{s} × O{o})", { s: cell.s, o: cell.o })}</Button>}
           </Card>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 7 }}>
           <Card withBorder padding={0}>
             <Table.ScrollContainer minWidth={640}>
               <Table data-testid="risk-register" highlightOnHover>
-                <Table.Thead><Table.Tr><Table.Th>Risk</Table.Th><Table.Th>S</Table.Th><Table.Th>O</Table.Th><Table.Th>D</Table.Th><Table.Th>RPN</Table.Th><Table.Th>Mitigation</Table.Th><Table.Th>Residual</Table.Th><Table.Th>State</Table.Th></Table.Tr></Table.Thead>
+                <Table.Thead><Table.Tr><Table.Th>{tx("Risk")}</Table.Th><Table.Th>S</Table.Th><Table.Th>O</Table.Th><Table.Th>D</Table.Th><Table.Th>{tx("RPN")}</Table.Th><Table.Th>{tx("Mitigation")}</Table.Th><Table.Th>{tx("Residual")}</Table.Th><Table.Th>{tx("State")}</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
                   {rows.map((r) => (
                     <Table.Tr key={r.key} data-testid={`risk-${r.key}`}>
@@ -110,13 +111,13 @@ export function RisksPage() {
                       <Table.Td>{r.rpn != null ? <Badge color={LEVEL_COLOR[r.level ?? ""] ?? "gray"} variant="light">{r.rpn}</Badge> : "–"}</Table.Td>
                       <Table.Td>
                         {r.mitigations ? <Badge leftSection={<IconShieldCheck size={11} />} color="teal" variant="light">{r.mitigations}</Badge>
-                          : r.level === "high" ? <Tooltip label="High risk without mitigation"><Badge color="red">none</Badge></Tooltip> : <Text size="xs" c="dimmed">none</Text>}
+                          : r.level === "high" ? <Tooltip label={tx("High risk without mitigation")}><Badge color="red">{tx("none")}</Badge></Tooltip> : <Text size="xs" c="dimmed">{tx("none")}</Text>}
                       </Table.Td>
                       <Table.Td>{r.rpn_after != null ? <Badge color={LEVEL_COLOR[r.residual_level ?? ""] ?? "gray"} variant="outline">{r.rpn_after}</Badge> : "–"}</Table.Td>
-                      <Table.Td><Badge size="sm" variant="light" color={stateColor(r.state_color, r.state_category)}>{r.state_label}</Badge></Table.Td>
+                      <Table.Td><Badge size="sm" variant="light" color={stateColor(r.state_color, r.state_category)}>{tm(r.state_label)}</Badge></Table.Td>
                     </Table.Tr>
                   ))}
-                  {rows.length === 0 && <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center" py="md">No risks{cell ? " in this cell" : " yet"}.</Text></Table.Td></Table.Tr>}
+                  {rows.length === 0 && <Table.Tr><Table.Td colSpan={8}><Text c="dimmed" ta="center" py="md">{tx("No risks{v}.", { v: cell ? tx(" in this cell") : tx(" yet") })}</Text></Table.Td></Table.Tr>}
                 </Table.Tbody>
               </Table>
             </Table.ScrollContainer>

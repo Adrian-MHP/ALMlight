@@ -1,17 +1,18 @@
 // Helpers around the project's information model (item types, link types, workflows).
 
 import type { FieldDef, Item, ItemTypeDef, LinkTypeDef, ProjectConfig, StateDef, WorkflowDef } from "@/api/types";
+import { locale, setModelTranslations, tm, tx } from "@/lib/i18n";
 
 export const CATEGORY_LABELS: Record<string, string> = {
-  requirement: "Requirements",
-  architecture: "Architecture",
-  verification: "Verification",
-  change: "Change",
-  document: "Documents",
-  variability: "Variants",
-  risk: "Risks",
-  planning: "Planning",
-  other: "Other",
+  requirement: tx("Requirements"),
+  architecture: tx("Architecture"),
+  verification: tx("Verification"),
+  change: tx("Change"),
+  document: tx("Documents"),
+  variability: tx("Variants"),
+  risk: tx("Risks"),
+  planning: tx("Planning"),
+  other: tx("Other"),
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -26,8 +27,35 @@ export const CATEGORY_COLORS: Record<string, string> = {
   other: "gray",
 };
 
+/** A copy of the information model with its labels in the user's language (the model's own translations first). */
+function localized(config: ProjectConfig): ProjectConfig {
+  setModelTranslations(config.translations?.[locale()]);
+  if (locale() === "en") return config;
+  const l = (s: string | null | undefined) => (s ? tm(s) : s);
+  return {
+    ...config,
+    item_types: config.item_types.map((t) => ({
+      ...t, label: tm(t.label), description: l(t.description),
+      fields: t.fields.map((f) => ({ ...f, label: tm(f.label), help: l(f.help), options: f.options?.map((o) => ({ ...o, label: tm(o.label) })) })),
+    })),
+    link_types: config.link_types.map((lt) => ({
+      ...lt, label: tm(lt.label), reverse_label: tm(lt.reverse_label), description: l(lt.description),
+      attributes: lt.attributes?.map((a) => ({ ...a, label: tm(a.label), help: l(a.help), options: a.options?.map((o) => ({ ...o, label: tm(o.label) })) })),
+    })),
+    workflows: config.workflows.map((w) => ({
+      ...w, label: tm(w.label),
+      states: w.states.map((st) => ({ ...st, label: tm(st.label) })),
+      transitions: w.transitions.map((t) => ({ ...t, label: tm(t.label) })),
+    })),
+  };
+}
+
 export class Model {
-  constructor(public config: ProjectConfig) {}
+  public config: ProjectConfig;
+
+  constructor(config: ProjectConfig) {
+    this.config = localized(config);
+  }
 
   type(key: string): ItemTypeDef | undefined {
     return this.config.item_types.find((t) => t.key === key);

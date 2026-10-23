@@ -96,3 +96,30 @@ def test_mentions(body, expected):
     from almlight.modules.notifications.service import mentions
 
     assert mentions(body) == expected
+
+
+def test_working_day_calendar_and_dependency_rules():
+    from datetime import date
+
+    from almlight.modules.planning import schedule as sc
+
+    fri, mon = date(2026, 11, 6), date(2026, 11, 9)
+    assert sc.add_workdays(fri, 1) == mon and sc.add_workdays(mon, -1) == fri and sc.add_workdays(fri, 0) == fri
+    assert sc.workdays(fri, mon) == 1 and sc.workdays(mon, fri) == -1 and sc.span(date(2026, 11, 2), fri) == 5
+    nodes = {"P": {"kind": "task", "_start": date(2026, 11, 2), "_due": fri},
+             "S": {"kind": "task", "_start": mon, "_due": date(2026, 11, 13)},
+             "M": {"kind": "milestone", "_start": fri, "_due": fri},
+             "M2": {"kind": "milestone", "_start": date(2026, 11, 13), "_due": date(2026, 11, 13)}}
+    assert not sc.violated(nodes, sc.Dep("P", "S"))                          # Monday after a Friday finish
+    assert sc.violated(nodes, sc.Dep("P", "S", lag=1))                        # one day waiting time
+    assert not sc.violated(nodes, sc.Dep("P", "M"))                           # milestone on the finish day
+    assert sc.violated(nodes, sc.Dep("P", "S", "ss", lag=6))
+    assert not sc.violated(nodes, sc.Dep("P", "S", "ff", lag=5))
+    assert sc.violated(nodes, sc.Dep("P", "S", "ff", lag=6))
+    assert sc.required_shift(nodes, sc.Dep("P", "S", lag=1)) == 1
+    deps = [sc.Dep("P", "S", lag=1), sc.Dep("S", "M2")]
+    sc.slack(nodes, deps, {})
+    assert nodes["P"]["slack"] == -1 and nodes["S"]["slack"] == 0 and nodes["M2"]["slack"] == 0
+    moved = sc.forward(nodes, deps, {"S", "M2"})
+    assert moved["S"] == (date(2026, 11, 10), date(2026, 11, 16)) and moved["M2"][1] == date(2026, 11, 16)
+    assert sc.topological({"a": 1, "b": 1}, [sc.Dep("a", "b"), sc.Dep("b", "a")]) == []

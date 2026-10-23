@@ -19,7 +19,7 @@ from almlight.core.schemas import Ok, UserDirectory
 from almlight.modules.audit import service as audit
 from almlight.modules.boards.models import Board
 from almlight.modules.identity.models import User
-from almlight.modules.items.query import custom_fields, field_info, parse_conditions
+from almlight.modules.items.query import custom_fields, field_info, leaves, parse_conditions
 from almlight.modules.projects.access import get_project, has_role
 from almlight.modules.projects.models import Project
 
@@ -68,7 +68,7 @@ def validate_config(project: Project, cfg: BoardConfig) -> dict[str, Any]:
     for t in cfg.types:
         if project.model.item_type(t) is None:
             raise ValidationFailed(f"Unknown item type '{t}'")
-    for c in parse_conditions(cfg.conditions):
+    for c in leaves(parse_conditions(cfg.conditions)):
         field_info(project, c.field)
     _check_grouping(project, cfg.columns_by, "Columns")
     if cfg.swimlanes_by:

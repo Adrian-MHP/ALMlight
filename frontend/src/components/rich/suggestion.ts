@@ -3,6 +3,7 @@ import { computePosition, flip, offset, shift } from "@floating-ui/dom";
 import type { SuggestionOptions, SuggestionProps } from "@tiptap/suggestion";
 import { api, qs } from "@/api/client";
 import type { ItemRefSuggestion } from "./extensions";
+import { tx } from "@/lib/i18n";
 
 interface ItemsPage { items: { key: string; title: string; type_key: string }[] }
 
@@ -35,7 +36,7 @@ export function itemSuggestion(projectKey: string): Omit<SuggestionOptions<ItemR
         if (!current.items.length) {
           const empty = document.createElement("div");
           empty.className = "item-suggest-empty";
-          empty.textContent = "No matching items";
+          empty.textContent = tx("No matching items");
           el.appendChild(empty);
         }
         current.items.forEach((item, i) => {

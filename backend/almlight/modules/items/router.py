@@ -10,8 +10,9 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
-from almlight.core.deps import current_user
+from almlight.core.deps import current_user, ui_locale
 from almlight.core.errors import NotFound
+from almlight.core.i18n import tr
 from almlight.core.schemas import Ok, Page, UserDirectory
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.collab.router import flush_item
@@ -96,7 +97,7 @@ class QueryText(BaseModel):
 
 class QueryParts(BaseModel):
     q: str | None = None
-    conditions: list[item_query.Condition] = Field(default_factory=list)
+    conditions: list[item_query.Node] = Field(default_factory=list)
 
 
 @router.post("/query/parse", summary="Query language → free text and conditions")
@@ -111,7 +112,7 @@ def parse_query(project_key: str, body: QueryText, user: User = Depends(current_
 def format_query(project_key: str, body: QueryParts, user: User = Depends(current_user),
                  db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user)
-    for c in body.conditions:
+    for c in item_query.leaves(body.conditions):
         item_query.field_info(project, c.field)
     return {"text": item_query.format_query(project, body.q, body.conditions)}
 
@@ -230,7 +231,7 @@ def restore(project_key: str, item_key: str, body: RestoreIn, user: User = Depen
 
 @router.get("/items/{item_key}/history")
 def history(project_key: str, item_key: str, user: User = Depends(current_user),
-            db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+            db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> list[dict[str, Any]]:
     """Complete timeline of the item: content versions, links, lifecycle, approvals and comments."""
     project = get_project(db, project_key, user)
     item = service.get_item(db, project, item_key)
@@ -239,8 +240,8 @@ def history(project_key: str, item_key: str, user: User = Depends(current_user),
         .where(or_(AuditEntry.entity_id == str(item.id), AuditEntry.related_ids.contains([item.id])))
         .order_by(AuditEntry.id.desc()).limit(500)
     ).scalars().all()
-    return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor_name, "action": e.action, "summary": e.summary,
-             "details": e.details} for e in entries]
+    return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor_name, "action": e.action,
+             "summary": tr(e.summary, locale), "details": e.details} for e in entries]
 
 
 @router.get("/items/{item_key}/workflow-events")

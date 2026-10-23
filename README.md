@@ -29,6 +29,10 @@ ALMlight.)*
 
 ![Planning board: backlog and iterations with capacity](docs/images/planning.png)
 
+![Resource load per person and week, with levelling](docs/images/resources.png)
+
+![German user interface](docs/images/german.png)
+
 ## Highlights
 
 - **Live co-editing**: several people edit the same text at the same time with live cursors and names; presence
@@ -63,16 +67,21 @@ ALMlight.)*
 - **Risk management (FMEA)**: severity, occurrence, detection, computed RPN and risk level, risk matrix before and
   after mitigation, mitigation traceability and residual-risk acceptance with e-signature.
 - **Queries like Polarion**: query builder with chips for any field, link, date, user or plan (*is / is not*,
-  Any/None, periods), a query language to copy, paste and edit, configurable columns incl. custom fields, sorting,
-  a preview pane, and saved views with their columns.
+  Any/None, periods), OR/AND groups across fields with NOT, a query language to copy, paste and edit, configurable
+  columns incl. custom fields, sorting, a preview pane, and saved views with their columns.
 - **Bulk edit**: select rows or the whole result and edit fields or owner, change the status, plan, link, watch or
   delete — with a per-item preview of what will change and what is skipped and why.
 - **Kanban boards**: any items, columns and swimlanes by status, owner, plan, type or field, WIP limits; dragging a
   card runs the real workflow transition (with comment or e-signature when required).
 - **Plans**: releases with iterations and milestones, estimates against capacity, burn-up and burn-down, and a
   planning board to drag work from the backlog into iterations.
-- **Timeline (Gantt)**: tasks, milestones and plans with finish-to-start dependencies, critical path, scheduling
-  conflicts and schedule-baseline comparison; drag bars to reschedule.
+- **Timeline (Gantt)**: tasks, milestones and plans with finish-to-start, start-to-start, finish-to-finish and
+  start-to-finish dependencies with lag, critical path, scheduling conflicts and schedule-baseline comparison; drag
+  bars to reschedule, or auto-schedule along the dependencies with a preview.
+- **Time and resources**: record hours on items, a weekly timesheet with spent and remaining effort, resource load
+  per person and week against capacity, and resource levelling with a preview.
+- **English and German**: the whole interface, the labels of the information model (translated per customer),
+  server messages, notifications, e-mail digests and document exports follow the user's language.
 - **Workflow viewer**: every item shows its state diagram with the path taken and the transitions possible now.
 - **Bill of materials**: multi-level BOM with quantities, units, find numbers, date effectivity, rolled-up totals,
   Excel/CSV export and where-used across projects.
@@ -145,17 +154,18 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 163 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 173 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 46 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 48 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.6: Polarion/Teamcenter-class work management — query builder and query language, configurable table,
-bulk edit, Kanban boards, plan hierarchy with capacity and planning board, Gantt timeline with critical path and
-baseline comparison, workflow viewer — on top of 0.5 (tests, risks, BOM, files, notifications, Word templates, SSO)
+Version 0.7: boolean queries across fields, all four dependency types with lag and auto-scheduling, time recording
+with a weekly timesheet, resource load and levelling, and a German user interface — on top of 0.6 (query builder and
+query language, bulk edit, Kanban boards, plans with capacity, Gantt timeline with critical path, workflow viewer),
+0.5 (tests, risks, BOM, files, notifications, Word templates, SSO)
 and 0.4 (rich text, real-time co-editing, live documents with time travel, branches, reports, Word/ReqIF round trips).
 How it compares with Polarion and Teamcenter: [feature catalogue](docs/13-feature-catalogue.md). Next increments:
 [roadmap](docs/06-mvp-scope-roadmap.md).

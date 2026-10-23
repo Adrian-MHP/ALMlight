@@ -1,11 +1,12 @@
-"""Plans 2.0 (hierarchy, estimates, capacity, roll-up, burn-down), timeline (dependencies, slack, critical path,
-conflicts, baseline comparison) and Kanban boards."""
+"""Plans 2.0 (hierarchy, estimates, capacity, roll-up, burn-down), timeline (dependency types with lag, slack,
+critical path, conflicts, baseline comparison, auto-scheduling) and Kanban boards."""
 
 from conftest import approve, new_item
 
 
-def _link(api, project, type_, source, target, expect=201):
-    return api.post(f"/projects/{project}/links", {"type": type_, "source": source, "target": target}, expect=expect)
+def _link(api, project, type_, source, target, expect=201, **attributes):
+    return api.post(f"/projects/{project}/links", {"type": type_, "source": source, "target": target,
+                                                   "attributes": attributes}, expect=expect)
 
 
 def test_plan_hierarchy_estimates_capacity_and_rollup(team, project):
@@ -72,6 +73,64 @@ def test_timeline_critical_path_conflicts_and_baseline(team, project):
     assert [x["item"] for x in tl["conflicts"]] == [t3]
     c.post(f"{p}/items/{t1}/transitions/finish", {})
     assert {r["key"]: r for r in c.get(f"{p}/timeline")["rows"]}[t1]["progress"] == 1.0
+
+
+def test_dependency_types_lag_and_auto_schedule(team, project):
+    c, v = team["contributor"], team["viewer"]
+    p = f"/projects/{project}"
+
+    def task(title, start, due, **fields):
+        return new_item(c, project, "task", title, fields={"start_date": start, "due_date": due, **fields})["key"]
+
+    a = task("A", "2026-11-02", "2026-11-06")                         # Mon - Fri
+    b = task("B finish-to-start +2", "2026-11-09", "2026-11-13")      # needs to start after Tue 11-10
+    cc = task("C start-to-start +1", "2026-11-03", "2026-11-04")      # ok: starts Tue
+    d = task("D finish-to-finish", "2026-11-02", "2026-11-05")        # finishes a day before A
+    e = task("E start-to-finish", "2026-10-26", "2026-10-30")         # ok: finishes the day before A starts
+    f = task("F finish-to-start", "2026-11-16", "2026-11-20")         # a week of float
+    g = task("G started", "2026-11-02", "2026-11-03", progress=50)    # in progress: keeps its dates
+    _link(c, project, "depends_on", b, a, dependency_type="fs", lag=2)
+    _link(c, project, "depends_on", cc, a, dependency_type="ss", lag=1)
+    _link(c, project, "depends_on", d, a, dependency_type="ff")
+    _link(c, project, "depends_on", e, a, dependency_type="sf")
+    _link(c, project, "depends_on", f, a)
+    _link(c, project, "depends_on", g, a)
+    _link(c, project, "depends_on", g, b, expect=422, dependency_type="xx")
+    _link(c, project, "depends_on", g, b, expect=422, lag="soon")
+    tl = c.get(f"{p}/timeline")
+    rows = {r["key"]: r for r in tl["rows"]}
+    assert tl["dependency_types"] is True
+    assert rows[f]["dependencies"][0] | {"link_id": None} == {"key": a, "type": "fs", "lag": 0, "link_id": None}
+    assert rows[b]["dependencies"][0]["type"] == "fs" and rows[b]["dependencies"][0]["lag"] == 2
+    conflicts = {x["item"]: x for x in tl["conflicts"]}
+    assert set(conflicts) == {b, d, g} and conflicts[d]["type"] == "ff"
+    assert "finish-to-finish" in conflicts[d]["message"] and "lag +2" in conflicts[b]["message"]
+    # slack against the project finish (F ends last): A could slip 3 working days before B pushes the finish;
+    # the violated dependencies are conflicts, not slack
+    assert rows[a]["slack"] == 3 and not rows[a]["critical"] and rows[f]["slack"] == 0 and rows[f]["critical"]
+    # auto-schedule: the preview moves B and D later, the started task stays and keeps its conflict
+    v.post(f"{p}/timeline/schedule", {}, expect=403)
+    preview = c.post(f"{p}/timeline/schedule", {"mode": "push"})
+    moves = {m["key"]: m for m in preview["moves"]}
+    assert preview["dry_run"] and set(moves) == {b, d}
+    assert moves[b]["start_date"] == ["2026-11-09", "2026-11-11"] and moves[b]["due_date"][1] == "2026-11-17"
+    assert moves[d]["due_date"] == ["2026-11-05", "2026-11-06"] and moves[d]["shift"] == 1
+    assert [x["item"] for x in preview["remaining_conflicts"]] == [g]
+    assert "already started" in preview["remaining_conflicts"][0]["message"]
+    assert c.get(f"{p}/items/{b}")["fields"]["start_date"] == "2026-11-09"  # nothing saved by the preview
+    applied = c.post(f"{p}/timeline/schedule", {"mode": "push", "dry_run": False})
+    assert applied["summary"] == {"ok": 2, "skipped": 0}
+    assert c.get(f"{p}/items/{b}")["fields"]["start_date"] == "2026-11-11"
+    assert [x["item"] for x in c.get(f"{p}/timeline")["conflicts"]] == [g]
+    # as soon as possible pulls F in to the Monday after A; push alone leaves the float
+    assert c.post(f"{p}/timeline/schedule", {"mode": "push"})["moves"] == []
+    asap = {m["key"]: m for m in c.post(f"{p}/timeline/schedule", {"mode": "asap"})["moves"]}
+    assert asap[f]["start_date"] == ["2026-11-16", "2026-11-09"] and asap[f]["shift"] == -5 and cc not in asap
+    # limited to one plan: only work planned there moves
+    rel = new_item(c, project, "release", "R", fields={"start_date": "2026-11-02", "due_date": "2026-12-18"})["key"]
+    _link(c, project, "planned_in", f, rel)
+    assert {m["key"] for m in c.post(f"{p}/timeline/schedule", {"mode": "asap", "plan": rel})["moves"]} == {f}
+    c.post(f"{p}/timeline/schedule", {"mode": "later"}, expect=422)
 
 
 def test_boards_crud_validation_and_sharing(team, project):

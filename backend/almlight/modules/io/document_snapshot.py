@@ -18,6 +18,7 @@ from typing import Any, Protocol
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from almlight.core import i18n
 from almlight.core.db import utcnow
 from almlight.core.errors import NotFound
 from almlight.core.richtext import content_hash
@@ -80,6 +81,7 @@ class DocSnapshot:
     at: datetime | None = None
     baseline: dict[str, Any] | None = None
     variant: dict[str, Any] | None = None
+    locale: str | None = None  # language of the labels and of exported texts
 
     def walk(self):
         stack = list(reversed(self.root.children))
@@ -316,26 +318,28 @@ class _BaselineSource:
 # --- builder -----------------------------------------------------------------------------------
 
 
-def _field_rows(project: Project, type_key: str, values: dict[str, Any]) -> list[tuple[str, str]]:
+def _field_rows(project: Project, type_key: str, values: dict[str, Any],
+                locale: str | None = None) -> list[tuple[str, str]]:
     t = project.model.item_type(type_key)
+    lab = lambda s: i18n.label(project, s, locale) or s  # noqa: E731
     rows = []
     for f in t.fields if t else []:
         v = values.get(f.key)
         if v in (None, "", []) or f.type == "text":
             continue
         if f.type == "enum":
-            v = next((o.label for o in f.options if o.key == v), v)
+            v = next((lab(o.label) for o in f.options if o.key == v), v)
         elif f.type == "multienum":
-            v = ", ".join(next((o.label for o in f.options if o.key == x), x) for x in v)
+            v = ", ".join(next((lab(o.label) for o in f.options if o.key == x), x) for x in v)
         elif isinstance(v, list):
             v = ", ".join(map(str, v))
         elif isinstance(v, bool):
-            v = "Yes" if v else "No"
-        rows.append((f.label, str(v)))
+            v = i18n.t(locale, "Yes") if v else i18n.t(locale, "No")
+        rows.append((lab(f.label), str(v)))
     return rows
 
 
-def _description(project: Project, type_key: str, v: ItemVersion) -> str:
+def _description(project: Project, type_key: str, v: ItemVersion, locale: str | None = None) -> str:
     """The item text (canonical HTML) followed by the type's long-text fields as labelled paragraphs."""
     from html import escape
 
@@ -344,14 +348,15 @@ def _description(project: Project, type_key: str, v: ItemVersion) -> str:
     for f in t.fields if t else []:
         if f.type == "text" and v.fields.get(f.key):
             value = escape(str(v.fields[f.key])).replace("\n", "<br>")
-            parts.append(f"<p><strong>{escape(f.label)}:</strong> {value}</p>")
+            parts.append(f"<p><strong>{escape(i18n.label(project, f.label, locale) or f.label)}:</strong> {value}</p>")
     return "".join(p for p in parts if p)
 
 
 def build_snapshot(
     db: Session, project: Project, root: Item, *, at: datetime | None = None, baseline_id: uuid.UUID | None = None,
-    variant_key: str | None = None, numbering: bool = True,
+    variant_key: str | None = None, numbering: bool = True, locale: str | None = None,
 ) -> DocSnapshot:
+    """``locale`` translates the labels (types, states, fields, links) for display and export."""
     structural = project.model.structural_link_types()
     baseline = None
     if baseline_id:
@@ -359,13 +364,13 @@ def build_snapshot(
         if baseline is None or baseline.project_id != project.id:
             raise NotFound("Baseline not found")
         src: _Source = _BaselineSource(db, structural, baseline)
-        mode, label = "baseline", f"Baseline: {baseline.name}"
+        mode, label = "baseline", i18n.t(locale, "Baseline: {name}", name=baseline.name)
     elif at is not None:
         src = _AtSource(db, structural, at)
-        mode, label = "at", f"As of {at:%Y-%m-%d %H:%M:%S} UTC"
+        mode, label = "at", i18n.t(locale, "As of {at} UTC", at=f"{at:%Y-%m-%d %H:%M:%S}")
     else:
         src = _LiveSource(db, structural)
-        mode, label = "live", "Live state"
+        mode, label = "live", i18n.t(locale, "Live state")
 
     selection: set[str] | None = None
     variant_info = None
@@ -406,10 +411,12 @@ def build_snapshot(
         state_key = src.state(iid)
         st = wf.state(state_key) if wf else None
         n = DocNode(
-            item_id=it.id, key=it.key, type_key=it.type_key, type_label=t.label if t else it.type_key,
-            title=v.title, description=_description(project, it.type_key, v), raw_description=v.description or "",
-            fields=_field_rows(project, it.type_key, v.fields),
-            fields_raw=dict(v.fields), applicability=v.applicability, state=st.label if st else state_key,
+            item_id=it.id, key=it.key, type_key=it.type_key,
+            type_label=(i18n.label(project, t.label, locale) or t.label) if t else it.type_key,
+            title=v.title, description=_description(project, it.type_key, v, locale),
+            raw_description=v.description or "", fields=_field_rows(project, it.type_key, v.fields, locale),
+            fields_raw=dict(v.fields), applicability=v.applicability,
+            state=(i18n.label(project, st.label, locale) or st.label) if st else state_key,
             state_key=state_key, state_color=st.color if st else None, state_category=st.category if st else None,
             frozen=bool(st and st.frozen), released=bool(st and st.released), version=f"{v.revision}.{v.iteration}",
             version_no=v.version_no, is_heading=heading,
@@ -420,7 +427,8 @@ def build_snapshot(
             ov = src.version(target) if other else None
             lt = project.model.link_type(type_key)
             if other is not None:
-                n.links.append((lt.label if lt else type_key, other.key, ov.title if ov else other.title))
+                n.links.append(((i18n.label(project, lt.label, locale) or lt.label) if lt else type_key, other.key,
+                                ov.title if ov else other.title))
         n.links.sort()
         for e in src.children(iid):
             if e.child_id in seen or not applies(e.applicability):
@@ -437,7 +445,7 @@ def build_snapshot(
     snap = DocSnapshot(project.key, project.name, root_node, label, mode, utcnow(), at=at,
                        baseline={"id": str(baseline.id), "name": baseline.name,
                                  "created_at": baseline.created_at.isoformat()} if baseline else None,
-                       variant=variant_info)
+                       variant=variant_info, locale=locale)
     if numbering:
         _number(root_node.children, "")
     if mode == "live":

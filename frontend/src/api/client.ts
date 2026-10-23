@@ -1,3 +1,5 @@
+import { locale } from "@/lib/i18n";
+
 // Minimal fetch wrapper for the REST API. The session lives in an httpOnly cookie.
 
 export class ApiError extends Error {
@@ -50,11 +52,14 @@ async function handle<T>(res: Response): Promise<T> {
   throw new ApiError(res.status, code, message, details);
 }
 
+// the server answers (messages, labels, exports) in the language of the user interface
+const langHeader = () => ({ "Accept-Language": locale() });
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
     method,
     credentials: "same-origin",
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers: body !== undefined ? { "Content-Type": "application/json", ...langHeader() } : langHeader(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return handle<T>(res);
@@ -67,7 +72,7 @@ export const api = {
   put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),
   upload: async <T>(path: string, form: FormData): Promise<T> =>
-    handle<T>(await fetch(BASE + path, { method: "POST", credentials: "same-origin", body: form })),
+    handle<T>(await fetch(BASE + path, { method: "POST", credentials: "same-origin", body: form, headers: langHeader() })),
 };
 
 export function qs(params: Record<string, string | number | boolean | string[] | undefined | null>): string {

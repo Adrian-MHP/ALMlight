@@ -10,16 +10,17 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, downloadUrl, qs } from "@/api/client";
 import { useDirectory, useItems, useProjectMutation, useSavedQueries } from "@/api/hooks";
-import type { Condition, FieldDef, Item, QueryState, SavedQuery } from "@/api/types";
+import type { FieldDef, Item, QNode, QueryState, SavedQuery } from "@/api/types";
 import { BulkModal, type BulkAction } from "@/components/BulkEdit";
 import { ItemPreview } from "@/components/ItemPreview";
 import { ItemLink, StateBadge, TypeBadge } from "@/components/badges";
 import { PageHeader } from "@/components/PageHeader";
 import { QueryBar } from "@/components/QueryBar";
 import { fmtRelative } from "@/lib/format";
-import { legacyToConditions, queryFields } from "@/lib/queryFields";
+import { legacyToConditions, queryFields, topLeaves } from "@/lib/queryFields";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 const PAGE = 50;
 
@@ -32,7 +33,7 @@ function writeStore(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ }
 }
 
-function parseConditions(raw: string | null): Condition[] {
+function parseConditions(raw: string | null): QNode[] {
   if (!raw) return [];
   try { const v = JSON.parse(raw); return Array.isArray(v) ? v : []; } catch { return []; }
 }
@@ -46,12 +47,12 @@ export function ItemsPage() {
   const query: QueryState = useMemo(() => {
     const conditions = parseConditions(params.get("cond"));
     const legacyType = params.get("type");
-    if (legacyType && !conditions.some((c) => c.field === "type")) conditions.unshift({ field: "type", op: "in", values: [legacyType] });
+    if (legacyType && !topLeaves(conditions).some((c) => c.field === "type")) conditions.unshift({ field: "type", op: "in", values: [legacyType] });
     return { q: params.get("q") ?? "", conditions };
   }, [params]);
   const sort = params.get("sort") ?? "key";
   const [page, setPage] = useState(1);
-  const typeCond = query.conditions.find((c) => c.field === "type" && c.op === "in" && !c.not);
+  const typeCond = topLeaves(query.conditions).find((c) => c.field === "type" && c.op === "in" && !c.not);
   const types = useMemo(() => (typeCond?.values as string[] | undefined) ?? [], [typeCond]);
   const singleType = types.length === 1 ? model.type(types[0]) : undefined;
   const releases = useItems(key, { type: model.releaseType ? [model.releaseType.key] : [], limit: 200 }, !!model.releaseType).data?.items ?? [];
@@ -87,22 +88,22 @@ export function ItemsPage() {
       const o = f.options?.find((x) => x.key === v);
       return o?.color ? <Badge size="xs" variant="light" color={o.color}>{o.label}</Badge> : o?.label ?? String(v);
     }
-    if (f.type === "boolean") return v ? "Yes" : "No";
+    if (f.type === "boolean") return v ? tx("Yes") : tx("No");
     if (f.type === "user") return users.find((u) => u.id === v)?.display_name ?? String(v);
     if (Array.isArray(v)) return v.map((x) => f.options?.find((o) => o.key === x)?.label ?? x).join(", ");
     return String(v);
   };
   const columns: Record<string, Col> = {
-    key: { id: "key", label: "Key", sort: "key", w: 110, render: (i) => <ItemLink item={i} /> },
-    title: { id: "title", label: "Title", sort: "title", render: (i) => <Text size="sm" lineClamp={1} style={{ minWidth: 200 }}>{i.title}</Text> },
-    type: { id: "type", label: "Type", sort: "type", w: 190, render: (i) => <TypeBadge typeKey={i.type_key} /> },
-    state: { id: "state", label: "Status", sort: "state", w: 130, render: (i) => <StateBadge item={i} /> },
-    version: { id: "version", label: "Version", sort: "version", w: 80, render: (i) => <Text size="sm" className="mono">{i.version}</Text> },
-    owner: { id: "owner", label: "Owner", sort: "owner", w: 150, render: (i) => <Text size="sm" truncate>{i.owner?.display_name ?? "–"}</Text> },
-    updated: { id: "updated", label: "Updated", sort: "updated", w: 110, render: (i) => <Text size="xs" c="dimmed">{fmtRelative(i.updated_at)}</Text> },
-    created: { id: "created", label: "Created", sort: "created", w: 110, render: (i) => <Text size="xs" c="dimmed">{fmtRelative(i.created_at ?? null)}</Text> },
-    author: { id: "author", label: "Created by", w: 140, render: (i) => <Text size="sm" truncate>{i.author?.display_name ?? "–"}</Text> },
-    applicability: { id: "applicability", label: "Applicability", render: (i) => <Text size="xs" className="mono">{i.applicability ?? ""}</Text> },
+    key: { id: "key", label: tx("Key"), sort: "key", w: 110, render: (i) => <ItemLink item={i} /> },
+    title: { id: "title", label: tx("Title"), sort: "title", render: (i) => <Text size="sm" lineClamp={1} style={{ minWidth: 200 }}>{i.title}</Text> },
+    type: { id: "type", label: tx("Type"), sort: "type", w: 190, render: (i) => <TypeBadge typeKey={i.type_key} /> },
+    state: { id: "state", label: tx("Status"), sort: "state", w: 130, render: (i) => <StateBadge item={i} /> },
+    version: { id: "version", label: tx("Version"), sort: "version", w: 80, render: (i) => <Text size="sm" className="mono">{i.version}</Text> },
+    owner: { id: "owner", label: tx("Owner"), sort: "owner", w: 150, render: (i) => <Text size="sm" truncate>{i.owner?.display_name ?? "–"}</Text> },
+    updated: { id: "updated", label: tx("Updated"), sort: "updated", w: 110, render: (i) => <Text size="xs" c="dimmed">{fmtRelative(i.updated_at)}</Text> },
+    created: { id: "created", label: tx("Created"), sort: "created", w: 110, render: (i) => <Text size="xs" c="dimmed">{fmtRelative(i.created_at ?? null)}</Text> },
+    author: { id: "author", label: tx("Created by"), w: 140, render: (i) => <Text size="sm" truncate>{i.author?.display_name ?? "–"}</Text> },
+    applicability: { id: "applicability", label: tx("Applicability"), render: (i) => <Text size="xs" className="mono">{i.applicability ?? ""}</Text> },
   };
   for (const f of allFieldDefs) {
     columns[`field.${f.key}`] = { id: `field.${f.key}`, label: f.label, sort: `field.${f.key}`, render: (i) => <Text size="sm" component="div">{fmtField(f, i.fields[f.key])}</Text> };
@@ -134,7 +135,7 @@ export function ItemsPage() {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const views = useSavedQueries(key).data ?? [];
-  const delView = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/queries/${id}`), { success: "View deleted" });
+  const delView = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/queries/${id}`), { success: tx("View deleted") });
   function applyView(v: SavedQuery) {
     const q = v.query as Record<string, unknown>;
     const cols = q.columns as string[] | undefined;
@@ -149,20 +150,20 @@ export function ItemsPage() {
 
   return (
     <>
-      <PageHeader title={singleType ? singleType.label : "All items"} subtitle={data ? `${data.total} item(s)` : undefined}
+      <PageHeader title={singleType ? singleType.label : tx("All items")} subtitle={data ? tx("{total} item(s)", { total: data.total }) : undefined}
         actions={
           <>
             <Menu position="bottom-end" width={320}>
-              <Menu.Target><Button variant="default" leftSection={<IconBookmark size={16} />} data-testid="views-menu">Views{views.length ? ` (${views.length})` : ""}</Button></Menu.Target>
+              <Menu.Target><Button variant="default" leftSection={<IconBookmark size={16} />} data-testid="views-menu">{tx("Views{v}", { v: views.length ? ` (${views.length})` : "" })}</Button></Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={() => setSaving(true)} data-testid="save-view">Save current query and columns as view…</Menu.Item>
+                <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={() => setSaving(true)} data-testid="save-view">{tx("Save current query and columns as view…")}</Menu.Item>
                 {views.length > 0 && <Menu.Divider />}
                 {views.map((v) => (
                   <Menu.Item key={v.id} onClick={() => applyView(v)} data-testid={`view-${v.name}`}
                     rightSection={<Group gap={4} wrap="nowrap">
                       {v.count != null && <Badge size="xs" variant="light">{v.count}</Badge>}
-                      {v.shared && <Badge size="xs" variant="outline" color="gray">shared</Badge>}
-                      {v.can_edit && <IconTrash size={12} color="var(--mantine-color-red-6)" role="button" aria-label={`Delete view ${v.name}`}
+                      {v.shared && <Badge size="xs" variant="outline" color="gray">{tx("shared")}</Badge>}
+                      {v.can_edit && <IconTrash size={12} color="var(--mantine-color-red-6)" role="button" aria-label={tx("Delete view {name}", { name: v.name })}
                         data-testid={`view-delete-${v.name}`} onClick={(e) => { e.stopPropagation(); delView.mutate(v.id); }} />}
                     </Group>}>
                     {v.name}
@@ -171,16 +172,16 @@ export function ItemsPage() {
               </Menu.Dropdown>
             </Menu>
             <Menu>
-              <Menu.Target><Button variant="default" leftSection={<IconDownload size={16} />} data-testid="items-export">Export</Button></Menu.Target>
+              <Menu.Target><Button variant="default" leftSection={<IconDownload size={16} />} data-testid="items-export">{tx("Export")}</Button></Menu.Target>
               <Menu.Dropdown>
-                <Menu.Label>{data ? `Current view: ${data.total} item(s)` : "Current view"}</Menu.Label>
-                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/export.xlsx${exportQs}`)} data-testid="export-xlsx">Excel (.xlsx)</Menu.Item>
-                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/export.csv${exportQs}`)} data-testid="export-csv">CSV</Menu.Item>
+                <Menu.Label>{data ? tx("Current view: {total} item(s)", { total: data.total }) : tx("Current view")}</Menu.Label>
+                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/export.xlsx${exportQs}`)} data-testid="export-xlsx">{tx("Excel (.xlsx)")}</Menu.Item>
+                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/export.csv${exportQs}`)} data-testid="export-csv">{tx("CSV")}</Menu.Item>
                 <Menu.Divider />
-                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/reqif`)}>ReqIF (all requirements)</Menu.Item>
+                <Menu.Item component="a" href={downloadUrl(`/projects/${key}/reqif`)}>{tx("ReqIF (all requirements)")}</Menu.Item>
               </Menu.Dropdown>
             </Menu>
-            {can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-item">New item</Button>}
+            {can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-item">{tx("New item")}</Button>}
           </>
         } />
       <Card withBorder mb="sm" padding="sm">
@@ -190,28 +191,28 @@ export function ItemsPage() {
         <Card withBorder mb="sm" padding="xs" className="bulk-bar" data-testid="bulk-bar">
           <Group justify="space-between" wrap="wrap" gap="xs">
             <Group gap="xs">
-              <Text size="sm" fw={600} data-testid="bulk-count">{selectionCount} selected</Text>
+              <Text size="sm" fw={600} data-testid="bulk-count">{tx("{selectionCount} selected", { selectionCount: selectionCount })}</Text>
               {allOnPage && !allMatching && (data?.total ?? 0) > pageKeys.length && (
-                <Button size="compact-xs" variant="subtle" onClick={() => setAllMatching(true)} data-testid="bulk-all">Select all {data?.total} matching</Button>
+                <Button size="compact-xs" variant="subtle" onClick={() => setAllMatching(true)} data-testid="bulk-all">{tx("Select all {total} matching", { total: data?.total })}</Button>
               )}
-              <Button size="compact-xs" variant="subtle" color="gray" onClick={() => { setSelected(new Set()); setAllMatching(false); }}>Clear</Button>
+              <Button size="compact-xs" variant="subtle" color="gray" onClick={() => { setSelected(new Set()); setAllMatching(false); }}>{tx("Clear")}</Button>
             </Group>
             <Group gap={6}>
               {can("contributor") && (
                 <>
-                  <Button size="xs" variant="light" leftSection={<IconEdit size={14} />} onClick={() => setBulk("update")} data-testid="bulk-edit">Edit fields</Button>
-                  <Button size="xs" variant="light" leftSection={<IconRoute size={14} />} onClick={() => setBulk("transition")} data-testid="bulk-state">Change status</Button>
-                  {model.releaseType && <Button size="xs" variant="light" leftSection={<IconTarget size={14} />} onClick={() => setBulk("plan")} data-testid="bulk-plan">Plan</Button>}
-                  <Button size="xs" variant="light" leftSection={<IconLink size={14} />} onClick={() => setBulk("link")} data-testid="bulk-link-open">Link</Button>
+                  <Button size="xs" variant="light" leftSection={<IconEdit size={14} />} onClick={() => setBulk("update")} data-testid="bulk-edit">{tx("Edit fields")}</Button>
+                  <Button size="xs" variant="light" leftSection={<IconRoute size={14} />} onClick={() => setBulk("transition")} data-testid="bulk-state">{tx("Change status")}</Button>
+                  {model.releaseType && <Button size="xs" variant="light" leftSection={<IconTarget size={14} />} onClick={() => setBulk("plan")} data-testid="bulk-plan">{tx("Plan")}</Button>}
+                  <Button size="xs" variant="light" leftSection={<IconLink size={14} />} onClick={() => setBulk("link")} data-testid="bulk-link-open">{tx("Link")}</Button>
                 </>
               )}
               <Menu position="bottom-end">
-                <Menu.Target><Button size="xs" variant="default" rightSection={<IconDots size={14} />} data-testid="bulk-more">More</Button></Menu.Target>
+                <Menu.Target><Button size="xs" variant="default" rightSection={<IconDots size={14} />} data-testid="bulk-more">{tx("More")}</Button></Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Item leftSection={<IconEye size={14} />} onClick={() => setBulk("watch")} data-testid="bulk-watch">Watch</Menu.Item>
-                  <Menu.Item leftSection={<IconEyeOff size={14} />} onClick={() => setBulk("unwatch")}>Stop watching</Menu.Item>
-                  {model.releaseType && can("contributor") && <Menu.Item onClick={() => setBulk("unplan")}>Remove from a release…</Menu.Item>}
-                  {can("manager") && <><Menu.Divider /><Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={() => setBulk("delete")} data-testid="bulk-delete">Move to recycle bin…</Menu.Item></>}
+                  <Menu.Item leftSection={<IconEye size={14} />} onClick={() => setBulk("watch")} data-testid="bulk-watch">{tx("Watch")}</Menu.Item>
+                  <Menu.Item leftSection={<IconEyeOff size={14} />} onClick={() => setBulk("unwatch")}>{tx("Stop watching")}</Menu.Item>
+                  {model.releaseType && can("contributor") && <Menu.Item onClick={() => setBulk("unplan")}>{tx("Remove from a release…")}</Menu.Item>}
+                  {can("manager") && <><Menu.Divider /><Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={() => setBulk("delete")} data-testid="bulk-delete">{tx("Move to recycle bin…")}</Menu.Item></>}
                 </Menu.Dropdown>
               </Menu>
             </Group>
@@ -226,7 +227,7 @@ export function ItemsPage() {
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th w={34}>
-                      <Checkbox size="xs" aria-label="Select page" checked={allOnPage} indeterminate={someOnPage && !allOnPage}
+                      <Checkbox size="xs" aria-label={tx("Select page")} checked={allOnPage} indeterminate={someOnPage && !allOnPage}
                         onChange={() => { setAllMatching(false); setSelected(allOnPage ? new Set() : new Set(pageKeys)); }} data-testid="select-page" />
                     </Table.Th>
                     {visible.map((c) => (
@@ -243,10 +244,10 @@ export function ItemsPage() {
                     <Table.Th w={70}>
                       <Group gap={2} wrap="nowrap" justify="flex-end">
                         <ColumnChooser columns={columns} value={colIds} onChange={setCols} onReset={() => setCols(defaultCols)} />
-                        <Tooltip label={showPreview ? "Preview pane on (click a row)" : "Preview pane off (rows open the item)"}>
+                        <Tooltip label={showPreview ? tx("Preview pane on (click a row)") : tx("Preview pane off (rows open the item)")}>
                           <ActionIcon size="sm" variant={showPreview ? "light" : "subtle"} color="gray" data-testid="toggle-preview"
                             onClick={() => { const v = !showPreview; setShowPreview(v); writeStore("ariadne.items.preview", v); if (!v) setPreviewKey(null); }}
-                            aria-label="Preview pane"><IconLayoutSidebarRight size={15} /></ActionIcon>
+                            aria-label={tx("Preview pane")}><IconLayoutSidebarRight size={15} /></ActionIcon>
                         </Tooltip>
                       </Group>
                     </Table.Th>
@@ -256,13 +257,13 @@ export function ItemsPage() {
                   {data?.items.map((i) => (
                     <Table.Tr key={i.id} className={`clickable${previewKey === i.key ? " row-active" : ""}`} data-testid={`row-${i.key}`}
                       onClick={(e) => { if (!(e.target as HTMLElement).closest("a,button,input,label")) openRow(i); }}>
-                      <Table.Td><Checkbox size="xs" aria-label={`Select ${i.key}`} checked={allMatching || selected.has(i.key)} onChange={() => toggle(i.key)} data-testid={`select-${i.key}`} /></Table.Td>
+                      <Table.Td><Checkbox size="xs" aria-label={tx("Select {key}", { key: i.key })} checked={allMatching || selected.has(i.key)} onChange={() => toggle(i.key)} data-testid={`select-${i.key}`} /></Table.Td>
                       {visible.map((c) => <Table.Td key={c.id}>{c.render(i)}</Table.Td>)}
                       <Table.Td />
                     </Table.Tr>
                   ))}
                   {data && data.items.length === 0 && (
-                    <Table.Tr><Table.Td colSpan={visible.length + 2}><Text c="dimmed" ta="center" py="lg">No items match.</Text></Table.Td></Table.Tr>
+                    <Table.Tr><Table.Td colSpan={visible.length + 2}><Text c="dimmed" ta="center" py="lg">{tx("No items match.")}</Text></Table.Td></Table.Tr>
                   )}
                 </Table.Tbody>
               </Table>
@@ -302,12 +303,12 @@ function ColumnChooser({ columns, value, onChange, onReset }: {
   return (
     <Popover position="bottom-end" width={290} shadow="md">
       <Popover.Target>
-        <Tooltip label="Columns"><ActionIcon size="sm" variant="subtle" color="gray" data-testid="columns-menu" aria-label="Columns"><IconColumns size={15} /></ActionIcon></Tooltip>
+        <Tooltip label={tx("Columns")}><ActionIcon size="sm" variant="subtle" color="gray" data-testid="columns-menu" aria-label={tx("Columns")}><IconColumns size={15} /></ActionIcon></Tooltip>
       </Popover.Target>
       <Popover.Dropdown data-testid="columns-chooser">
         <Stack gap={6}>
-          <Text size="sm" fw={600}>Columns</Text>
-          <TextInput size="xs" placeholder="Find a column…" value={search} onChange={(e) => setSearch(e.currentTarget.value)} />
+          <Text size="sm" fw={600}>{tx("Columns")}</Text>
+          <TextInput size="xs" placeholder={tx("Find a column…")} value={search} onChange={(e) => setSearch(e.currentTarget.value)} />
           <ScrollArea.Autosize mah={300}>
             <Stack gap={4}>
               {[...value.filter((id) => columns[id] && all.includes(columns[id])).map((id) => columns[id]), ...all.filter((c) => !value.includes(c.id))].map((c) => (
@@ -315,15 +316,15 @@ function ColumnChooser({ columns, value, onChange, onReset }: {
                   <Checkbox size="xs" label={c.label} checked={value.includes(c.id)} onChange={() => toggle(c.id)} data-testid={`col-${c.id}`} />
                   {value.includes(c.id) && (
                     <Group gap={0} wrap="nowrap">
-                      <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => move(c.id, -1)} aria-label={`Move ${c.label} left`}><IconArrowUp size={11} /></ActionIcon>
-                      <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => move(c.id, 1)} aria-label={`Move ${c.label} right`}><IconArrowDown size={11} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => move(c.id, -1)} aria-label={tx("Move {label} left", { label: c.label })}><IconArrowUp size={11} /></ActionIcon>
+                      <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => move(c.id, 1)} aria-label={tx("Move {label} right", { label: c.label })}><IconArrowDown size={11} /></ActionIcon>
                     </Group>
                   )}
                 </Group>
               ))}
             </Stack>
           </ScrollArea.Autosize>
-          <Button size="compact-xs" variant="subtle" onClick={onReset}>Reset to default</Button>
+          <Button size="compact-xs" variant="subtle" onClick={onReset}>{tx("Reset to default")}</Button>
         </Stack>
       </Popover.Dropdown>
     </Popover>
@@ -336,14 +337,14 @@ function SaveViewModal({ opened, onClose, query }: { opened: boolean; onClose: (
   const [shared, setShared] = useState(false);
   const save = useProjectMutation(key, () => api.post(`/projects/${key}/queries`, {
     name, shared, query: Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && !v.length))),
-  }), { success: "View saved", onSuccess: () => { setName(""); setShared(false); onClose(); } });
+  }), { success: tx("View saved"), onSuccess: () => { setName(""); setShared(false); onClose(); } });
   return (
-    <Modal opened={opened} onClose={onClose} title="Save view">
+    <Modal opened={opened} onClose={onClose} title={tx("Save view")}>
       <Stack>
-        <Text size="sm" c="dimmed">Saves the query (search and filters), the sort order and the columns.</Text>
-        <TextInput label="Name" placeholder="e.g. Unverified system requirements" value={name} onChange={(e) => setName(e.currentTarget.value)} data-testid="view-name" />
-        {can("contributor") && <Checkbox label="Share with the project team" checked={shared} onChange={(e) => setShared(e.currentTarget.checked)} data-testid="view-shared" />}
-        <Group justify="flex-end"><Button onClick={() => save.mutate(undefined)} disabled={!name.trim()} loading={save.isPending} data-testid="view-save">Save</Button></Group>
+        <Text size="sm" c="dimmed">{tx("Saves the query (search and filters), the sort order and the columns.")}</Text>
+        <TextInput label={tx("Name")} placeholder={tx("e.g. Unverified system requirements")} value={name} onChange={(e) => setName(e.currentTarget.value)} data-testid="view-name" />
+        {can("contributor") && <Checkbox label={tx("Share with the project team")} checked={shared} onChange={(e) => setShared(e.currentTarget.checked)} data-testid="view-shared" />}
+        <Group justify="flex-end"><Button onClick={() => save.mutate(undefined)} disabled={!name.trim()} loading={save.isPending} data-testid="view-save">{tx("Save")}</Button></Group>
       </Stack>
     </Modal>
   );

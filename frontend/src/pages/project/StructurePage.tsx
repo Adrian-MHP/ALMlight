@@ -10,6 +10,7 @@ import { useProjectCtx } from "./ProjectLayout";
 import { BomView } from "./BomView";
 import { api } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
+import { tx } from "@/lib/i18n";
 
 const REUSE_COLORS: Record<string, string> = { new: "red", modified: "orange", reused: "green", standard: "teal", purchased: "blue" };
 
@@ -26,21 +27,21 @@ export function StructurePage() {
   const setView = (v: string) => { const p = new URLSearchParams(params); p.set("view", v); if (root) p.set("root", root); setParams(p); };
   return (
     <>
-      <PageHeader title="Structure" subtitle="System decomposition (product › system › subsystem › module › component) with reuse and maturity — or as a bill of materials with quantities and effectivity" />
+      <PageHeader title={tx("Structure")} subtitle={tx("System decomposition (product › system › subsystem › module › component) with reuse and maturity — or as a bill of materials with quantities and effectivity")} />
       <Grid>
         <Grid.Col span={{ base: 12, md: 3 }}>
           <Card withBorder>
             <Stack>
               <SegmentedControl value={view} onChange={setView} fullWidth data-testid="structure-view"
-                data={[{ value: "tree", label: "Structure" }, { value: "bom", label: "BOM" }]} />
-              <Select label="Root element" value={root} onChange={(v) => v && setParams({ root: v, view })}
+                data={[{ value: "tree", label: tx("Structure") }, { value: "bom", label: tx("BOM") }]} />
+              <Select label={tx("Root element")} value={root} onChange={(v) => v && setParams({ root: v, view })}
                 data={roots.map((r) => ({ value: r.key, label: `${r.key} — ${r.title}` }))} searchable data-testid="structure-root" />
-              <Select label="Variant filter" placeholder="150% — all variants" clearable value={variant} onChange={setVariant}
+              <Select label={tx("Variant filter")} placeholder={tx("150% — all variants")} clearable value={variant} onChange={setVariant}
                 data={(features?.variants ?? []).map((v) => ({ value: v.key, label: `${v.key} — ${v.title}` }))} data-testid="structure-variant" />
               <Stack gap={4}>
-                <Text size="xs" c="dimmed">Maturity (per element)</Text>
-                <Text size="xs">● specified · realised · verified · validated</Text>
-                <Text size="xs" c="dimmed">Reuse strategy</Text>
+                <Text size="xs" c="dimmed">{tx("Maturity (per element)")}</Text>
+                <Text size="xs">{tx("● specified · realised · verified · validated")}</Text>
+                <Text size="xs" c="dimmed">{tx("Reuse strategy")}</Text>
                 <Group gap={4}>{Object.entries(REUSE_COLORS).map(([k, c]) => <Badge key={k} size="xs" color={c} variant="light">{k}</Badge>)}</Group>
               </Stack>
             </Stack>
@@ -48,7 +49,7 @@ export function StructurePage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 9 }}>
           <Card withBorder>
-            {!root ? <Text c="dimmed">No product-level element yet. Create a system element with level “product”.</Text>
+            {!root ? <Text c="dimmed">{tx("No product-level element yet. Create a system element with level “product”.")}</Text>
               : view === "bom" ? <BomView rootKey={root} /> : <StructureTree rootKey={root} variant={variant} />}
           </Card>
         </Grid.Col>
@@ -96,10 +97,10 @@ function Node({ node, depth, maturity, hidden, hiddenLinks }: {
         <StateBadge item={node} size="xs" />
         {m && (
           <Group gap={2} wrap="nowrap">
-            <MaturityDot value={m.specified} label="Specified" />
-            <MaturityDot value={m.realised} label="Realised" />
-            <MaturityDot value={m.verified} label="Verified" />
-            <MaturityDot value={m.validated} label="Validated" />
+            <MaturityDot value={m.specified} label={tx("Specified")} />
+            <MaturityDot value={m.realised} label={tx("Realised")} />
+            <MaturityDot value={m.verified} label={tx("Verified")} />
+            <MaturityDot value={m.validated} label={tx("Validated")} />
           </Group>
         )}
       </Group>

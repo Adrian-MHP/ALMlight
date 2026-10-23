@@ -30,6 +30,7 @@ import { RisksPage } from "./pages/project/RisksPage";
 import { PlansPage } from "./pages/project/PlansPage";
 import { BoardsPage } from "./pages/project/BoardsPage";
 import { TimelinePage } from "./pages/project/TimelinePage";
+import { TimesheetPage } from "./pages/project/TimesheetPage";
 import { NotFound } from "./components/NotFound";
 import { RouteError } from "./components/RouteError";
 
@@ -69,6 +70,7 @@ export const router = createBrowserRouter([
           { path: "plans", element: <PlansPage /> },
           { path: "boards", element: <BoardsPage /> },
           { path: "timeline", element: <TimelinePage /> },
+          { path: "timesheet", element: <TimesheetPage /> },
         ] }],
       },
       { path: "/home", element: <Navigate to="/" replace /> },

@@ -7,17 +7,18 @@ import { useProjectMutation } from "@/api/hooks";
 import type { ApprovalRequest } from "@/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { ActionPrompt } from "./PasswordPrompt";
+import { tm, tx } from "@/lib/i18n";
 
 /** One approval request with its votes and approve / reject actions for eligible users. */
 export function ApprovalCard({ req, showItem = true }: { req: ApprovalRequest; showItem?: boolean }) {
   const [decision, setDecision] = useState<"approve" | "reject" | null>(null);
   const vote = useProjectMutation(req.project_key, (v: { decision: string; comment: string; password: string }) =>
     api.post(`/projects/${req.project_key}/approvals/${req.id}/vote`, v), {
-    success: (r) => `Vote recorded (${(r as { status: string }).status})`,
+    success: (r) => tx("Vote recorded ({status})", { status: (r as { status: string }).status }),
     onSuccess: () => setDecision(null),
   });
   const cancel = useProjectMutation(req.project_key, () => api.post(`/projects/${req.project_key}/approvals/${req.id}/cancel`),
-    { success: "Request withdrawn" });
+    { success: tx("Request withdrawn") });
   const approvals = req.votes.filter((v) => v.decision === "approve").length;
   const statusColor = { pending: "yellow", approved: "green", rejected: "red", cancelled: "gray" }[req.status];
   return (
@@ -26,7 +27,7 @@ export function ApprovalCard({ req, showItem = true }: { req: ApprovalRequest; s
         <Stack gap={4} style={{ minWidth: 0 }}>
           <Group gap="xs">
             <Badge color={statusColor} variant="light">{req.status}</Badge>
-            <Text fw={600} size="sm">{req.label}</Text>
+            <Text fw={600} size="sm">{tm(req.label)}</Text>
             {showItem && (
               <Text size="sm" truncate>
                 <Link to={`/p/${req.project_key}/items/${req.item_key}`} className="item-key">{req.project_key}/{req.item_key}</Link>{" "}
@@ -35,37 +36,35 @@ export function ApprovalCard({ req, showItem = true }: { req: ApprovalRequest; s
             )}
           </Group>
           <Text size="xs" c="dimmed">
-            {req.from_state} → {req.to_state} · version {req.version_no} · requested by {req.requested_by?.display_name} on {fmtDateTime(req.created_at)}
-            · {approvals}/{req.required} approvals by {req.roles.join("/")}{req.signature_required ? " · e-signature" : ""}
-          </Text>
+            {tx("{from_state} → {to_state} · version {version_no} · requested by {display_name} on {created_at}· {approvals}/{required} approvals by {roles}{v}", { from_state: req.from_state, to_state: req.to_state, version_no: req.version_no, display_name: req.requested_by?.display_name, created_at: fmtDateTime(req.created_at), approvals: approvals, required: req.required, roles: req.roles.join("/"), v: req.signature_required ? tx(" · e-signature") : "" })}</Text>
           {req.comment && <Text size="sm">“{req.comment}”</Text>}
           {req.votes.map((v, i) => (
             <Text key={i} size="xs">
-              {v.decision === "approve" ? "✔" : "✘"} {v.user?.display_name} — {v.meaning}{v.signed ? " (signed)" : ""}
+              {v.decision === "approve" ? "✔" : "✘"} {v.user?.display_name} — {v.meaning}{v.signed ? tx(" (signed)") : ""}
               {v.comment ? `: ${v.comment}` : ""} · {fmtDateTime(v.at)}
             </Text>
           ))}
           {req.status === "pending" && !req.can_vote && req.cannot_vote_reason && (
-            <Text size="xs" c="dimmed">You cannot vote: {req.cannot_vote_reason}</Text>
+            <Text size="xs" c="dimmed">{tx("You cannot vote: {cannot_vote_reason}", { cannot_vote_reason: req.cannot_vote_reason })}</Text>
           )}
         </Stack>
         {req.status === "pending" && (
           <Group gap="xs" wrap="nowrap">
             {req.can_vote && (
               <>
-                <Button size="xs" color="green" leftSection={<IconCheck size={14} />} onClick={() => setDecision("approve")} data-testid="vote-approve">Approve</Button>
-                <Button size="xs" color="red" variant="light" leftSection={<IconX size={14} />} onClick={() => setDecision("reject")} data-testid="vote-reject">Reject</Button>
+                <Button size="xs" color="green" leftSection={<IconCheck size={14} />} onClick={() => setDecision("approve")} data-testid="vote-approve">{tx("Approve")}</Button>
+                <Button size="xs" color="red" variant="light" leftSection={<IconX size={14} />} onClick={() => setDecision("reject")} data-testid="vote-reject">{tx("Reject")}</Button>
               </>
             )}
-            <Button size="xs" variant="subtle" color="gray" onClick={() => cancel.mutate(undefined)}>Withdraw</Button>
+            <Button size="xs" variant="subtle" color="gray" onClick={() => cancel.mutate(undefined)}>{tx("Withdraw")}</Button>
           </Group>
         )}
       </Group>
       {decision && (
-        <ActionPrompt opened onClose={() => setDecision(null)} title={decision === "approve" ? "Approve" : "Reject"}
-          meaning={`${decision === "approve" ? "Approve" : "Reject"}: ${req.label} of ${req.item_key} (version ${req.version_no})`}
+        <ActionPrompt opened onClose={() => setDecision(null)} title={decision === "approve" ? tx("Approve") : tx("Reject")}
+          meaning={tx("{v}: {label} of {item_key} (version {version_no})", { v: decision === "approve" ? tx("Approve") : tx("Reject"), label: tm(req.label), item_key: req.item_key, version_no: req.version_no })}
           signature={req.signature_required} commentRequired={decision === "reject"} color={decision === "approve" ? "green" : "red"}
-          confirmLabel={decision === "approve" ? "Approve" : "Reject"} loading={vote.isPending}
+          confirmLabel={decision === "approve" ? tx("Approve") : tx("Reject")} loading={vote.isPending}
           onConfirm={(r) => vote.mutate({ decision, comment: r.comment, password: r.password })} />
       )}
     </Card>

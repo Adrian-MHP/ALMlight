@@ -14,6 +14,8 @@ import { ItemPreview } from "@/components/ItemPreview";
 import { ActionPrompt } from "@/components/PasswordPrompt";
 import { TypeBadge } from "@/components/badges";
 import { stateColor, type Model } from "@/lib/model";
+import { topLeaves } from "@/lib/queryFields";
+import { tx } from "@/lib/i18n";
 
 export interface Group_ { value: string; label: string; color?: string }
 
@@ -30,11 +32,11 @@ function grouping(by: string, model: Model, items: Item[], users: UserRef[], rel
   }
   if (by === "owner") {
     const ids = Array.from(new Set(items.map((i) => i.owner?.id).filter(Boolean))) as string[];
-    return { groups: [...ids.map((id) => ({ value: id, label: users.find((u) => u.id === id)?.display_name ?? id })), { value: NONE, label: "Unassigned" }],
+    return { groups: [...ids.map((id) => ({ value: id, label: users.find((u) => u.id === id)?.display_name ?? id })), { value: NONE, label: tx("Unassigned") }],
       of: (i: Item) => i.owner?.id ?? NONE, editable: true };
   }
   if (by === "release") {
-    return { groups: [...releases.map((r) => ({ value: r.key, label: `${r.key} ${r.title}` })), { value: NONE, label: "Not planned" }],
+    return { groups: [...releases.map((r) => ({ value: r.key, label: `${r.key} ${r.title}` })), { value: NONE, label: tx("Not planned") }],
       of: (i: Item) => plans[i.key] ?? NONE, editable: true };
   }
   if (by === "type") {
@@ -44,14 +46,14 @@ function grouping(by: string, model: Model, items: Item[], users: UserRef[], rel
   const key = by.slice(6);
   const def = (types.length ? types : model.config.item_types.map((t) => t.key)).map((t) => model.field(t, key)).find(Boolean);
   if (def?.type === "boolean") {
-    return { groups: [{ value: "true", label: `${def.label}: yes` }, { value: "false", label: `${def.label}: no` }],
+    return { groups: [{ value: "true", label: tx("{label}: yes", { label: def.label }) }, { value: "false", label: tx("{label}: no", { label: def.label }) }],
       of: (i: Item) => (i.fields[key] ? "true" : "false"), editable: true, field: key, def };
   }
   if (def?.type === "user") {
-    return { groups: [...users.map((u) => ({ value: u.id, label: u.display_name })), { value: NONE, label: "Nobody" }],
+    return { groups: [...users.map((u) => ({ value: u.id, label: u.display_name })), { value: NONE, label: tx("Nobody") }],
       of: (i: Item) => (i.fields[key] as string) ?? NONE, editable: true, field: key, def };
   }
-  return { groups: [...(def?.options ?? []).map((o) => ({ value: o.key, label: o.label, color: o.color ?? undefined })), { value: NONE, label: `No ${def?.label.toLowerCase() ?? key}` }],
+  return { groups: [...(def?.options ?? []).map((o) => ({ value: o.key, label: o.label, color: o.color ?? undefined })), { value: NONE, label: tx("No {label}", { label: def?.label.toLowerCase() ?? key }) }],
     of: (i: Item) => (i.fields[key] as string) ?? NONE, editable: !(def?.formula || def?.classify), field: key, def };
 }
 
@@ -72,7 +74,7 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
   const frozen = useRef<Item[] | null>(null);  // the card list stays put while a card is dragged (live refreshes wait)
   const items = frozen.current ?? data?.items ?? [];
   const needsPlans = config.columns_by === "release" || config.swimlanes_by === "release";
-  const releaseCond = config.conditions.find((c) => c.field === "release" && c.op === "in" && !c.not);
+  const releaseCond = topLeaves(config.conditions).find((c) => c.field === "release" && c.op === "in" && !c.not);
   const releasesAll = useItems(projectKey, { type: model.releaseType ? [model.releaseType.key] : [], limit: 300 }, needsPlans && !!model.releaseType).data?.items ?? [];
   const releases = releaseCond ? releasesAll.filter((r) => (releaseCond.values as string[]).includes(r.key))
     : releasesAll.filter((r) => !["closed", "obsolete"].includes(r.lifecycle.category ?? ""));
@@ -112,7 +114,7 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
       } else {
         const res = await api.post<{ results: { status: string; message: string | null }[] }>(`/projects/${projectKey}/items/bulk`,
           { keys: [item.key], action: "plan", release: value, from_release: from ?? null, dry_run: false });
-        if (res.results[0]?.status === "skipped") throw new Error(res.results[0].message ?? "Not possible");
+        if (res.results[0]?.status === "skipped") throw new Error(res.results[0].message ?? tx("Not possible"));
       }
     } else if (field) {
       const v = value === NONE ? null : value === "true" ? true : value === "false" ? false : value;
@@ -122,14 +124,14 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
   async function runTransition(item: Item, t: TransitionDef, extra: { comment?: string; password?: string } = {}) {
     const res = await api.post<{ status: string }>(`/projects/${projectKey}/items/${item.key}/transitions/${t.key}`,
       { comment: extra.comment || null, password: extra.password || null });
-    notifications.show({ color: "teal", message: res.status === "approval_requested" ? `${item.key}: approval requested (${t.label})` : `${item.key}: ${t.label}` });
+    notifications.show({ color: "teal", message: res.status === "approval_requested" ? tx("{key}: approval requested ({label})", { key: item.key, label: t.label }) : `${item.key}: ${t.label}` });
   }
   async function move(item: Item, col: string, lane: string | null) {
     const sameCol = cols.of(item) === col;
     const sameLane = !lanes || lane === null || lanes.of(item) === lane;
     if (sameCol && sameLane) return;
     if ((!sameCol && !cols.editable) || (!sameLane && lanes && !lanes.editable)) {
-      notifications.show({ color: "orange", message: "This grouping cannot be changed by moving cards" });
+      notifications.show({ color: "orange", message: tx("This grouping cannot be changed by moving cards") });
       return;
     }
     setBusy(item.key);
@@ -138,7 +140,7 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
       if (!sameCol) {
         if (config.columns_by === "state") {
           const t = transitionTo(item, col);
-          if (!t) { notifications.show({ color: "orange", message: `No transition from ${model.state(item.type_key, item.lifecycle.state)?.label} to ${model.state(item.type_key, col)?.label ?? col}` }); return; }
+          if (!t) { notifications.show({ color: "orange", message: tx("No transition from {label} to {label1}", { label: model.state(item.type_key, item.lifecycle.state)?.label, label1: model.state(item.type_key, col)?.label ?? col }) }); return; }
           if (t.signature || t.comment_required) { setPending({ item, transition: t }); return; }
           await runTransition(item, t);
         } else {
@@ -146,7 +148,7 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
         }
       }
     } catch (e) {
-      notifications.show({ color: "red", title: `${item.key} not moved`, message: e instanceof ApiError ? e.message : String(e) });
+      notifications.show({ color: "red", title: tx("{key} not moved", { key: item.key }), message: e instanceof ApiError ? e.message : String(e) });
     } finally {
       setBusy(null);
       refresh();
@@ -174,7 +176,7 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
               <div key={c.value} className={`kb-head${limit && n > limit ? " kb-over" : ""}`} data-testid={`colhead-${c.value}`}>
                 <Group justify="space-between" wrap="nowrap" gap={4}>
                   <Badge color={c.color ?? "gray"} variant="light" className="badge-keep">{c.label}</Badge>
-                  <Tooltip label={limit ? `WIP limit ${limit}` : `${n} card(s)`} disabled={!limit}>
+                  <Tooltip label={limit ? tx("WIP limit {limit}", { limit: limit }) : tx("{n} card(s)", { n: n })} disabled={!limit}>
                     <Text size="xs" c={limit && n > limit ? "red" : "dimmed"} fw={limit && n > limit ? 700 : undefined} data-testid={`count-${c.value}`}>{n}{limit ? ` / ${limit}` : ""}</Text>
                   </Tooltip>
                 </Group>
@@ -205,11 +207,11 @@ export function KanbanBoard({ projectKey, model, config: raw, canEdit, testId = 
       <DragOverlay>{dragging && <CardBody item={dragging} model={model} showType={false} showState={false} fields={[]} users={users} />}</DragOverlay>
       {pending && (
         <ActionPrompt opened onClose={() => { setPending(null); refresh(); }} title={`${pending.item.key}: ${pending.transition.label}`}
-          meaning={pending.transition.signature ? `I sign "${pending.transition.label}" for ${pending.item.key}` : undefined}
+          meaning={pending.transition.signature ? tx("I sign \"{label}\" for {key}", { label: pending.transition.label, key: pending.item.key }) : undefined}
           signature={pending.transition.signature} commentRequired={pending.transition.comment_required} confirmLabel={pending.transition.label}
           onConfirm={async (r) => {
             try { await runTransition(pending.item, pending.transition, r); } catch (e) {
-              notifications.show({ color: "red", title: `${pending.item.key} not moved`, message: e instanceof ApiError ? e.message : String(e) });
+              notifications.show({ color: "red", title: tx("{key} not moved", { key: pending.item.key }), message: e instanceof ApiError ? e.message : String(e) });
             }
             setPending(null); refresh();
           }} />
@@ -246,7 +248,7 @@ function Lane({ lane, showHeader, collapsed, onToggle, count, span, children }: 
       {showHeader && (
         <div className="kb-lane" style={{ gridColumn: `1 / span ${span}` }} data-testid={`lane-${lane.value}`}>
           <Group gap={4}>
-            <ActionIcon size="xs" variant="subtle" color="gray" onClick={onToggle} aria-label={collapsed ? "Expand swimlane" : "Collapse swimlane"}>
+            <ActionIcon size="xs" variant="subtle" color="gray" onClick={onToggle} aria-label={collapsed ? tx("Expand swimlane") : tx("Collapse swimlane")}>
               {collapsed ? <IconChevronRight size={14} /> : <IconChevronDown size={14} />}
             </ActionIcon>
             <Text size="sm" fw={600}>{lane.label}</Text>

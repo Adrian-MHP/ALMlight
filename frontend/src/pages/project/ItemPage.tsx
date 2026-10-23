@@ -36,7 +36,9 @@ import { CommentsTab } from "./item/CommentsTab";
 import { DevelopmentTab } from "./item/DevelopmentTab";
 import { VerificationTab } from "./item/VerificationTab";
 import { RecordsTab } from "./item/RecordsTab";
+import { TimeTab } from "./item/TimeTab";
 import { StructureTree } from "./StructurePage";
+import { tm, tx } from "@/lib/i18n";
 
 export function ItemPage() {
   const { itemKey = "" } = useParams();
@@ -51,13 +53,14 @@ export function ItemPage() {
   usePresenceLocation(key, { item: item?.key ?? null, editing: editing && item ? item.key : null });
   useRemember(item ? { project: key, key: item.key, title: item.title, kind: "item" } : null);
   if (isLoading) return <Center mt={80}><Loader /></Center>;
-  if (isError || !item) return <NotFound message={`Item ${itemKey} not found.`} />;
+  if (isError || !item) return <NotFound message={tx("Item {itemKey} not found.", { itemKey: itemKey })} />;
   const typeDef = model.type(item.type_key);
   const tab = params.get("tab") ?? "overview";
   const versionNo = params.get("version") && Number(params.get("version")) !== item.version_no ? Number(params.get("version")) : null;
   const sem = model.config.semantics;
   const verifiable = model.link(sem.verifies_link)?.targets.some((t) => t === "*" || t === item.type_key) ?? false;
   const isRun = sem.test_run_type === item.type_key;
+  const timed = item.type_key === sem.task_type || !!typeDef?.fields.some((f) => f.key === sem.estimate_field);
   const hasStructure = model.config.link_types.some((lt) => lt.structural && lt.sources.includes(item.type_key));
   const canBeUsed = model.structureTargets.includes(item.type_key);
   return (
@@ -77,29 +80,26 @@ export function ItemPage() {
             <Text className="item-key" size="lg" data-testid="item-key">{item.key}</Text>
             <TypeBadge typeKey={item.type_key} />
             <StateBadge item={item} size="md" />
-            <Tooltip label="Revision.iteration — revisions are released generations, iterations are saves in between">
+            <Tooltip label={tx("Revision.iteration — revisions are released generations, iterations are saves in between")}>
               <Badge variant="default" className="mono" data-testid="item-version">{item.version}</Badge>
             </Tooltip>
             {item.released_version && item.released_version !== item.version && (
-              <Badge variant="light" color="green">released: {item.released_version}</Badge>
+              <Badge variant="light" color="green">{tx("released: {released_version}", { released_version: item.released_version })}</Badge>
             )}
             {typeDef?.change_controlled && (
-              <Tooltip label="Change-controlled: new revisions need a change order">
-                <Badge variant="outline" color="orange" leftSection={<IconLock size={10} />}>change-controlled</Badge>
+              <Tooltip label={tx("Change-controlled: new revisions need a change order")}>
+                <Badge variant="outline" color="orange" leftSection={<IconLock size={10} />}>{tx("change-controlled")}</Badge>
               </Tooltip>
             )}
             {item.change_order && (
               <Badge variant="light" color="orange" component={Link} to={`/p/${key}/items/${item.change_order}`} className="clickable">
-                under {item.change_order}
-              </Badge>
+                {tx("under {change_order}", { change_order: item.change_order })}</Badge>
             )}
           </Group>
           <Title order={2} size="h3" data-testid="item-title-heading">{versionNo !== null && viewVersion ? viewVersion.title : item.title}</Title>
           <Group gap="xs">
             <Text size="xs" c="dimmed">
-              Owner {item.owner?.display_name ?? "–"} · created {fmtDateTime(item.created_at)} by {item.created_by?.display_name ?? "–"} ·
-              updated {fmtDateTime(item.updated_at)} by {item.updated_by?.display_name ?? "–"}
-            </Text>
+              {tx("Owner {display_name} · created {created_at} by {display_name1} · updated {updated_at} by {display_name2}", { display_name: item.owner?.display_name ?? "–", created_at: fmtDateTime(item.created_at), display_name1: item.created_by?.display_name ?? "–", updated_at: fmtDateTime(item.updated_at), display_name2: item.updated_by?.display_name ?? "–" })}</Text>
             <ParticipantAvatars size={20} people={uniqueUsers(live.presence(key).filter((u) => u.item === item.key || u.editing === item.key))} />
           </Group>
         </Stack>
@@ -110,20 +110,21 @@ export function ItemPage() {
       <PendingApprovals itemKey={item.key} />
       <Tabs value={tab} onChange={(v) => { const p = new URLSearchParams(params); p.set("tab", v ?? "overview"); setParams(p, { replace: true }); }} keepMounted={false}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="overview">Overview</Tabs.Tab>
+          <Tabs.Tab value="overview">{tx("Overview")}</Tabs.Tab>
           <Tabs.Tab value="links" data-testid="tab-links"><LinksTabLabel itemKey={item.key} /></Tabs.Tab>
-          <Tabs.Tab value="impact" data-testid="tab-impact">Impact</Tabs.Tab>
-          {hasStructure && <Tabs.Tab value="structure">Structure</Tabs.Tab>}
-          {canBeUsed && <Tabs.Tab value="where-used" data-testid="tab-where-used">Where used</Tabs.Tab>}
-          {verifiable && <Tabs.Tab value="verification" data-testid="tab-verification">Verification</Tabs.Tab>}
-          {isRun && <Tabs.Tab value="records" data-testid="tab-records">Test records</Tabs.Tab>}
-          <Tabs.Tab value="history" data-testid="tab-history">History</Tabs.Tab>
-          <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
+          <Tabs.Tab value="impact" data-testid="tab-impact">{tx("Impact")}</Tabs.Tab>
+          {hasStructure && <Tabs.Tab value="structure">{tx("Structure")}</Tabs.Tab>}
+          {canBeUsed && <Tabs.Tab value="where-used" data-testid="tab-where-used">{tx("Where used")}</Tabs.Tab>}
+          {verifiable && <Tabs.Tab value="verification" data-testid="tab-verification">{tx("Verification")}</Tabs.Tab>}
+          {isRun && <Tabs.Tab value="records" data-testid="tab-records">{tx("Test records")}</Tabs.Tab>}
+          {timed && <Tabs.Tab value="time" data-testid="tab-time">{tx("Time")}</Tabs.Tab>}
+          <Tabs.Tab value="history" data-testid="tab-history">{tx("History")}</Tabs.Tab>
+          <Tabs.Tab value="approvals">{tx("Approvals")}</Tabs.Tab>
           <Tabs.Tab value="files" data-testid="tab-files">
-            <Group gap={4} wrap="nowrap">Files{item.attachments.length > 0 && <Badge size="xs" circle color={item.attachments.some((a) => a.checked_out_by) ? "orange" : undefined}>{item.attachments.length}</Badge>}</Group>
+            <Group gap={4} wrap="nowrap">{tx("Files")}{item.attachments.length > 0 && <Badge size="xs" circle color={item.attachments.some((a) => a.checked_out_by) ? "orange" : undefined}>{item.attachments.length}</Badge>}</Group>
           </Tabs.Tab>
-          <Tabs.Tab value="comments">Comments</Tabs.Tab>
-          <Tabs.Tab value="development">Development</Tabs.Tab>
+          <Tabs.Tab value="comments">{tx("Comments")}</Tabs.Tab>
+          <Tabs.Tab value="development">{tx("Development")}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="overview"><Overview item={item} version={versionNo !== null ? viewVersion : null} editing={editing} setEditing={setEditing} /></Tabs.Panel>
         <Tabs.Panel value="links"><LinksTab item={item} /></Tabs.Panel>
@@ -132,6 +133,7 @@ export function ItemPage() {
         {canBeUsed && <Tabs.Panel value="where-used"><WhereUsedTab item={item} /></Tabs.Panel>}
         {verifiable && <Tabs.Panel value="verification"><VerificationTab item={item} /></Tabs.Panel>}
         {isRun && <Tabs.Panel value="records"><RecordsTab item={item} /></Tabs.Panel>}
+        {timed && <Tabs.Panel value="time"><TimeTab item={item} /></Tabs.Panel>}
         <Tabs.Panel value="history"><HistoryTab item={item} /></Tabs.Panel>
         <Tabs.Panel value="approvals"><ApprovalsTab itemKey={item.key} /></Tabs.Panel>
         <Tabs.Panel value="files"><AttachmentsTab item={item} /></Tabs.Panel>
@@ -161,7 +163,7 @@ function LinksTabLabel({ itemKey }: { itemKey: string }) {
   const suspects = links.filter((l) => l.suspect).length;
   return (
     <Group gap={4} wrap="nowrap">
-      Links
+      {tx("Links")}
       {links.length > 0 && <Badge size="xs" circle>{links.length}</Badge>}
       {suspects > 0 && <Badge size="xs" color="orange" circle>{suspects}</Badge>}
     </Group>
@@ -188,16 +190,15 @@ function Overview({ item, version, editing, setEditing }: {
             <>
               <Group justify="space-between" mb={6}>
                 <Group gap={6}>
-                  <Text size="xs" c="dimmed" tt="uppercase" fw={600}>Text</Text>
+                  <Text size="xs" c="dimmed" tt="uppercase" fw={600}>{tx("Text")}</Text>
                   {editors.length > 0 && (
                     <Badge size="xs" color="orange" variant="light" data-testid="item-editing-badge">
-                      {editors.map((u) => u.name).join(", ")} editing live
-                    </Badge>
+                      {tx("{editors} editing live", { editors: editors.map((u) => u.name).join(", ") })}</Badge>
                   )}
                 </Group>
                 {!version && (
                   <Button size="xs" variant="light" leftSection={<IconEdit size={14} />} onClick={() => setEditing(true)}
-                    data-testid="edit-text">{canWrite ? (editors.length ? "Join live editing" : "Edit text") : "Live view"}</Button>
+                    data-testid="edit-text">{canWrite ? (editors.length ? tx("Join live editing") : tx("Edit text")) : tx("Live view")}</Button>
                 )}
               </Group>
               <RichText html={item.description} testId="item-description-view" />
@@ -212,7 +213,7 @@ function Overview({ item, version, editing, setEditing }: {
         ))}
         {model.workflow(item.type_key) && !version && (
           <Card withBorder mb="md" data-testid="workflow-card">
-            <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={6}>Workflow · {model.workflow(item.type_key)?.label}</Text>
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={6}>{tx("Workflow · {label}", { label: model.workflow(item.type_key)?.label })}</Text>
             <WorkflowViewer projectKey={key} item={item} model={model} />
           </Card>
         )}
@@ -228,9 +229,9 @@ function Overview({ item, version, editing, setEditing }: {
           <Stack gap="sm">
             <FieldsView defs={defs} values={item.fields} />
             <div>
-              <Text size="xs" c="dimmed">Applicability</Text>
+              <Text size="xs" c="dimmed">{tx("Applicability")}</Text>
               {item.applicability ? <Text size="sm" className="mono" data-testid="value-applicability">{item.applicability}</Text>
-                : <Text size="sm">All variants</Text>}
+                : <Text size="sm">{tx("All variants")}</Text>}
             </div>
           </Stack>
         </Card>
@@ -249,7 +250,7 @@ function PendingApprovals({ itemKey }: { itemKey: string }) {
 function ApprovalsTab({ itemKey }: { itemKey: string }) {
   const { key } = useProjectCtx();
   const reqs = useItemApprovals(key, itemKey).data ?? [];
-  if (!reqs.length) return <Text c="dimmed">No approvals requested yet.</Text>;
+  if (!reqs.length) return <Text c="dimmed">{tx("No approvals requested yet.")}</Text>;
   return <Stack gap="xs">{reqs.map((r) => <ApprovalCard key={r.id} req={r} showItem={false} />)}</Stack>;
 }
 
@@ -263,11 +264,11 @@ function WorkflowBar({ item }: { item: ItemDetail }) {
   const typeDef = model.type(item.type_key);
   const run = useProjectMutation(key, (v: { t: string; comment: string; password: string }) =>
     api.post<{ status: string }>(`/projects/${key}/items/${item.key}/transitions/${v.t}`, { comment: v.comment || null, password: v.password || null }), {
-    success: (r) => (r.status === "approval_requested" ? "Approval requested" : "State changed"),
+    success: (r) => (r.status === "approval_requested" ? tx("Approval requested") : tx("State changed")),
     onSuccess: () => setPending(null),
   });
   const del = useProjectMutation(key, () => api.del(`/projects/${key}/items/${item.key}`), {
-    success: `${item.key} deleted`, onSuccess: () => navigate(`/p/${key}/items`),
+    success: tx("{key} deleted", { key: item.key }), onSuccess: () => navigate(`/p/${key}/items`),
   });
 
   function start(t: TransitionOption) {
@@ -280,47 +281,47 @@ function WorkflowBar({ item }: { item: ItemDetail }) {
       <WatchButton projectKey={key} itemKey={item.key} document={!!typeDef?.document} />
       {transitions.map((t) => {
         const tip = t.blocked_by.length ? t.blocked_by.join(" · ") : t.approval
-          ? `Needs ${t.approval.count} approval(s) by ${t.approval.roles.join("/")}${t.approval.signature ? " with e-signature" : ""}`
-          : `→ ${t.to_label}`;
+          ? tx("Needs {count} approval(s) by {roles}{v}", { count: t.approval.count, roles: t.approval.roles.join("/"), v: t.approval.signature ? tx(" with e-signature") : "" })
+          : `→ ${tm(t.to_label)}`;
         return (
           <Tooltip key={t.key} label={tip} multiline maw={320}>
             <Button size="sm" variant={t.approval ? "filled" : "light"} disabled={!t.allowed || !!t.pending_request_id}
               onClick={() => start(t)} loading={run.isPending && run.variables?.t === t.key} data-testid={`transition-${t.key}`}>
-              {t.label}{t.pending_request_id ? " (pending)" : ""}
+              {tm(t.label)}{t.pending_request_id ? tx(" (pending)") : ""}
             </Button>
           </Tooltip>
         );
       })}
       {item.lifecycle.released && typeDef?.workflow && can("contributor") && (
-        <Tooltip label="Start a new revision; the released revision stays valid until the new one is released">
+        <Tooltip label={tx("Start a new revision; the released revision stays valid until the new one is released")}>
           <Button size="sm" variant="light" color="orange" leftSection={<IconGitBranch size={16} />} onClick={() => setRevising(true)}
-            data-testid="revise">Revise</Button>
+            data-testid="revise">{tx("Revise")}</Button>
         </Tooltip>
       )}
       {can("contributor") && (
-        <Tooltip label={item.lifecycle.frozen ? `Frozen in state '${item.lifecycle.label}'` : "Edit title, attributes and applicability (creates a new iteration)"}>
+        <Tooltip label={item.lifecycle.frozen ? tx("Frozen in state '{label}'", { label: tm(item.lifecycle.label) }) : tx("Edit title, attributes and applicability (creates a new iteration)")}>
           <Button size="sm" variant="default" leftSection={<IconEdit size={16} />} disabled={item.lifecycle.frozen}
-            onClick={() => setEditing(true)} data-testid="edit-item">Properties</Button>
+            onClick={() => setEditing(true)} data-testid="edit-item">{tx("Properties")}</Button>
         </Tooltip>
       )}
       <Menu position="bottom-end">
         <Menu.Target><Button size="sm" variant="default" px={8}><IconDots size={16} /></Button></Menu.Target>
         <Menu.Dropdown>
-          {typeDef?.document && <Menu.Item leftSection={<IconFileText size={16} />} component={Link} to={`/p/${key}/documents/${item.key}`}>Open document view</Menu.Item>}
+          {typeDef?.document && <Menu.Item leftSection={<IconFileText size={16} />} component={Link} to={`/p/${key}/documents/${item.key}`}>{tx("Open document view")}</Menu.Item>}
           {model.config.link_types.some((lt) => lt.structural && lt.sources.includes(item.type_key)) &&
-            <Menu.Item leftSection={<IconSitemap size={16} />} component={Link} to={`/p/${key}/structure?root=${item.key}`}>Open in structure</Menu.Item>}
-          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.docx`)}>Export Word</Menu.Item>}
-          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.pdf`)}>Export PDF</Menu.Item>}
-          <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/reqif`)}>Export ReqIF (sub-tree)</Menu.Item>
+            <Menu.Item leftSection={<IconSitemap size={16} />} component={Link} to={`/p/${key}/structure?root=${item.key}`}>{tx("Open in structure")}</Menu.Item>}
+          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.docx`)}>{tx("Export Word")}</Menu.Item>}
+          {typeDef?.document && <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/export.pdf`)}>{tx("Export PDF")}</Menu.Item>}
+          <Menu.Item leftSection={<IconDownload size={16} />} component="a" href={downloadUrl(`/projects/${key}/items/${item.key}/reqif`)}>{tx("Export ReqIF (sub-tree)")}</Menu.Item>
           {can("manager") && !item.released_version && (
-            <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => { if (confirm(`Delete ${item.key}?`)) del.mutate(undefined); }}>Delete</Menu.Item>
+            <Menu.Item color="red" leftSection={<IconTrash size={16} />} onClick={() => { if (confirm(tx("Delete {key}?", { key: item.key }))) del.mutate(undefined); }}>{tx("Delete")}</Menu.Item>
           )}
         </Menu.Dropdown>
       </Menu>
       <ItemFormModal opened={editing} onClose={() => setEditing(false)} item={item} />
       {pending && (
-        <ActionPrompt opened onClose={() => setPending(null)} title={pending.label} signature={pending.signature}
-          commentRequired={pending.comment_required} meaning={`${pending.label}: ${item.key} ${item.version} → ${pending.to_label}`}
+        <ActionPrompt opened onClose={() => setPending(null)} title={tm(pending.label)} signature={pending.signature}
+          commentRequired={pending.comment_required} meaning={`${tm(pending.label)}: ${item.key} ${item.version} → ${tm(pending.to_label)}`}
           loading={run.isPending} onConfirm={(r) => run.mutate({ t: pending.key, comment: r.comment, password: r.password })} />
       )}
       <ReviseModal opened={revising} onClose={() => setRevising(false)} item={item} />
@@ -336,22 +337,20 @@ function ReviseModal({ opened, onClose, item }: { opened: boolean; onClose: () =
   const coTypes = model.config.item_types.filter((t) => t.category === "change" &&
     model.workflow(t.key)?.states.some((s) => s.implementation_open)).map((t) => t.key);
   const revise = useProjectMutation(key, () => api.post(`/projects/${key}/items/${item.key}/revise`, { change_order: co, change_note: note || null }), {
-    success: "New revision started", onSuccess: onClose,
+    success: tx("New revision started"), onSuccess: onClose,
   });
   return (
-    <Modal opened={opened} onClose={onClose} title={`Revise ${item.key}`}>
+    <Modal opened={opened} onClose={onClose} title={tx("Revise {key}", { key: item.key })}>
       <Stack>
         <Text size="sm">
-          Starts the next revision after {item.revision} in the initial lifecycle state. Revision {item.revision} stays the
-          released configuration until the new revision is released.
-        </Text>
-        <ItemPicker label="Change order" types={coTypes} value={co} onChange={setCo} required={controlled}
-          description={controlled ? "Required: the change order must be in work and list this item as affected." : "Optional"} testId="revise-co" />
-        <TextInput label="Change note (optional)" value={note} onChange={(e) => setNote(e.currentTarget.value)} />
+          {tx("Starts the next revision after {revision} in the initial lifecycle state. Revision {revision} stays the released configuration until the new revision is released.", { revision: item.revision })}</Text>
+        <ItemPicker label={tx("Change order")} types={coTypes} value={co} onChange={setCo} required={controlled}
+          description={controlled ? tx("Required: the change order must be in work and list this item as affected.") : tx("Optional")} testId="revise-co" />
+        <TextInput label={tx("Change note (optional)")} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button variant="default" onClick={onClose}>{tx("Cancel")}</Button>
           <Button leftSection={<IconArrowBackUp size={16} />} onClick={() => revise.mutate(undefined)} loading={revise.isPending}
-            disabled={controlled && !co} data-testid="revise-confirm">Revise</Button>
+            disabled={controlled && !co} data-testid="revise-confirm">{tx("Revise")}</Button>
         </Group>
       </Stack>
     </Modal>
@@ -363,19 +362,19 @@ function VersionBanner({ item, versionNo, version }: { item: ItemDetail; version
   const { key, can } = useProjectCtx();
   const navigate = useNavigate();
   const restore = useProjectMutation(key, () => api.post(`/projects/${key}/items/${item.key}/restore`, { version_no: versionNo, expected_version: item.version_no }),
-    { success: "Restored as a new version", onSuccess: () => navigate(`/p/${key}/items/${item.key}?tab=history`) });
+    { success: tx("Restored as a new version"), onSuccess: () => navigate(`/p/${key}/items/${item.key}?tab=history`) });
   const go = (n: number) => navigate(`/p/${key}/items/${item.key}?version=${n}`);
   return (
     <Alert color="violet" mb="md" icon={<IconHistory size={18} />} data-testid="version-banner"
-      title={`Version ${version?.version ?? versionNo} — read-only (current: ${item.version})`}>
+      title={tx("Version {version} — read-only (current: {version1})", { version: version?.version ?? versionNo, version1: item.version })}>
       <Group justify="space-between">
-        <Text size="sm">{version ? `${version.kind} by ${version.created_by?.display_name ?? "?"} on ${fmtDateTime(version.created_at)}${version.change_note ? ` — ${version.change_note}` : ""}` : "Loading…"}</Text>
+        <Text size="sm">{version ? tx("{kind} by {display_name} on {created_at}{v}", { kind: version.kind, display_name: version.created_by?.display_name ?? "?", created_at: fmtDateTime(version.created_at), v: version.change_note ? ` — ${version.change_note}` : "" }) : tx("Loading…")}</Text>
         <Group gap="xs">
-          <Button size="xs" variant="default" disabled={versionNo <= 1} onClick={() => go(versionNo - 1)} data-testid="version-prev">← Older</Button>
-          <Button size="xs" variant="default" disabled={versionNo >= item.version_no - 1} onClick={() => go(versionNo + 1)} data-testid="version-next">Newer →</Button>
-          <Button size="xs" variant="light" onClick={() => navigate(`/p/${key}/items/${item.key}?tab=history&from=${versionNo}`)}>Compare with current</Button>
-          {can("contributor") && !item.lifecycle.frozen && <Button size="xs" variant="light" color="orange" onClick={() => restore.mutate(undefined)} loading={restore.isPending}>Restore</Button>}
-          <Button size="xs" onClick={() => navigate(`/p/${key}/items/${item.key}`)} data-testid="version-current">Current version</Button>
+          <Button size="xs" variant="default" disabled={versionNo <= 1} onClick={() => go(versionNo - 1)} data-testid="version-prev">{tx("← Older")}</Button>
+          <Button size="xs" variant="default" disabled={versionNo >= item.version_no - 1} onClick={() => go(versionNo + 1)} data-testid="version-next">{tx("Newer →")}</Button>
+          <Button size="xs" variant="light" onClick={() => navigate(`/p/${key}/items/${item.key}?tab=history&from=${versionNo}`)}>{tx("Compare with current")}</Button>
+          {can("contributor") && !item.lifecycle.frozen && <Button size="xs" variant="light" color="orange" onClick={() => restore.mutate(undefined)} loading={restore.isPending}>{tx("Restore")}</Button>}
+          <Button size="xs" onClick={() => navigate(`/p/${key}/items/${item.key}`)} data-testid="version-current">{tx("Current version")}</Button>
         </Group>
       </Group>
     </Alert>

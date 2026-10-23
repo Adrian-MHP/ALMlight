@@ -24,7 +24,7 @@ revision_scheme: letters     # letters (A, B, …) | numbers (1, 2, …)
 
 item_types:
   - key: system_requirement
-    label: Systemanforderung   # any language
+    label: System Requirement  # English label; other languages in `translations` (or write labels in one language)
     prefix: SYS                # key prefix: SYS-1, SYS-2 …  (unique, uppercase)
     category: requirement      # requirement | architecture | verification | change | document | variability | other
     workflow: requirement      # optional; no workflow = no lifecycle
@@ -101,14 +101,23 @@ semantics:                             # only needed when keys differ from the d
   release_type: release                # Plans page (fields start_date, due_date, goal)
   planned_link: planned_in             # item -> release (set editable_on_frozen_source: true)
   subplan_link: part_of                # iteration / milestone -> release (plan hierarchy)
-  dependency_link: depends_on          # finish-to-start dependency (timeline)
+  dependency_link: depends_on          # schedule dependency successor -> predecessor (timeline)
+  dependency_type_attribute: dependency_type  # link attribute: fs | ss | ff | sf (default fs)
+  dependency_lag_attribute: lag        # link attribute: lag in working days (negative = lead)
   task_type: task                      # scheduled work packages (fields start_date, due_date, progress)
-  estimate_field: estimate             # effort of planned items (load, burn-down by estimate)
+  estimate_field: estimate             # effort of planned items (load, burn-down by estimate; hours on tasks)
   capacity_field: capacity             # effort available in a plan
+
+translations:                          # labels in other languages (English label -> translation), see 16-languages
+  de:
+    "System Requirement": "Systemanforderung"
+    "Submit for review": "Zur Prüfung einreichen"
 ```
 
 Engine features appear only when their bindings exist in the model: without a `risk` type there is no Risks page,
-without `release` and `planned_in` no Plans page, without `task`/`depends_on` the timeline shows plans only. The
+without `release` and `planned_in` no Plans page, without `task`/`depends_on` the timeline shows plans only; without
+the dependency attributes every dependency is finish-to-start without lag. Resource load and levelling read the task
+estimate as hours; the capacity per person is the member's *hours per day* (Settings → Members). The
 release field `kind` (`release`, `iteration`, `milestone`) controls how a plan is shown. BOM columns come from the attributes `quantity`, `unit`,
 `find_number`, `effective_from` and `effective_to` of the structural link.
 

@@ -15,6 +15,7 @@ export interface Me {
   email: string | null;
   is_admin: boolean;
   projects: Record<string, Role>;
+  locale?: "en" | "de" | null;
 }
 
 export interface Page<T> {
@@ -176,6 +177,7 @@ export interface ProjectConfig {
   link_types: LinkTypeDef[];
   workflows: WorkflowDef[];
   semantics: Semantics;
+  translations?: Record<string, Record<string, string>>;
 }
 
 // --- items --------------------------------------------------------------------------------
@@ -521,6 +523,7 @@ export interface Member {
   display_name: string;
   role: Role;
   active: boolean;
+  hours_per_day: number;
 }
 
 export interface AdminUser {
@@ -873,7 +876,10 @@ export interface Plans {
 }
 
 export interface Condition { field: string; op: "in" | "contains" | "between" | "exists" | "is"; values: unknown[]; not?: boolean }
-export interface QueryState { q: string; conditions: Condition[] }
+/** Conditions combined with OR or AND (exactly one of the two keys), optionally negated. */
+export interface CondGroup { or?: QNode[]; and?: QNode[]; not?: boolean }
+export type QNode = Condition | CondGroup;
+export interface QueryState { q: string; conditions: QNode[] }
 
 export interface BulkResult {
   dry_run: boolean; action: string; total: number; summary: Record<string, number>;
@@ -881,7 +887,7 @@ export interface BulkResult {
 }
 
 export interface BoardConfig {
-  types: string[]; q?: string | null; conditions: Condition[]; columns_by: string; swimlanes_by: string | null;
+  types: string[]; q?: string | null; conditions: QNode[]; columns_by: string; swimlanes_by: string | null;
   hidden_columns: string[]; column_order: string[]; wip: Record<string, number>; card_fields: string[];
 }
 export interface Board { id: string; name: string; shared: boolean; config: BoardConfig; owner: UserRef | null; updated_at: string; can_edit: boolean }
@@ -890,11 +896,23 @@ export interface TimelineRow {
   key: string; title: string; type_key: string; kind: "release" | "iteration" | "milestone" | "task";
   start_date: string | null; due_date: string | null; progress: number; state: string | null; state_label: string | null;
   state_category: string | null; color: string | null; frozen: boolean; owner: UserRef | null; parent: string | null;
-  depends_on: string[]; slack?: number; critical: boolean; baseline: { start_date: string | null; due_date: string | null } | null;
+  depends_on: string[]; dependencies: TimelineDep[]; slack?: number; critical: boolean; estimate: number | null;
+  baseline: { start_date: string | null; due_date: string | null } | null;
 }
+export type DepType = "fs" | "ss" | "ff" | "sf";
+export interface TimelineDep { key: string; type: DepType; lag: number; link_id: string }
+export interface ScheduleConflict { item: string; depends_on: string; type: DepType; lag?: number; message: string }
 export interface Timeline {
-  enabled: boolean; rows: TimelineRow[]; conflicts: { item: string; depends_on: string; message: string }[]; today: string;
+  enabled: boolean; rows: TimelineRow[]; conflicts: ScheduleConflict[]; today: string;
   range: [string | null, string | null]; task_type: string | null; release_type: string; dependency_link: string | null;
+  dependency_types: boolean; dependency_type_attribute: string; dependency_lag_attribute: string;
+}
+export interface ScheduleMove {
+  key: string; title: string; status: "ok" | "skipped"; message: string | null; shift: number;
+  start_date: [string | null, string | null]; due_date: [string, string];
+}
+export interface ScheduleResult {
+  dry_run: boolean; mode: string; moves: ScheduleMove[]; summary: Record<string, number>; remaining_conflicts: ScheduleConflict[];
 }
 
 export interface TemplateUpdates {
@@ -905,10 +923,33 @@ export interface TemplateUpdates {
   link_attributes: { link: string; key: string; label: string }[];
   link_endpoints: { link: string; sources: string[]; targets: string[] }[];
   workflows: { key: string; label: string }[];
+  translations: { locale: string; count: number }[];
   skipped: string[];
 }
 
 export interface DocTemplateInfo {
   id: string; name: string; filename: string; size: number; placeholders: string[]; unknown: string[];
   has_content: boolean; has_toc: boolean; created_by: UserRef | null; created_at: string;
+}
+
+export interface Effort { estimate: number | null; spent: number; remaining: number | null; done: boolean; over: boolean }
+export interface WorkRecord { id: string; user: UserRef | null; day: string; hours: number; comment: string | null; created_at: string; can_edit: boolean }
+export interface ItemWork extends Effort {
+  records: WorkRecord[]; mine: number; can_record: boolean; all_visible: boolean; by_user?: { user: UserRef | null; hours: number }[];
+}
+export interface TimesheetRow extends Effort { key: string; title: string; type_key: string; state_label: string; hours: Record<string, number>; total: number }
+export interface Timesheet {
+  week: string; days: string[]; today: string; user: UserRef; editable: boolean; rows: TimesheetRow[];
+  totals: Record<string, number>; total: number; hours_per_day: number; capacity: number;
+}
+export interface ResourceCell {
+  week: string; planned: number; capacity: number; load: number | null; actual: number; items: { key: string; title: string; hours: number }[];
+}
+export interface Resources {
+  start: string; weeks: string[]; today: string;
+  people: { user: UserRef; hours_per_day: number; member: boolean; weeks: ResourceCell[]; overloaded: number }[];
+  unassigned: { week: string; planned: number; items: { key: string; title: string; hours: number }[] }[];
+}
+export interface LevelResult extends ScheduleResult {
+  remaining_overloads: { user: UserRef | null; week: string; planned: number; capacity: number }[];
 }

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +44,8 @@ class ProjectMember(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False)
+    # working hours per working day available for this project (resource load, levelling)
+    hours_per_day: Mapped[float] = mapped_column(Float, nullable=False, default=8.0, server_default="8")
     created_at: Mapped[datetime] = created_at_col()
 
 

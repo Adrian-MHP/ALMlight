@@ -299,7 +299,9 @@ class Semantics(_Strict):
     release_type: str | None = "release"
     planned_link: str = "planned_in"
     subplan_link: str = "part_of"          # iteration/milestone -> release
-    dependency_link: str = "depends_on"    # finish-to-start (timeline)
+    dependency_link: str = "depends_on"    # timeline dependencies (successor -> predecessor)
+    dependency_type_attribute: str = "dependency_type"  # fs | ss | ff | sf (default fs)
+    dependency_lag_attribute: str = "lag"  # working days, negative = lead
     task_type: str | None = "task"         # scheduled work packages (timeline)
     estimate_field: str = "estimate"       # effort of planned items
     capacity_field: str = "capacity"       # effort available in a plan
@@ -315,6 +317,8 @@ class ProjectTemplate(_Strict):
     link_types: list[LinkTypeDef] = Field(default_factory=list)
     workflows: list[WorkflowDef] = Field(default_factory=list)
     semantics: Semantics = Field(default_factory=Semantics)
+    # label translations per language, English label -> translated label (e.g. {"de": {"Draft": "Entwurf"}})
+    translations: dict[str, dict[str, str]] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _check(self) -> ProjectTemplate:
@@ -338,6 +342,11 @@ class ProjectTemplate(_Strict):
             for ref in [*lt.sources, *lt.targets]:
                 if ref != "*" and ref not in tk:
                     raise ValueError(f"link type '{lt.key}' references unknown item type '{ref}'")
+        for loc, labels in self.translations.items():
+            if not re.fullmatch(r"[a-z]{2}", loc):
+                raise ValueError(f"translations: '{loc}' is not a two-letter language code such as 'de'")
+            if len(labels) > 5000 or any(len(k) > 500 or len(v) > 500 for k, v in labels.items()):
+                raise ValueError(f"translations '{loc}': at most 5000 labels of up to 500 characters")
         return self
 
     # --- lookups -----------------------------------------------------------------

@@ -40,7 +40,7 @@ Start-up: wait for the database → `alembic upgrade head` → bootstrap the fir
 
 ```
 backend/almlight/
-  core/            config, database, errors, security, auth dependencies, shared schemas
+  core/            config, database, errors, security, auth dependencies, shared schemas, i18n (server texts)
   modules/
     projects/      projects, members, roles, information model (metamodel + templates)
     identity/      users, sessions, API tokens, bootstrap admin
@@ -59,13 +59,16 @@ backend/almlight/
     queries/       saved (shared) views over the item list
     boards/        Kanban board definitions (items via the query engine in items/query.py)
     risks/         risk matrix and register (FMEA) over risk items
-    planning/      plan hierarchy, capacity, burn-up/down; timeline with slack, critical path, baselines
+    planning/      plan hierarchy, capacity, burn-up/down; timeline (schedule.py: calendar, dependency types, slack,
+                   auto-scheduling, levelling); resource load
+    worklog/       time records, timesheet, spent/remaining effort
     bom/           multi-level BOM, effectivity, roll-up, exports, where-used
     files/         file check-out / check-in locks
     doctemplates/  customer Word templates (storage; rendering in io/word_template.py)
     collab/, live/ co-editing rooms (Yjs) and the live channel (changes, presence, notifications)
+  locales/         server message catalogues (de.json)
   seed/            demo dataset
-frontend/src/      React + TypeScript (Mantine UI, TanStack Query)
+frontend/src/      React + TypeScript (Mantine UI, TanStack Query); lib/i18n.ts + locales/ for the interface language
 ```
 
 Each module has `models.py` (SQLAlchemy), `service.py` (domain logic, transactions boundaries are the request),

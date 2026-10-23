@@ -26,6 +26,7 @@ from almlight.modules.queries.models import SavedQuery
 from almlight.modules.reports.models import Report
 from almlight.modules.verification.models import TestRecord
 from almlight.modules.workflow.models import ApprovalRequest, ApprovalVote, WorkflowEvent
+from almlight.modules.worklog.models import WorkRecord
 
 __all__ = [
     "ApiToken",
@@ -65,4 +66,5 @@ __all__ = [
     "Webhook",
     "WebhookDelivery",
     "WorkflowEvent",
+    "WorkRecord",
 ]

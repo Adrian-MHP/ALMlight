@@ -19,12 +19,13 @@ import { TypeBadge } from "@/components/badges";
 import { stateColor } from "@/lib/model";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { intlLocale, tm, tx } from "@/lib/i18n";
 
 const STATUS: Record<PlanSummary["status"], { color: string; label: string }> = {
-  on_track: { color: "green", label: "on track" }, at_risk: { color: "yellow", label: "at risk" },
-  overdue: { color: "red", label: "overdue" }, done: { color: "gray", label: "done" },
+  on_track: { color: "green", label: tx("on track") }, at_risk: { color: "yellow", label: tx("at risk") },
+  overdue: { color: "red", label: tx("overdue") }, done: { color: "gray", label: tx("done") },
 };
-const KIND_LABEL: Record<string, string> = { release: "Release", iteration: "Iteration", milestone: "Milestone" };
+const KIND_LABEL: Record<string, string> = { release: tx("Release"), iteration: tx("Iteration"), milestone: tx("Milestone") };
 
 function day(s: string | null): number | null {
   return s ? new Date(`${s}T00:00:00Z`).getTime() : null;
@@ -37,7 +38,7 @@ function months(min: number, max: number, fit = 12): { t: number; label: string 
   let cur = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
   while (cur < max) {
     const m = new Date(cur);
-    out.push({ t: cur, label: m.toLocaleDateString(undefined, { month: "short", ...(m.getUTCMonth() === 0 ? { year: "numeric" } : {}), timeZone: "UTC" }) });
+    out.push({ t: cur, label: m.toLocaleDateString(intlLocale(), { month: "short", ...(m.getUTCMonth() === 0 ? { year: "numeric" } : {}), timeZone: "UTC" }) });
     cur = Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 1);
   }
   const step = Math.max(1, Math.ceil(out.length / Math.max(1, fit)));
@@ -60,12 +61,12 @@ function tree(plans: PlanSummary[]): { plan: PlanSummary; depth: number }[] {
 }
 
 function LoadBar({ estimate, capacity }: { estimate: number; capacity: number | null }) {
-  if (!capacity) return estimate ? <Text size="xs" c="dimmed">{estimate} estimated</Text> : null;
+  if (!capacity) return estimate ? <Text size="xs" c="dimmed">{tx("{estimate} estimated", { estimate: estimate })}</Text> : null;
   const load = estimate / capacity;
   return (
-    <Tooltip label={`${estimate} of ${capacity} capacity planned (${Math.round(load * 100)} %)`}>
+    <Tooltip label={tx("{estimate} of {capacity} capacity planned ({Math} %)", { estimate: estimate, capacity: capacity, Math: Math.round(load * 100) })}>
       <div data-testid="load-bar">
-        <Group justify="space-between" gap={4}><Text size="xs" c="dimmed">Load</Text><Text size="xs" c={load > 1 ? "red" : "dimmed"} fw={load > 1 ? 700 : undefined}>{estimate} / {capacity}</Text></Group>
+        <Group justify="space-between" gap={4}><Text size="xs" c="dimmed">{tx("Load")}</Text><Text size="xs" c={load > 1 ? "red" : "dimmed"} fw={load > 1 ? 700 : undefined}>{estimate} / {capacity}</Text></Group>
         <Progress size="sm" value={Math.min(100, load * 100)} color={load > 1 ? "red" : load > 0.85 ? "yellow" : "teal"} />
       </div>
     </Tooltip>
@@ -83,7 +84,7 @@ export function PlansPage() {
   const rows = useMemo(() => tree(data?.releases ?? []), [data]);
   if (!data) return null;
   if (!data.enabled) {
-    return <><PageHeader title="Plans" /><Text c="dimmed">This project's information model has no release type. A manager can take it over from the template (Settings → Information model).</Text></>;
+    return <><PageHeader title={tx("Plans")} /><Text c="dimmed">{tx("This project's information model has no release type. A manager can take it over from the template (Settings → Information model).")}</Text></>;
   }
   const dated = data.releases.filter((r) => r.start_date || r.due_date);
   const min = Math.min(...dated.map((r) => day(r.start_date ?? r.due_date)!), Date.now());
@@ -91,15 +92,15 @@ export function PlansPage() {
   const pos = (t: number) => `${((t - min) / (max - min)) * 100}%`;
   return (
     <>
-      <PageHeader title="Plans" subtitle="Releases, iterations and milestones: planned work, capacity, progress and schedule status"
+      <PageHeader title={tx("Plans")} subtitle={tx("Releases, iterations and milestones: planned work, capacity, progress and schedule status")}
         actions={
           <Group gap="xs">
-            <Button variant="default" component={Link} to={`/p/${key}/timeline`} leftSection={<IconTimeline size={16} />}>Timeline</Button>
-            {can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-release">New {data.type_label}</Button>}
+            <Button variant="default" component={Link} to={`/p/${key}/timeline`} leftSection={<IconTimeline size={16} />}>{tx("Timeline")}</Button>
+            {can("contributor") && <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)} data-testid="new-release">{tx("New {type_label}", { type_label: tm(data.type_label) })}</Button>}
           </Group>
         } />
       <Card withBorder mb="md" data-testid="plan-timeline">
-        <Text fw={600} mb="sm">Timeline</Text>
+        <Text fw={600} mb="sm">{tx("Timeline")}</Text>
         <div className="plan-timeline">
           <div className="plan-axis">
             <span />
@@ -113,16 +114,16 @@ export function PlansPage() {
               <div key={r.key} className="plan-row clickable" onClick={() => setParams({ release: r.key })}>
                 <Text size="xs" className="plan-label" truncate style={{ paddingLeft: depth * 12 }}><b className="mono">{r.key}</b> {r.title}</Text>
                 <div className="plan-track">
-                  <div className="plan-today" style={{ left: pos(Date.now()) }} title="Today" />
+                  <div className="plan-today" style={{ left: pos(Date.now()) }} title={tx("Today")} />
                   {r.kind === "milestone" && e ? (
-                    <Tooltip label={`Milestone ${r.due_date}`}><div className="plan-ms" style={{ left: `calc(${pos(e)} - 6px)` }} /></Tooltip>
+                    <Tooltip label={tx("Milestone {due_date}", { due_date: r.due_date })}><div className="plan-ms" style={{ left: `calc(${pos(e)} - 6px)` }} /></Tooltip>
                   ) : s && e ? (
-                    <Tooltip label={`${r.start_date} → ${r.due_date} · ${Math.round(r.progress * 100)} % done`}>
+                    <Tooltip label={tx("{start_date} → {due_date} · {Math} % done", { start_date: r.start_date, due_date: r.due_date, Math: Math.round(r.progress * 100) })}>
                       <div className={`plan-bar${r.kind === "iteration" ? " is-iteration" : ""}`} style={{ left: pos(s), width: `calc(${pos(e)} - ${pos(s)})`, borderColor: `var(--mantine-color-${STATUS[r.status].color}-6)` }}>
                         <div className="plan-fill" style={{ width: `${r.progress * 100}%` }} />
                       </div>
                     </Tooltip>
-                  ) : <Text size="xs" c="dimmed">no dates</Text>}
+                  ) : <Text size="xs" c="dimmed">{tx("no dates")}</Text>}
                 </div>
               </div>
             );
@@ -144,21 +145,21 @@ export function PlansPage() {
                 </Group>
                 <Group gap={6} mt={2} wrap="wrap">
                   <Badge size="xs" variant="outline" color="gray" className="badge-keep">{KIND_LABEL[r.kind] ?? r.kind}</Badge>
-                  <Badge size="xs" variant="light" className="badge-keep" color={stateColor(r.state_color, null)}>{r.state_label}</Badge>
-                  <Text size="xs" c="dimmed">{r.kind === "milestone" ? r.due_date : `${r.start_date ?? "?"} → ${r.due_date ?? "?"}`} · {r.done} of {r.total} done</Text>
+                  <Badge size="xs" variant="light" className="badge-keep" color={stateColor(r.state_color, null)}>{tm(r.state_label)}</Badge>
+                  <Text size="xs" c="dimmed">{tx("{v} · {done} of {total} done", { v: r.kind === "milestone" ? r.due_date : `${r.start_date ?? "?"} → ${r.due_date ?? "?"}`, done: r.done, total: r.total })}</Text>
                 </Group>
                 {r.kind !== "milestone" && (
                   <>
                     <Progress.Root mt={6} size="lg">
                       <Progress.Section value={r.progress * 100} color="teal"><Progress.Label>{Math.round(r.progress * 100)} %</Progress.Label></Progress.Section>
                     </Progress.Root>
-                    {r.expected != null && <Text size="xs" c="dimmed" mt={2}>Expected by today: {Math.round(r.expected * 100)} %</Text>}
+                    {r.expected != null && <Text size="xs" c="dimmed" mt={2}>{tx("Expected by today: {Math} %", { Math: Math.round(r.expected * 100) })}</Text>}
                     <LoadBar estimate={r.estimate} capacity={r.capacity} />
                   </>
                 )}
               </Card>
             ))}
-            {data.releases.length === 0 && <Text c="dimmed">No releases yet.</Text>}
+            {data.releases.length === 0 && <Text c="dimmed">{tx("No releases yet.")}</Text>}
           </Stack>
         </Grid.Col>
         {selected && <Grid.Col span={{ base: 12, lg: 8 }}><PlanDetailCard releaseKey={selected} plannable={data.plannable_types ?? []} /></Grid.Col>}
@@ -188,38 +189,38 @@ function PlanDetailCard({ releaseKey, plannable }: { releaseKey: string; plannab
         <div style={{ minWidth: 0 }}>
           <Text fw={650} size="lg"><Link to={`/p/${key}/items/${data.key}`} className="item-key">{data.key}</Link> {data.title}</Text>
           {data.goal && <Text size="sm" c="dimmed">{data.goal}</Text>}
-          {data.parent && <Text size="xs" c="dimmed">Part of {data.parent}</Text>}
+          {data.parent && <Text size="xs" c="dimmed">{tx("Part of {parent}", { parent: data.parent })}</Text>}
         </div>
         <Badge size="lg" className="badge-keep" color={STATUS[data.status].color}>{STATUS[data.status].label}</Badge>
       </Group>
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="sm">
-          <Tabs.Tab value="overview" data-testid="plan-tab-overview">Overview</Tabs.Tab>
-          <Tabs.Tab value="items" data-testid="plan-tab-items">Planned items ({data.total})</Tabs.Tab>
-          <Tabs.Tab value="planning" data-testid="plan-tab-planning">Planning board</Tabs.Tab>
+          <Tabs.Tab value="overview" data-testid="plan-tab-overview">{tx("Overview")}</Tabs.Tab>
+          <Tabs.Tab value="items" data-testid="plan-tab-items">{tx("Planned items ({total})", { total: data.total })}</Tabs.Tab>
+          <Tabs.Tab value="planning" data-testid="plan-tab-planning">{tx("Planning board")}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="overview">
           <SimpleGrid cols={{ base: 2, sm: 4 }} mb="sm">
-            <Kpi label="Done" value={`${data.done} / ${data.total}`} />
-            <Kpi label="Estimate done" value={`${data.estimate_done} / ${data.estimate}`} />
-            <Kpi label="Capacity" value={data.capacity ? `${data.capacity}` : "–"} />
-            <Kpi label="Load" value={data.load != null ? `${Math.round(data.load * 100)} %` : "–"} color={data.load && data.load > 1 ? "red" : undefined} />
+            <Kpi label={tx("Done")} value={`${data.done} / ${data.total}`} />
+            <Kpi label={tx("Estimate done")} value={`${data.estimate_done} / ${data.estimate}`} />
+            <Kpi label={tx("Capacity")} value={data.capacity ? `${data.capacity}` : "–"} />
+            <Kpi label={tx("Load")} value={data.load != null ? `${Math.round(data.load * 100)} %` : "–"} color={data.load && data.load > 1 ? "red" : undefined} />
           </SimpleGrid>
           <Group justify="space-between" mb={4}>
-            <SegmentedControl size="xs" value={chart} onChange={(v) => setChart(v as "up" | "down")} data={[{ value: "up", label: "Burn-up" }, { value: "down", label: "Burn-down" }]} data-testid="plan-chart-kind" />
-            <SegmentedControl size="xs" value={metric} onChange={(v) => setMetric(v as "count" | "estimate")} data={[{ value: "count", label: "Items" }, { value: "estimate", label: "Estimate" }]} data-testid="plan-chart-metric" />
+            <SegmentedControl size="xs" value={chart} onChange={(v) => setChart(v as "up" | "down")} data={[{ value: "up", label: tx("Burn-up") }, { value: "down", label: tx("Burn-down") }]} data-testid="plan-chart-kind" />
+            <SegmentedControl size="xs" value={metric} onChange={(v) => setMetric(v as "count" | "estimate")} data={[{ value: "count", label: tx("Items") }, { value: "estimate", label: tx("Estimate") }]} data-testid="plan-chart-metric" />
           </Group>
           {data.burnup.length > 1 && (
             <LineChart h={220} mb="md" data={series} dataKey="date"
-              series={chart === "up" ? [{ name: "done", color: "teal.6", label: "Done" }, { name: "scope", color: "gray.5", label: "Scope" }]
-                : [{ name: "remaining", color: "orange.6", label: "Remaining" }]}
+              series={chart === "up" ? [{ name: "done", color: "teal.6", label: tx("Done") }, { name: "scope", color: "gray.5", label: tx("Scope") }]
+                : [{ name: "remaining", color: "orange.6", label: tx("Remaining") }]}
               curveType="stepAfter" withDots={false} connectNulls={false} tickLine="none" gridAxis="y" withLegend legendProps={{ verticalAlign: "top", height: 30 }}
-              referenceLines={today ? [{ x: today, label: "Today", color: "red.5" }] : []} data-testid="burnup" />
+              referenceLines={today ? [{ x: today, label: tx("Today"), color: "red.5" }] : []} data-testid="burnup" />
           )}
           {data.child_plans.length > 0 && (
             <Table.ScrollContainer minWidth={560}>
               <Table data-testid="child-plans">
-                <Table.Thead><Table.Tr><Table.Th>Sub-plan</Table.Th><Table.Th>Dates</Table.Th><Table.Th>Progress</Table.Th><Table.Th>Load</Table.Th><Table.Th>Status</Table.Th></Table.Tr></Table.Thead>
+                <Table.Thead><Table.Tr><Table.Th>{tx("Sub-plan")}</Table.Th><Table.Th>{tx("Dates")}</Table.Th><Table.Th>{tx("Progress")}</Table.Th><Table.Th>{tx("Load")}</Table.Th><Table.Th>{tx("Status")}</Table.Th></Table.Tr></Table.Thead>
                 <Table.Tbody>
                   {data.child_plans.map((c) => (
                     <Table.Tr key={c.key}>
@@ -255,31 +256,31 @@ function PlanItems({ data, plannable }: { data: PlanDetail; plannable: string[] 
   const { key, model, can } = useProjectCtx();
   const [adding, setAdding] = useState<string | null>(null);
   const add = useProjectMutation(key, () => api.post(`/projects/${key}/links`, { type: model.config.semantics.planned_link, source: adding, target: data.key }),
-    { success: "Planned into the release", onSuccess: () => setAdding(null) });
+    { success: tx("Planned into the release"), onSuccess: () => setAdding(null) });
   return (
     <>
       {can("contributor") && (
         <Group align="flex-end" mb="sm">
-          <div style={{ flex: 1 }}><ItemPicker label="Plan an item into this plan" types={plannable} value={adding} onChange={setAdding} testId="plan-item"
+          <div style={{ flex: 1 }}><ItemPicker label={tx("Plan an item into this plan")} types={plannable} value={adding} onChange={setAdding} testId="plan-item"
             exclude={[data.key, ...data.items.map((i) => i.key)]} /></div>
-          <Button onClick={() => add.mutate(undefined)} disabled={!adding} loading={add.isPending} data-testid="plan-add">Plan</Button>
+          <Button onClick={() => add.mutate(undefined)} disabled={!adding} loading={add.isPending} data-testid="plan-add">{tx("Plan")}</Button>
         </Group>
       )}
       <Table.ScrollContainer minWidth={620}>
         <Table data-testid="plan-items">
-          <Table.Thead><Table.Tr><Table.Th>Item</Table.Th><Table.Th>Type</Table.Th><Table.Th>Plan</Table.Th><Table.Th ta="right">Estimate</Table.Th><Table.Th>State</Table.Th><Table.Th>Owner</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>{tx("Item")}</Table.Th><Table.Th>{tx("Type")}</Table.Th><Table.Th>{tx("Plan")}</Table.Th><Table.Th ta="right">{tx("Estimate")}</Table.Th><Table.Th>{tx("State")}</Table.Th><Table.Th>{tx("Owner")}</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {data.items.map((i) => (
               <Table.Tr key={i.key}>
                 <Table.Td><Link to={`/p/${key}/items/${i.key}`} className="item-key">{i.key}</Link> <Text span size="sm">{i.title}</Text></Table.Td>
-                <Table.Td><Text size="sm">{i.type_label}</Text></Table.Td>
+                <Table.Td><Text size="sm">{tm(i.type_label)}</Text></Table.Td>
                 <Table.Td><Text size="xs" className="mono">{i.plan}</Text></Table.Td>
                 <Table.Td ta="right"><Text size="sm">{i.estimate ?? ""}</Text></Table.Td>
                 <Table.Td><Badge size="sm" variant={i.done ? "filled" : "light"} color={stateColor(i.state_color, i.state_category)}>{i.state ?? "–"}</Badge></Table.Td>
                 <Table.Td><Text size="sm">{i.owner?.display_name}</Text></Table.Td>
               </Table.Tr>
             ))}
-            {data.items.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="md">Nothing planned yet — use the planning board.</Text></Table.Td></Table.Tr>}
+            {data.items.length === 0 && <Table.Tr><Table.Td colSpan={6}><Text c="dimmed" ta="center" py="md">{tx("Nothing planned yet — use the planning board.")}</Text></Table.Td></Table.Tr>}
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
@@ -313,12 +314,12 @@ function PlanningBoard({ plan, plannable }: { plan: PlanDetail; plannable: strin
     try {
       if (to === BACKLOG) {
         await api.post(`/projects/${key}/items/bulk`, { keys: [d.key], action: "unplan", release: d.from, dry_run: false });
-        notifications.show({ color: "teal", message: `${d.key} back to the backlog` });
+        notifications.show({ color: "teal", message: tx("{key} back to the backlog", { key: d.key }) });
       } else {
         const res = await api.post<{ results: { status: string; message: string | null }[] }>(`/projects/${key}/items/bulk`,
           { keys: [d.key], action: "plan", release: to, from_release: d.from === BACKLOG ? null : d.from, dry_run: false });
         const r = res.results[0];
-        notifications.show({ color: r?.status === "skipped" ? "orange" : "teal", message: r?.status === "skipped" ? `${d.key}: ${r.message}` : `${d.key} planned into ${to}` });
+        notifications.show({ color: r?.status === "skipped" ? "orange" : "teal", message: r?.status === "skipped" ? `${d.key}: ${r.message}` : tx("{key} planned into {to}", { key: d.key, to: to }) });
       }
     } catch (err) {
       notifications.show({ color: "red", message: err instanceof ApiError ? err.message : String(err) });
@@ -329,10 +330,10 @@ function PlanningBoard({ plan, plannable }: { plan: PlanDetail; plannable: strin
   return (
     <DndContext sensors={sensors} onDragStart={(e) => setDragging(e.active.data.current as { key: string; title: string })} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
       <div className="pb" style={{ gridTemplateColumns: `minmax(220px, 1fr) repeat(${columns.length}, minmax(200px, 1fr))` }} data-testid="planning-board">
-        <PlanColumn id={BACKLOG} title="Backlog" subtitle={`${backlog.length} unplanned`}>
-          <TextInput size="xs" placeholder="Search…" leftSection={<IconSearch size={12} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} mb={4} data-testid="backlog-search" />
-          <Select size="xs" placeholder="All plannable types" value={typeFilter} onChange={setTypeFilter} mb={6} clearable data-testid="backlog-type"
-            data={[{ value: "__req", label: "Requirements & changes" }, ...plannable.map((t) => ({ value: t, label: model.typeLabel(t) }))]} />
+        <PlanColumn id={BACKLOG} title={tx("Backlog")} subtitle={tx("{length} unplanned", { length: backlog.length })}>
+          <TextInput size="xs" placeholder={tx("Search…")} leftSection={<IconSearch size={12} />} value={search} onChange={(e) => setSearch(e.currentTarget.value)} mb={4} data-testid="backlog-search" />
+          <Select size="xs" placeholder={tx("All plannable types")} value={typeFilter} onChange={setTypeFilter} mb={6} clearable data-testid="backlog-type"
+            data={[{ value: "__req", label: tx("Requirements & changes") }, ...plannable.map((t) => ({ value: t, label: model.typeLabel(t) }))]} />
           {backlog.map((i: Item) => <PlanCard key={i.key} id={i.key} from={BACKLOG} title={i.title} typeKey={i.type_key} estimate={i.fields[estKey]} disabled={!editable} />)}
         </PlanColumn>
         {columns.map((c) => {

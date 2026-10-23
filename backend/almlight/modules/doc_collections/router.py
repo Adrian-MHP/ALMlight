@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
-from almlight.core.deps import current_user
+from almlight.core.deps import current_user, ui_locale
 from almlight.core.errors import Conflict
 from almlight.core.schemas import Ok, UserDirectory
 from almlight.modules.audit import service as audit
@@ -110,9 +110,10 @@ def delete_collection(project_key: str, collection_id: uuid.UUID, user: User = D
 
 @router.get("/{collection_id}/export.zip", summary="All documents of the collection at their baselines (PDF or Word)")
 def export_collection(project_key: str, collection_id: uuid.UUID, format: str = "pdf",
-                      user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+                      user: User = Depends(current_user), db: Session = Depends(get_db),
+                      locale: str = Depends(ui_locale)) -> Response:
     project = get_project(db, project_key, user)
     c = service.get_collection(db, project, collection_id)
     safe = "".join(ch if ch.isalnum() else "-" for ch in c.name)[:40]
-    return Response(service.export_zip(db, project, c, format), media_type="application/zip",
+    return Response(service.export_zip(db, project, c, format, locale), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{project.key}-{safe}-{date.today()}.zip"'})

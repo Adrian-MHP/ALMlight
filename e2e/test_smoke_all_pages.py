@@ -37,21 +37,30 @@ def test_all_pages_and_tabs_load_cleanly(page: Page, browser: Browser):
               "/p/DEMO/changes", "/p/DEMO/verification", "/p/DEMO/variants", "/p/DEMO/baselines", "/p/DEMO/reports",
               "/p/DEMO/activity", "/p/DEMO/settings", "/p/DEMO/risks", "/p/DEMO/plans", "/p/DEMO/plans?release=REL-1",
               "/p/DEMO/structure?view=bom", "/p/DEMO/items/RSK-1", "/p/DEMO/items/REL-1", "/p/DEMO/items/TC-5",
-              "/p/DEMO/items/SE-5", "/p/DEMO/boards", "/p/DEMO/timeline", "/p/NOPE", "/no-such-page"]
+              "/p/DEMO/items/SE-5", "/p/DEMO/boards", "/p/DEMO/timeline", "/p/DEMO/timesheet", "/p/DEMO/items/TSK-2",
+              "/p/NOPE", "/no-such-page"]
     for route in routes:
         page.goto(route)
         _settle(page)
         for tab in page.locator("main").get_by_role("tab").all():
             tab.click()
             _settle(page)
-    for scheme, viewport in (("dark", {"width": 1440, "height": 900}), ("light", {"width": 390, "height": 844})):
-        ctx = browser.new_context(base_url=BASE_URL, viewport=viewport, color_scheme=scheme)
+    page.goto("/p/DEMO/timeline")
+    page.get_by_test_id("tl-view").get_by_text("Resources").click()
+    _settle(page)
+    for scheme, viewport, lang in (("dark", {"width": 1440, "height": 900}, "en-US"),
+                                   ("light", {"width": 390, "height": 844}, "de-DE")):  # the phone pass runs in German
+        ctx = browser.new_context(base_url=BASE_URL, viewport=viewport, color_scheme=scheme, locale=lang)
         other = ctx.new_page()
         _watch(other, problems)
         login(other, "alex", DEMO_PW)
         for route in ("/", "/p/DEMO/items/SYS-5", "/p/DEMO/documents/SPEC-2", "/p/DEMO/reports", "/p/DEMO/risks",
-                      "/p/DEMO/plans?release=REL-1", "/p/DEMO/structure?view=bom", "/p/DEMO/boards", "/p/DEMO/timeline"):
+                      "/p/DEMO/plans?release=REL-1", "/p/DEMO/structure?view=bom", "/p/DEMO/boards", "/p/DEMO/timeline",
+                      "/p/DEMO/timesheet", "/p/DEMO/items/TSK-2?tab=time"):
             other.goto(route)
             _settle(other)
+        other.goto("/p/DEMO/timeline")
+        other.get_by_test_id("tl-view").locator("label").nth(1).click()  # Resources / Ressourcen
+        _settle(other)
         ctx.close()
     assert not problems, "\n".join(problems)

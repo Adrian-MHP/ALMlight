@@ -5,9 +5,9 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
-  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
+  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconClock, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
   IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
-  IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
+  IconLogout, IconLanguage, IconCheck, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
   IconTopologyStar3, IconUser, IconUsers, type Icon,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,40 +17,42 @@ import { useInbox, useMe, useProjects } from "@/api/hooks";
 import { Logo, LogoMark } from "@/components/Logo";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { useLive } from "@/live/LiveProvider";
+import { chooseLanguage, LOCALES, locale, tx } from "@/lib/i18n";
 
 interface NavEntry { to: string; label: string; icon: Icon; hint: string }
 interface NavGroup { group: string; color: string; items: NavEntry[] }
 
 export const PROJECT_NAV: NavGroup[] = [
-  { group: "Overview", color: "navy", items: [
-    { to: "", label: "Dashboard", icon: IconHome, hint: "Status, coverage and open work" },
-    { to: "activity", label: "Activity", icon: IconActivity, hint: "Complete audit trail" },
+  { group: tx("Overview"), color: "navy", items: [
+    { to: "", label: tx("Dashboard"), icon: IconHome, hint: tx("Status, coverage and open work") },
+    { to: "activity", label: tx("Activity"), icon: IconActivity, hint: tx("Complete audit trail") },
   ] },
-  { group: "Engineering", color: "petrol", items: [
-    { to: "items", label: "Items", icon: IconListDetails, hint: "Requirements, elements, tests — search and edit" },
-    { to: "documents", label: "Documents", icon: IconFileText, hint: "Live documents, co-editing, Word & ReqIF" },
-    { to: "structure", label: "Structure", icon: IconSitemap, hint: "Product and system structure" },
-    { to: "traceability", label: "Traceability", icon: IconRoute, hint: "Matrix, coverage and impact" },
+  { group: tx("Engineering"), color: "petrol", items: [
+    { to: "items", label: tx("Items"), icon: IconListDetails, hint: tx("Requirements, elements, tests — search and edit") },
+    { to: "documents", label: tx("Documents"), icon: IconFileText, hint: tx("Live documents, co-editing, Word & ReqIF") },
+    { to: "structure", label: tx("Structure"), icon: IconSitemap, hint: tx("Product and system structure") },
+    { to: "traceability", label: tx("Traceability"), icon: IconRoute, hint: tx("Matrix, coverage and impact") },
   ] },
-  { group: "Change & quality", color: "orange", items: [
-    { to: "changes", label: "Changes", icon: IconGitCompare, hint: "Change requests and orders" },
-    { to: "verification", label: "Verification", icon: IconTestPipe, hint: "Tests, runs and results" },
-    { to: "risks", label: "Risks", icon: IconAlertTriangle, hint: "FMEA: risk matrix, register, mitigation" },
+  { group: tx("Change & quality"), color: "orange", items: [
+    { to: "changes", label: tx("Changes"), icon: IconGitCompare, hint: tx("Change requests and orders") },
+    { to: "verification", label: tx("Verification"), icon: IconTestPipe, hint: tx("Tests, runs and results") },
+    { to: "risks", label: tx("Risks"), icon: IconAlertTriangle, hint: tx("FMEA: risk matrix, register, mitigation") },
   ] },
-  { group: "Configuration", color: "violet", items: [
-    { to: "variants", label: "Variants", icon: IconTopologyStar3, hint: "Features, variants, 150% model" },
-    { to: "baselines", label: "Baselines", icon: IconBinaryTree, hint: "Baselines and release collections" },
+  { group: tx("Configuration"), color: "violet", items: [
+    { to: "variants", label: tx("Variants"), icon: IconTopologyStar3, hint: tx("Features, variants, 150% model") },
+    { to: "baselines", label: tx("Baselines"), icon: IconBinaryTree, hint: tx("Baselines and release collections") },
   ] },
-  { group: "Planning", color: "cyan", items: [
-    { to: "plans", label: "Plans", icon: IconCalendarStats, hint: "Releases, iterations, capacity, planning board" },
-    { to: "timeline", label: "Timeline", icon: IconTimeline, hint: "Gantt schedule: tasks, milestones, dependencies" },
-    { to: "boards", label: "Boards", icon: IconLayoutKanban, hint: "Kanban boards over any items" },
+  { group: tx("Planning"), color: "cyan", items: [
+    { to: "plans", label: tx("Plans"), icon: IconCalendarStats, hint: tx("Releases, iterations, capacity, planning board") },
+    { to: "timeline", label: tx("Timeline"), icon: IconTimeline, hint: tx("Gantt schedule: tasks, milestones, dependencies") },
+    { to: "boards", label: tx("Boards"), icon: IconLayoutKanban, hint: tx("Kanban boards over any items") },
+    { to: "timesheet", label: tx("Timesheet"), icon: IconClock, hint: tx("Record your working hours per item and day") },
   ] },
-  { group: "Insights", color: "blue", items: [
-    { to: "reports", label: "Reports", icon: IconChartBar, hint: "KPIs and user-built reports" },
+  { group: tx("Insights"), color: "blue", items: [
+    { to: "reports", label: tx("Reports"), icon: IconChartBar, hint: tx("KPIs and user-built reports") },
   ] },
-  { group: "Project", color: "gray", items: [
-    { to: "settings", label: "Settings", icon: IconSettings, hint: "Members, information model, integrations" },
+  { group: tx("Project"), color: "gray", items: [
+    { to: "settings", label: tx("Settings"), icon: IconSettings, hint: tx("Members, information model, integrations") },
   ] },
 ];
 
@@ -62,19 +64,19 @@ function AppLauncher({ projectKey }: { projectKey?: string }) {
   return (
     <Popover opened={opened} onChange={setOpened} position="bottom-start" shadow="lg" width={560} offset={10}>
       <Popover.Target>
-        <Tooltip label="Apps">
+        <Tooltip label={tx("Apps")}>
           <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" onClick={() => setOpened((o) => !o)}
-            aria-label="Apps" data-testid="app-launcher">
+            aria-label={tx("Apps")} data-testid="app-launcher">
             <IconGridDots size={20} />
           </ActionIcon>
         </Tooltip>
       </Popover.Target>
       <Popover.Dropdown p="md">
         <Group justify="space-between" mb="sm">
-          <Text fw={600}>Apps</Text>
+          <Text fw={600}>{tx("Apps")}</Text>
           {target && <Badge variant="light">{target}</Badge>}
         </Group>
-        {!target && <Text size="sm" c="dimmed">Join a project to use the engineering apps.</Text>}
+        {!target && <Text size="sm" c="dimmed">{tx("Join a project to use the engineering apps.")}</Text>}
         {target && (
           <Stack gap="sm">
             {PROJECT_NAV.map((g) => (
@@ -166,7 +168,7 @@ export function AppLayout() {
                     </UnstyledButton>
                   </Menu.Target>
                   <Menu.Dropdown>
-                    <Menu.Label>Switch project</Menu.Label>
+                    <Menu.Label>{tx("Switch project")}</Menu.Label>
                     {projects.map((p) => (
                       <Menu.Item key={p.key} component={Link} to={`/p/${p.key}`}>
                         <Text size="sm"><b>{p.key}</b> — {p.name}</Text>
@@ -179,20 +181,20 @@ export function AppLayout() {
           </Group>
           <Box component="form" visibleFrom="sm" onSubmit={(e) => { e.preventDefault(); if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`); }}
             style={{ flex: "0 1 460px" }}>
-            <TextInput placeholder="Search items and documents in all projects…" leftSection={<IconSearch size={16} />}
+            <TextInput placeholder={tx("Search items and documents in all projects…")} leftSection={<IconSearch size={16} />}
               value={q} onChange={(e) => setQ(e.currentTarget.value)} size="sm" classNames={{ input: "header-search" }}
               data-testid="global-search" />
           </Box>
           <Group gap={4} wrap="nowrap">
             <ActionIcon hiddenFrom="sm" variant="subtle" color="gray" size="lg" className="header-icon" component={Link} to="/search"
-              aria-label="Search"><IconSearch size={20} /></ActionIcon>
-            <Tooltip label={live.connected ? "Live: changes and presence are pushed" : "Live connection lost — reconnecting"}>
+              aria-label={tx("Search")}><IconSearch size={20} /></ActionIcon>
+            <Tooltip label={live.connected ? tx("Live: changes and presence are pushed") : tx("Live connection lost — reconnecting")}>
               <Box className={`live-dot ${live.connected ? "is-on" : ""}`} data-testid="live-indicator" />
             </Tooltip>
             <NotificationCenter />
-            <Tooltip label={scheme === "dark" ? "Light mode" : "Dark mode"}>
+            <Tooltip label={scheme === "dark" ? tx("Light mode") : tx("Dark mode")}>
               <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" visibleFrom="sm"
-                onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")} aria-label="Toggle color scheme">
+                onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")} aria-label={tx("Toggle color scheme")}>
                 {scheme === "dark" ? <IconSun size={20} /> : <IconMoon size={20} />}
               </ActionIcon>
             </Tooltip>
@@ -204,13 +206,20 @@ export function AppLayout() {
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>{me.display_name} ({me.username})</Menu.Label>
-                <Menu.Item leftSection={<IconUser size={16} />} component={Link} to="/account">Account & API tokens</Menu.Item>
-                {me.is_admin && <Menu.Item leftSection={<IconShieldCheck size={16} />} component={Link} to="/admin">Administration</Menu.Item>}
-                <Menu.Item leftSection={<IconApi size={16} />} component="a" href="/api/v1/docs" target="_blank">REST API docs</Menu.Item>
+                <Menu.Item leftSection={<IconUser size={16} />} component={Link} to="/account">{tx("Account & API tokens")}</Menu.Item>
+                {me.is_admin && <Menu.Item leftSection={<IconShieldCheck size={16} />} component={Link} to="/admin">{tx("Administration")}</Menu.Item>}
+                <Menu.Item leftSection={<IconApi size={16} />} component="a" href="/api/v1/docs" target="_blank">{tx("REST API docs")}</Menu.Item>
                 <Menu.Item leftSection={scheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />} hiddenFrom="sm"
-                  onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")}>{scheme === "dark" ? "Light mode" : "Dark mode"}</Menu.Item>
+                  onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")}>{scheme === "dark" ? tx("Light mode") : tx("Dark mode")}</Menu.Item>
                 <Menu.Divider />
-                <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout} data-testid="logout">Sign out</Menu.Item>
+                <Menu.Label>{tx("Language")}</Menu.Label>
+                {LOCALES.map((l) => (
+                  <Menu.Item key={l.value} leftSection={<IconLanguage size={16} />} data-testid={`lang-${l.value}`}
+                    rightSection={l.value === locale() ? <IconCheck size={14} /> : null}
+                    onClick={() => chooseLanguage(l.value, (v) => api.put("/auth/me/locale", { locale: v }))}>{l.label}</Menu.Item>
+                ))}
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconLogout size={16} />} onClick={logout} data-testid="logout">{tx("Sign out")}</Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -219,11 +228,11 @@ export function AppLayout() {
 
       <AppShell.Navbar className="alm-nav" p={rail ? 6 : "xs"}>
         <AppShell.Section grow component={ScrollArea}>
-          {link("/", "Home", IconHome, location.pathname === "/", { "data-testid": "nav-home" })}
-          {link("/approvals", "My approvals", IconBell, location.pathname === "/approvals", {},
+          {link("/", tx("Home"), IconHome, location.pathname === "/", { "data-testid": "nav-home" })}
+          {link("/approvals", tx("My approvals"), IconBell, location.pathname === "/approvals", {},
             pendingForMe ? <Badge size="xs" color="red" circle>{pendingForMe}</Badge> : null)}
-          {link("/projects", "All projects", IconFolders, location.pathname === "/projects", { "data-testid": "nav-projects" })}
-          {me.is_admin && link("/admin", "Administration", IconUsers, location.pathname === "/admin")}
+          {link("/projects", tx("All projects"), IconFolders, location.pathname === "/projects", { "data-testid": "nav-projects" })}
+          {me.is_admin && link("/admin", tx("Administration"), IconUsers, location.pathname === "/admin")}
           {projectKey && PROJECT_NAV.map((g) => (
             <div key={g.group}>
               {rail ? <div className="nav-rule" /> : (
@@ -235,8 +244,8 @@ export function AppLayout() {
           ))}
         </AppShell.Section>
         <AppShell.Section visibleFrom="sm">
-          <Tooltip label={rail ? "Expand navigation" : "Collapse navigation"} position="right">
-            <ActionIcon variant="subtle" color="gray" onClick={() => setCollapsed(!collapsed)} m={6} aria-label="Toggle navigation"
+          <Tooltip label={rail ? tx("Expand navigation") : tx("Collapse navigation")} position="right">
+            <ActionIcon variant="subtle" color="gray" onClick={() => setCollapsed(!collapsed)} m={6} aria-label={tx("Toggle navigation")}
               data-testid="nav-collapse">
               {rail ? <IconLayoutSidebarLeftExpand size={18} /> : <IconLayoutSidebarLeftCollapse size={18} />}
             </ActionIcon>

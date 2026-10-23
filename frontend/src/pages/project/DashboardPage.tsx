@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { CATEGORY_COLORS, CATEGORY_LABELS } from "@/lib/model";
 import { fmtRelative } from "@/lib/format";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 function Kpi({ label, value, to, color }: { label: string; value: number | string; to?: string; color?: string }) {
   const body = (
@@ -27,8 +28,8 @@ function CoverageCard({ type }: { type: string }) {
         <RingProgress size={84} thickness={8} roundCaps sections={[{ value: data.verified_pct, color: "green" }]}
           label={<Text ta="center" size="xs" fw={700}>{data.verified_pct}%</Text>} />
         <Stack gap={4} style={{ flex: 1 }}>
-          {[["Refined", data.refined_pct, "indigo"], ["Allocated", data.allocated_pct, "grape"], ["With tests", data.with_tests_pct, "teal"],
-            ["Verified", data.verified_pct, "green"]].map(([l, v, c]) => (
+          {[[tx("Refined"), data.refined_pct, "indigo"], [tx("Allocated"), data.allocated_pct, "grape"], [tx("With tests"), data.with_tests_pct, "teal"],
+            [tx("Verified"), data.verified_pct, "green"]].map(([l, v, c]) => (
             <div key={l as string}>
               <Group justify="space-between"><Text size="xs">{l}</Text><Text size="xs">{v}%</Text></Group>
               <Progress value={v as number} color={c as string} size="sm" />
@@ -49,18 +50,18 @@ export function DashboardPage() {
     <>
       <PageHeader title={project.name} subtitle={project.description ?? undefined} />
       <SimpleGrid cols={{ base: 2, md: 4 }} mb="lg">
-        <Kpi label="Items" value={stats?.total_items ?? "–"} to={`/p/${key}/items`} />
-        <Kpi label="Open changes" value={stats?.open_changes ?? "–"} to={`/p/${key}/changes`} color={stats?.open_changes ? "orange" : undefined} />
-        <Kpi label="Suspect links" value={stats?.suspect_links ?? "–"} to={`/p/${key}/traceability?tab=suspects`} color={stats?.suspect_links ? "orange" : undefined} />
-        <Kpi label="Pending approvals" value={stats?.pending_approvals ?? "–"} to="/approvals" color={stats?.pending_approvals ? "indigo" : undefined} />
+        <Kpi label={tx("Items")} value={stats?.total_items ?? "–"} to={`/p/${key}/items`} />
+        <Kpi label={tx("Open changes")} value={stats?.open_changes ?? "–"} to={`/p/${key}/changes`} color={stats?.open_changes ? "orange" : undefined} />
+        <Kpi label={tx("Suspect links")} value={stats?.suspect_links ?? "–"} to={`/p/${key}/traceability?tab=suspects`} color={stats?.suspect_links ? "orange" : undefined} />
+        <Kpi label={tx("Pending approvals")} value={stats?.pending_approvals ?? "–"} to="/approvals" color={stats?.pending_approvals ? "indigo" : undefined} />
       </SimpleGrid>
-      <Title order={4} mb="sm">Requirement coverage</Title>
+      <Title order={4} mb="sm">{tx("Requirement coverage")}</Title>
       <SimpleGrid cols={{ base: 1, md: 3 }} mb="lg">
         {reqTypes.map((t) => <CoverageCard key={t} type={t} />)}
       </SimpleGrid>
       <SimpleGrid cols={{ base: 1, lg: 2 }}>
         <Card withBorder>
-          <Title order={5} mb="sm">Items by type and state</Title>
+          <Title order={5} mb="sm">{tx("Items by type and state")}</Title>
           <Table>
             <Table.Tbody>
               {model.config.item_types.filter((t) => stats?.items_by_type[t.key]).map((t) => {
@@ -75,7 +76,7 @@ export function DashboardPage() {
                     <Table.Td>
                       <Group gap={4}>
                         {Object.entries(states).map(([s, n]) => (
-                          <Badge key={s} size="xs" variant="light" color="gray">{s === "-" ? "no lifecycle" : model.state(t.key, s)?.label ?? s}: {n}</Badge>
+                          <Badge key={s} size="xs" variant="light" color="gray">{s === "-" ? tx("no lifecycle") : model.state(t.key, s)?.label ?? s}: {n}</Badge>
                         ))}
                       </Group>
                     </Table.Td>
@@ -88,8 +89,8 @@ export function DashboardPage() {
         </Card>
         <Card withBorder>
           <Group justify="space-between" mb="sm">
-            <Title order={5}>Recent activity</Title>
-            <Anchor component={Link} to={`/p/${key}/activity`} size="sm">All activity</Anchor>
+            <Title order={5}>{tx("Recent activity")}</Title>
+            <Anchor component={Link} to={`/p/${key}/activity`} size="sm">{tx("All activity")}</Anchor>
           </Group>
           <Stack gap={6}>
             {audit.slice(0, 12).map((e) => (

@@ -9,20 +9,21 @@ import { PageHeader } from "@/components/PageHeader";
 import { fmtRelative } from "@/lib/format";
 import { ItemFormModal } from "./ItemFormModal";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 export function VerificationPage() {
   const { model } = useProjectCtx();
   const runType = model.config.semantics.test_run_type;
   return (
     <>
-      <PageHeader title="Verification" subtitle="Test runs, CI results and the maturity of every system element" />
+      <PageHeader title={tx("Verification")} subtitle={tx("Test runs, CI results and the maturity of every system element")} />
       <Tabs defaultValue="runs">
         <Tabs.List mb="md">
-          <Tabs.Tab value="runs">Test runs</Tabs.Tab>
-          <Tabs.Tab value="maturity" data-testid="tab-maturity">Maturity</Tabs.Tab>
-          <Tabs.Tab value="ci">CI import</Tabs.Tab>
+          <Tabs.Tab value="runs">{tx("Test runs")}</Tabs.Tab>
+          <Tabs.Tab value="maturity" data-testid="tab-maturity">{tx("Maturity")}</Tabs.Tab>
+          <Tabs.Tab value="ci">{tx("CI import")}</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="runs">{runType && model.type(runType) ? <Runs runType={runType} /> : <Text c="dimmed">No test run type configured.</Text>}</Tabs.Panel>
+        <Tabs.Panel value="runs">{runType && model.type(runType) ? <Runs runType={runType} /> : <Text c="dimmed">{tx("No test run type configured.")}</Text>}</Tabs.Panel>
         <Tabs.Panel value="maturity"><Maturity /></Tabs.Panel>
         <Tabs.Panel value="ci"><CiImport /></Tabs.Panel>
       </Tabs>
@@ -36,10 +37,10 @@ function Runs({ runType }: { runType: string }) {
   const [creating, setCreating] = useState(false);
   return (
     <>
-      {can("contributor") && <Button leftSection={<IconPlus size={16} />} mb="md" onClick={() => setCreating(true)}>New test run</Button>}
+      {can("contributor") && <Button leftSection={<IconPlus size={16} />} mb="md" onClick={() => setCreating(true)}>{tx("New test run")}</Button>}
       <Card withBorder padding={0}>
         <Table>
-          <Table.Thead><Table.Tr><Table.Th>Run</Table.Th><Table.Th>State</Table.Th><Table.Th>Build</Table.Th><Table.Th>Variant</Table.Th><Table.Th>Updated</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>{tx("Run")}</Table.Th><Table.Th>{tx("State")}</Table.Th><Table.Th>{tx("Build")}</Table.Th><Table.Th>{tx("Variant")}</Table.Th><Table.Th>{tx("Updated")}</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {data?.items.map((r) => (
               <Table.Tr key={r.id}>
@@ -67,11 +68,10 @@ function Maturity() {
   return (
     <>
       <Group mb="md" align="flex-end">
-        <Select label="Verification results for variant" placeholder="any variant" clearable value={variant} onChange={setVariant}
+        <Select label={tx("Verification results for variant")} placeholder={tx("any variant")} clearable value={variant} onChange={setVariant}
           data={variants.map((v) => ({ value: v.key, label: `${v.key} — ${v.title}` }))} />
         <Text size="xs" c="dimmed" maw={520}>
-          Specified: allocated requirements are released · Realised: element released · Verified: all allocated requirements passed
-          verification on current versions · Validated: the stakeholder needs behind them passed validation.
+          {tx("Specified: allocated requirements are released · Realised: element released · Verified: all allocated requirements passed verification on current versions · Validated: the stakeholder needs behind them passed validation.")}
         </Text>
       </Group>
       <SimpleGrid cols={{ base: 2, md: 4 }} mb="md">
@@ -81,8 +81,8 @@ function Maturity() {
       </SimpleGrid>
       <Card withBorder padding={0}>
         <Table data-testid="maturity-table">
-          <Table.Thead><Table.Tr><Table.Th>Element</Table.Th><Table.Th>Level</Table.Th><Table.Th>State</Table.Th><Table.Th ta="center">Reqs</Table.Th>
-            <Table.Th ta="center">Specified</Table.Th><Table.Th ta="center">Realised</Table.Th><Table.Th ta="center">Verified</Table.Th><Table.Th ta="center">Validated</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>{tx("Element")}</Table.Th><Table.Th>{tx("Level")}</Table.Th><Table.Th>{tx("State")}</Table.Th><Table.Th ta="center">{tx("Reqs")}</Table.Th>
+            <Table.Th ta="center">{tx("Specified")}</Table.Th><Table.Th ta="center">{tx("Realised")}</Table.Th><Table.Th ta="center">{tx("Verified")}</Table.Th><Table.Th ta="center">{tx("Validated")}</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {rows.map((r) => (
               <Table.Tr key={r.id}>
@@ -90,10 +90,10 @@ function Maturity() {
                 <Table.Td><Badge size="xs" variant="outline" color="gray">{r.level ?? "–"}</Badge></Table.Td>
                 <Table.Td><Text size="sm">{r.state}</Text></Table.Td>
                 <Table.Td ta="center">{r.requirements}</Table.Td>
-                <Table.Td ta="center"><MaturityDot value={r.specified} label="Specified" /></Table.Td>
-                <Table.Td ta="center"><MaturityDot value={r.realised} label="Realised" /></Table.Td>
-                <Table.Td ta="center"><MaturityDot value={r.verified} label="Verified" /></Table.Td>
-                <Table.Td ta="center"><MaturityDot value={r.validated} label="Validated" /></Table.Td>
+                <Table.Td ta="center"><MaturityDot value={r.specified} label={tx("Specified")} /></Table.Td>
+                <Table.Td ta="center"><MaturityDot value={r.realised} label={tx("Realised")} /></Table.Td>
+                <Table.Td ta="center"><MaturityDot value={r.verified} label={tx("Verified")} /></Table.Td>
+                <Table.Td ta="center"><MaturityDot value={r.validated} label={tx("Validated")} /></Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>
@@ -118,28 +118,26 @@ function CiImport() {
     if (environment) form.append("environment", environment);
     if (variant) form.append("variant", variant);
     return api.upload<{ run: string; matched: number; unmatched: string[]; summary: Record<string, number> }>(`/projects/${key}/test-runs/import-junit`, form);
-  }, { success: (r) => `Created ${r.run}`, onSuccess: (r) => setResult(r) });
-  if (!can("contributor")) return <Text c="dimmed">Contributors can import CI results.</Text>;
+  }, { success: (r) => tx("Created {run}", { run: r.run }), onSuccess: (r) => setResult(r) });
+  if (!can("contributor")) return <Text c="dimmed">{tx("Contributors can import CI results.")}</Text>;
   return (
     <Card withBorder maw={720}>
       <Stack>
         <Text size="sm">
-          Upload a JUnit XML report (the de-facto format of pytest, JUnit, CTest, GoogleTest, …). Results are matched to test cases by
-          their <b>Automation ID</b> (<code>classname.name</code> or <code>name</code>) or by an item key in the test name, e.g. <code>test_TC-12_range</code>.
-          CI pipelines can call the same endpoint with an API token.
+          {tx("Upload a JUnit XML report (the de-facto format of pytest, JUnit, CTest, GoogleTest, …). Results are matched to test cases by their")} <b>{tx("Automation ID")}</b> (<code>classname.name</code> {tx("or")} <code>name</code>{tx(") or by an item key in the test name, e.g.")} <code>test_TC-12_range</code>{tx(". CI pipelines can call the same endpoint with an API token.")}
         </Text>
-        <FileInput label="JUnit XML" accept=".xml" value={file} onChange={setFile} leftSection={<IconUpload size={16} />} />
+        <FileInput label={tx("JUnit XML")} accept=".xml" value={file} onChange={setFile} leftSection={<IconUpload size={16} />} />
         <Group grow>
-          <TextInput label="Build / sample" value={build} onChange={(e) => setBuild(e.currentTarget.value)} />
-          <TextInput label="Environment" value={environment} onChange={(e) => setEnvironment(e.currentTarget.value)} />
-          <TextInput label="Variant key" value={variant} onChange={(e) => setVariant(e.currentTarget.value)} placeholder="VAR-1" />
+          <TextInput label={tx("Build / sample")} value={build} onChange={(e) => setBuild(e.currentTarget.value)} />
+          <TextInput label={tx("Environment")} value={environment} onChange={(e) => setEnvironment(e.currentTarget.value)} />
+          <TextInput label={tx("Variant key")} value={variant} onChange={(e) => setVariant(e.currentTarget.value)} placeholder={tx("VAR-1")} />
         </Group>
-        <Group><Button onClick={() => upload.mutate(undefined)} disabled={!file} loading={upload.isPending}>Import</Button></Group>
+        <Group><Button onClick={() => upload.mutate(undefined)} disabled={!file} loading={upload.isPending}>{tx("Import")}</Button></Group>
         {result && (
-          <Alert color={result.summary.failed ? "orange" : "green"} title={`Test run ${result.run}: ${result.matched} result(s) imported`}>
+          <Alert color={result.summary.failed ? "orange" : "green"} title={tx("Test run {run}: {matched} result(s) imported", { run: result.run, matched: result.matched })}>
             <Group gap={6} mb={4}>{Object.entries(result.summary).map(([k, v]) => <Badge key={k}>{k}: {v}</Badge>)}</Group>
-            {result.unmatched.length > 0 && <Text size="xs">Unmatched tests: {result.unmatched.slice(0, 10).join(", ")}{result.unmatched.length > 10 ? " …" : ""}</Text>}
-            <Button size="xs" variant="light" mt="xs" onClick={() => navigate(`/p/${key}/items/${result.run}?tab=records`)}>Open run</Button>
+            {result.unmatched.length > 0 && <Text size="xs">{tx("Unmatched tests: {unmatched}{v}", { unmatched: result.unmatched.slice(0, 10).join(", "), v: result.unmatched.length > 10 ? " …" : "" })}</Text>}
+            <Button size="xs" variant="light" mt="xs" onClick={() => navigate(`/p/${key}/items/${result.run}?tab=records`)}>{tx("Open run")}</Button>
           </Alert>
         )}
       </Stack>

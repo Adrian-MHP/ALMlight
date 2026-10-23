@@ -8,6 +8,7 @@ import { FieldsForm } from "@/components/FieldsForm";
 import { ItemPicker } from "@/components/ItemPicker";
 import { HtmlEditor } from "@/components/rich/HtmlEditor";
 import { useProjectCtx } from "./ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 interface Props {
   opened: boolean;
@@ -65,7 +66,7 @@ export function ItemFormModal({ opened, onClose, item, defaultType, types, paren
       applicability: applicability || null, parent, position,
     });
   }, {
-    success: (r) => (item ? `Saved ${r.key} (${r.version})` : `Created ${r.key}`),
+    success: (r) => (item ? tx("Saved {key} ({version})", { key: r.key, version: r.version }) : tx("Created {key}", { key: r.key })),
     onSuccess: (r) => {
       onClose();
       onSaved?.(r);
@@ -82,41 +83,41 @@ export function ItemFormModal({ opened, onClose, item, defaultType, types, paren
     model.config.link_types.some((lt) => lt.structural && (lt.sources.includes(t.key)) && (lt.targets.includes(type) || lt.targets.includes("*")))).map((t) => t.key) : [];
 
   return (
-    <Modal opened={opened} onClose={onClose} size="xl" title={item ? `Properties of ${item.key}` : "New item"}>
+    <Modal opened={opened} onClose={onClose} size="xl" title={item ? tx("Properties of {key}", { key: item.key }) : tx("New item")}>
       <Stack>
         {!item && (
-          <Select label="Type" placeholder="Choose an item type" data={model.typeOptions((t) => !types || types.includes(t.key))}
+          <Select label={tx("Type")} placeholder={tx("Choose an item type")} data={model.typeOptions((t) => !types || types.includes(t.key))}
             value={type} onChange={(v) => { setType(v); setFields({}); }} searchable required data-testid="item-type" />
         )}
         {typeDef?.description && <Text size="xs" c="dimmed">{typeDef.description}</Text>}
-        <TextInput label="Title" value={title} onChange={(e) => setTitle(e.currentTarget.value)} required data-autofocus
+        <TextInput label={tx("Title")} value={title} onChange={(e) => setTitle(e.currentTarget.value)} required data-autofocus
           data-testid="item-title" />
         {!item ? (
-          <Input.Wrapper label="Text" description="Rich text: formatting, lists, tables, images (paste or upload), # references an item">
+          <Input.Wrapper label={tx("Text")} description={tx("Rich text: formatting, lists, tables, images (paste or upload), # references an item")}>
             <div style={{ marginTop: 6 }}>
               <HtmlEditor value={description} onChange={setDescription} projectKey={key} testId="item-description" minHeight={120} />
             </div>
           </Input.Wrapper>
         ) : (
-          <Text size="xs" c="dimmed">The text is edited live (together with others) on the item page and in documents.</Text>
+          <Text size="xs" c="dimmed">{tx("The text is edited live (together with others) on the item page and in documents.")}</Text>
         )}
         {typeDef && <FieldsForm defs={typeDef.fields} values={fields} onChange={(k, v) => setFields((f) => ({ ...f, [k]: v }))} />}
-        <TextInput label="Applicability (variants)" description="Feature expression, e.g. OUT_HART and not EX — empty = all variants"
+        <TextInput label={tx("Applicability (variants)")} description={tx("Feature expression, e.g. OUT_HART and not EX — empty = all variants")}
           value={applicability} onChange={(e) => { setApplicability(e.currentTarget.value); setExprCheck(null); }} onBlur={checkExpression}
           className="mono" data-testid="item-applicability"
           error={exprCheck && !exprCheck.valid ? exprCheck.error : undefined} />
         {exprCheck?.valid && exprCheck.unknown.length > 0 && (
-          <Alert color="yellow" py={6}>Unknown feature codes: {exprCheck.unknown.join(", ")}</Alert>
+          <Alert color="yellow" py={6}>{tx("Unknown feature codes: {unknown}", { unknown: exprCheck.unknown.join(", ") })}</Alert>
         )}
         {!item && parentTypes.length > 0 && (
-          <ItemPicker label="Place under (optional)" types={parentTypes} value={parent} onChange={setParent}
-            description="Adds the item to a document, structure or feature tree" />
+          <ItemPicker label={tx("Place under (optional)")} types={parentTypes} value={parent} onChange={setParent}
+            description={tx("Adds the item to a document, structure or feature tree")} />
         )}
-        {item && <TextInput label="Change note (optional)" value={note} onChange={(e) => setNote(e.currentTarget.value)} />}
+        {item && <TextInput label={tx("Change note (optional)")} value={note} onChange={(e) => setNote(e.currentTarget.value)} />}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button variant="default" onClick={onClose}>{tx("Cancel")}</Button>
           <Button onClick={() => save.mutate(undefined)} loading={save.isPending} disabled={!type || !title.trim()} data-testid="item-save">
-            {item ? "Save" : "Create"}
+            {item ? tx("Save") : tx("Create")}
           </Button>
         </Group>
       </Stack>

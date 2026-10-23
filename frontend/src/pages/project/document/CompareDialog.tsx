@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useBaselines, useDocumentHistory, useItems } from "@/api/hooks";
 import { fmtDateTime } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 type Mode = "live" | "baseline" | "at";
 
@@ -18,13 +19,13 @@ function StatePicker({ label, docKey, mode, setMode, baseline, setBaseline, at, 
     <Stack gap="xs">
       <Text size="sm" fw={600}>{label}</Text>
       <SegmentedControl size="xs" value={mode} onChange={(v) => setMode(v as Mode)}
-        data={[{ value: "live", label: "Live" }, { value: "baseline", label: "Baseline" }, { value: "at", label: "Point in history" }]} />
+        data={[{ value: "live", label: tx("Live") }, { value: "baseline", label: tx("Baseline") }, { value: "at", label: tx("Point in history") }]} />
       {mode === "baseline" && (
-        <Select size="sm" placeholder="Choose a baseline" value={baseline} onChange={setBaseline}
+        <Select size="sm" placeholder={tx("Choose a baseline")} value={baseline} onChange={setBaseline}
           data={baselines.map((b) => ({ value: b.id, label: `${b.name}${b.scope ? ` (${b.scope})` : ""}` }))} data-testid={`${label}-baseline`} />
       )}
       {mode === "at" && (
-        <Select size="sm" placeholder="Choose a change point" value={at} onChange={setAt} searchable
+        <Select size="sm" placeholder={tx("Choose a change point")} value={at} onChange={setAt} searchable
           data={(history?.entries ?? []).map((e) => ({ value: e.ts, label: `${fmtDateTime(e.ts)} — ${e.summary.slice(0, 70)}` }))} />
       )}
     </Stack>
@@ -62,25 +63,25 @@ export function CompareDialog({ docKey, opened, onClose }: { docKey: string; ope
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title={`Compare ${docKey}`} size="lg">
+    <Modal opened={opened} onClose={onClose} title={tx("Compare {docKey}", { docKey: docKey })} size="lg">
       <Stack>
-        <StatePicker label="Left (older)" docKey={docKey} mode={lMode} setMode={setLMode} baseline={lBl} setBaseline={setLBl} at={lAt} setAt={setLAt} />
+        <StatePicker label={tx("Left (older)")} docKey={docKey} mode={lMode} setMode={setLMode} baseline={lBl} setBaseline={setLBl} at={lAt} setAt={setLAt} />
         <Divider />
-        <Text size="sm" fw={600}>Right (newer)</Text>
+        <Text size="sm" fw={600}>{tx("Right (newer)")}</Text>
         <SegmentedControl size="xs" value={rWhich} onChange={setRWhich}
-          data={[{ value: "same", label: `Same document (${docKey})` }, { value: "other", label: "Another document" }]} />
+          data={[{ value: "same", label: tx("Same document ({docKey})", { docKey: docKey }) }, { value: "other", label: tx("Another document") }]} />
         {rWhich === "other" && (
           <Group grow align="flex-end">
-            <Select label="Document" searchable value={rDoc} onChange={setRDoc} placeholder="Choose…"
+            <Select label={tx("Document")} searchable value={rDoc} onChange={setRDoc} placeholder={tx("Choose…")}
               data={docs.filter((d) => d.key !== docKey).map((d) => ({ value: d.key, label: `${d.key} — ${d.title}` }))} data-testid="compare-other-doc" />
-            <TextInput label="…or document key in project" placeholder="PROJECT (optional)" value={rProject} onChange={(e) => setRProject(e.currentTarget.value)} />
+            <TextInput label={tx("…or document key in project")} placeholder={tx("PROJECT (optional)")} value={rProject} onChange={(e) => setRProject(e.currentTarget.value)} />
           </Group>
         )}
-        {rWhich === "other" && rProject && <TextInput label="Document key in that project" value={rDoc ?? ""} onChange={(e) => setRDoc(e.currentTarget.value.toUpperCase())} />}
-        <StatePicker label="Right state" docKey={rightDoc ?? docKey} mode={rMode} setMode={setRMode} baseline={rBl} setBaseline={setRBl} at={rAt} setAt={setRAt} />
+        {rWhich === "other" && rProject && <TextInput label={tx("Document key in that project")} value={rDoc ?? ""} onChange={(e) => setRDoc(e.currentTarget.value.toUpperCase())} />}
+        <StatePicker label={tx("Right state")} docKey={rightDoc ?? docKey} mode={rMode} setMode={setRMode} baseline={rBl} setBaseline={setRBl} at={rAt} setAt={setRAt} />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>Cancel</Button>
-          <Button onClick={go} disabled={!ready} data-testid="compare-go">Compare</Button>
+          <Button variant="default" onClick={onClose}>{tx("Cancel")}</Button>
+          <Button onClick={go} disabled={!ready} data-testid="compare-go">{tx("Compare")}</Button>
         </Group>
       </Stack>
     </Modal>

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
 from almlight.core.errors import Forbidden, Unauthorized
+from almlight.core.i18n import request_locale
 from almlight.core.security import API_TOKEN_PREFIX, SESSION_COOKIE, decode_session_token
 from almlight.modules.identity.models import User
 from almlight.modules.identity.service import user_for_token
@@ -26,6 +27,8 @@ def optional_user(request: Request, db: Session = Depends(get_db)) -> User | Non
             user = user_for_token(db, token)
             if user is None:
                 raise Unauthorized("Invalid or expired API token")
+            if user.locale:
+                request.state.locale = user.locale
             return user
         user_id = decode_session_token(token)
     else:
@@ -37,7 +40,16 @@ def optional_user(request: Request, db: Session = Depends(get_db)) -> User | Non
         user = db.get(User, uuid.UUID(user_id))
     except ValueError:
         return None
-    return user if user and user.is_active else None
+    if user and user.is_active:
+        if user.locale:
+            request.state.locale = user.locale  # error messages and texts follow the user's language
+        return user
+    return None
+
+
+def ui_locale(request: Request, user: User | None = Depends(optional_user)) -> str:
+    """Language of this request: the user's saved language, else the browser's (``Accept-Language``)."""
+    return request_locale(request)
 
 
 def current_user(user: User | None = Depends(optional_user)) -> User:

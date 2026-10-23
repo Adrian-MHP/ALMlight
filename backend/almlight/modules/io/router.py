@@ -10,7 +10,7 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
-from almlight.core.deps import admin_user, current_user
+from almlight.core.deps import admin_user, current_user, ui_locale
 from almlight.core.errors import ValidationFailed
 from almlight.modules.collab.router import flush_project
 from almlight.modules.identity.models import User
@@ -155,13 +155,13 @@ def import_reqif(project_key: str, file: UploadFile = File(...), dry_run: bool =
 
 
 def _snapshot(db: Session, project, item_key: str, baseline: uuid.UUID | None, at: str | None = None,
-              variant: str | None = None, numbering: bool = True):
+              variant: str | None = None, numbering: bool = True, locale: str | None = None):
     from almlight.modules.documents.service import parse_at
     from almlight.modules.io.document_snapshot import build_snapshot
 
     root = items_svc.get_item(db, project, item_key)
     return build_snapshot(db, project, root, at=parse_at(at), baseline_id=baseline, variant_key=variant,
-                          numbering=numbering)
+                          numbering=numbering, locale=locale)
 
 
 @router.get("/projects/{project_key}/items/{item_key}/export.docx", summary="Word export of a document")
@@ -169,7 +169,8 @@ def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = No
                 variant: str | None = None, fields: bool = True, links: bool = True, numbering: bool = True,
                 roundtrip: str | None = Query(default=None, description="edit | comments: prepare for Word round trip"),
                 template: uuid.UUID | None = Query(default=None, description="A Word template of the project"),
-                user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+                user: User = Depends(current_user), db: Session = Depends(get_db),
+                locale: str = Depends(ui_locale)) -> Response:
     project = get_project(db, project_key, user)
     if roundtrip and (roundtrip not in ("edit", "comments") or baseline or at or variant):
         raise ValidationFailed("Round trip export: roundtrip=edit|comments, only for the live, unfiltered document")
@@ -178,7 +179,7 @@ def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = No
         from almlight.modules.doctemplates.router import template_bytes
 
         layout = template_bytes(db, project.id, template)
-    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering)
+    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering, locale)
     suffix = f"-review-{roundtrip}" if roundtrip else ""
     return _download(render_docx(snap, include_fields=fields, include_links=links, roundtrip=roundtrip,
                                  template=layout, author=user.display_name),
@@ -189,8 +190,9 @@ def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = No
 @router.get("/projects/{project_key}/items/{item_key}/export.pdf", summary="PDF export of a document")
 def export_pdf(project_key: str, item_key: str, baseline: uuid.UUID | None = None, at: str | None = None,
                variant: str | None = None, fields: bool = True, links: bool = True, numbering: bool = True,
-               user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+               user: User = Depends(current_user), db: Session = Depends(get_db),
+               locale: str = Depends(ui_locale)) -> Response:
     project = get_project(db, project_key, user)
-    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering)
+    snap = _snapshot(db, project, item_key, baseline, at, variant, numbering, locale)
     return _download(render_pdf(snap, include_fields=fields, include_links=links),
                      f"{snap.root.key}-{snap.root.version}.pdf", "application/pdf")

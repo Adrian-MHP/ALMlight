@@ -25,6 +25,7 @@ class User(Base):
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False,
                                                       server_default="true")
     auth_provider: Mapped[str] = mapped_column(String(32), default="local", nullable=False, server_default="local")
+    locale: Mapped[str | None] = mapped_column(String(8))  # user interface language ("en", "de"); None = browser
 
 
 class ApiToken(Base):

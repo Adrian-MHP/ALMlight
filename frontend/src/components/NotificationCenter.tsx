@@ -7,13 +7,14 @@ import { api } from "@/api/client";
 import { useNotifications } from "@/api/hooks";
 import type { AppNotification } from "@/api/types";
 import { fmtRelative } from "@/lib/format";
+import { tx } from "@/lib/i18n";
 
 const KIND = {
-  mention: { icon: IconAt, color: "violet", label: "mentioned you" },
-  approval: { icon: IconSignature, color: "orange", label: "approval" },
-  owner: { icon: IconUser, color: "blue", label: "your item" },
-  watch: { icon: IconEye, color: "teal", label: "watched" },
-  digest: { icon: IconListDetails, color: "gray", label: "summary" },
+  mention: { icon: IconAt, color: "violet", label: tx("mentioned you") },
+  approval: { icon: IconSignature, color: "orange", label: tx("approval") },
+  owner: { icon: IconUser, color: "blue", label: tx("your item") },
+  watch: { icon: IconEye, color: "teal", label: tx("watched") },
+  digest: { icon: IconListDetails, color: "gray", label: tx("summary") },
 } as const;
 
 /** Bell in the header: notifications from watched items, own items, approvals and mentions. */
@@ -36,10 +37,10 @@ export function NotificationCenter() {
   return (
     <Popover opened={opened} onChange={setOpened} position="bottom-end" width={400} shadow="lg" offset={8}>
       <Popover.Target>
-        <Tooltip label="Notifications" disabled={opened}>
+        <Tooltip label={tx("Notifications")} disabled={opened}>
           <Indicator disabled={unread === 0} label={unread > 99 ? "99+" : unread} size={16} color="red" offset={4}>
             <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" onClick={() => setOpened((o) => !o)}
-              aria-label="Notifications" data-testid="notifications">
+              aria-label={tx("Notifications")} data-testid="notifications">
               <IconBell size={20} />
             </ActionIcon>
           </Indicator>
@@ -47,10 +48,10 @@ export function NotificationCenter() {
       </Popover.Target>
       <Popover.Dropdown p={0} data-testid="notification-center">
         <Group justify="space-between" px="md" py="xs" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
-          <Text fw={600}>Notifications {unread > 0 && <Badge size="sm" color="red" ml={4}>{unread}</Badge>}</Text>
+          <Text fw={600}>{tx("Notifications")} {unread > 0 && <Badge size="sm" color="red" ml={4}>{unread}</Badge>}</Text>
           <Group gap={4}>
             <Button size="compact-xs" variant="subtle" leftSection={<IconChecks size={14} />} disabled={!unread} onClick={() => read("all")}
-              data-testid="notifications-read-all">Mark all read</Button>
+              data-testid="notifications-read-all">{tx("Mark all read")}</Button>
           </Group>
         </Group>
         <ScrollArea.Autosize mah={440}>
@@ -71,7 +72,7 @@ export function NotificationCenter() {
                 </UnstyledButton>
               );
             })}
-            {(data?.items ?? []).length === 0 && <Text c="dimmed" size="sm" p="md">Nothing yet. Watch items or documents to follow changes; mentions and approvals arrive here too.</Text>}
+            {(data?.items ?? []).length === 0 && <Text c="dimmed" size="sm" p="md">{tx("Nothing yet. Watch items or documents to follow changes; mentions and approvals arrive here too.")}</Text>}
           </Stack>
         </ScrollArea.Autosize>
       </Popover.Dropdown>

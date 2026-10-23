@@ -212,9 +212,9 @@ See [15-work-management](15-work-management.md).
 ```bash
 # query language or JSON conditions on the item list (and on export.csv / export.xlsx); sort by custom fields
 curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items" -G \
-  --data-urlencode 'ql=type:system_requirement priority:(must OR should) NOT link.verifies.in:*' --data-urlencode 'sort=-field.estimate'
+  --data-urlencode 'ql=type:system_requirement (priority:must OR owner:none) NOT link.verifies.in:*' --data-urlencode 'sort=-field.estimate'
 curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items" -G \
-  --data-urlencode 'cond=[{"field":"field.rpn","op":"between","values":[100,null]},{"field":"owner","op":"in","values":["me"]}]'
+  --data-urlencode 'cond=[{"field":"type","op":"in","values":["risk"]},{"or":[{"field":"field.rpn","op":"between","values":[100,null]},{"field":"owner","op":"in","values":["none"]}]}]'
 
 # bulk edit: dry run (default) shows per item ok / unchanged / skipped; dry_run=false applies
 curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/items/bulk" \
@@ -227,5 +227,30 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/jso
 | Bulk edit | `POST /projects/{k}/items/bulk` — `keys` or `query` (`q`, `types`, `conditions`, `ql`); `action` = `update` (`fields`, `owner_id`+`set_owner`, `applicability`+`set_applicability`), `transition` (`transition`, `comment`, `password`), `plan`/`unplan` (`release`, `from_release`), `link` (`link_type`, `link_dir`, `target`), `watch`, `unwatch`, `delete`; `dry_run` (default `true`); max 1,000 items |
 | Boards | `GET`/`POST /projects/{k}/boards`, `GET`/`PUT`/`DELETE /projects/{k}/boards/{id}` — config: `types`, `q`, `conditions`, `columns_by` / `swimlanes_by` (`state`, `owner`, `release`, `type`, `field.<key>`), `hidden_columns`, `column_order`, `wip`, `card_fields` |
 | Plans | `GET /projects/{k}/plans` (hierarchy `parent`/`children`, `estimate`, `capacity`, `load`), `GET /projects/{k}/plans/{key}` (`items` with `plan` and `estimate`, `child_plans`, `burnup` with `remaining` and estimate series) |
-| Timeline | `GET /projects/{k}/timeline?baseline=<id>` — rows (plans, tasks, milestones) with dates, progress, `parent`, `depends_on`, `slack` (working days), `critical`, `baseline` dates; `conflicts` |
+| Timeline | `GET /projects/{k}/timeline?baseline=<id>` — rows (plans, tasks, milestones) with dates, progress, `parent`, `depends_on`, `dependencies` (`key`, `type` fs/ss/ff/sf, `lag`, `link_id`), `slack` (working days), `critical`, `estimate`, `baseline` dates; `conflicts` (`item`, `depends_on`, `type`, `message`) |
+| Auto-schedule | `POST /projects/{k}/timeline/schedule` — `mode` = `push` (resolve conflicts) or `asap`, `plan` (optional), `dry_run` (default `true`) → `moves` (old/new dates, `shift` in working days, `status`), `remaining_conflicts` |
+| Dependencies | Links of type `depends_on` (successor → predecessor) with attributes `dependency_type` (`fs`, `ss`, `ff`, `sf`) and `lag` (working days, negative = lead): `POST /projects/{k}/links` with `attributes`, `PATCH /projects/{k}/links/{id}` |
+
+## 9.14 Time recording, resources and language (0.7)
+
+```bash
+# record 2.5 hours on a task today, then read the week
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/items/TSK-3/work" \
+  -d "{\"day\": \"$(date +%F)\", \"hours\": 2.5, \"comment\": \"Climate chamber set-up\"}"
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/timesheet?week=$(date +%F)"
+# resource load for 12 weeks and a levelling preview
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/resources?weeks=12"
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/resources/level" -d '{}'
+# answers in German
+curl -H "Authorization: Bearer $TOKEN" -H 'Accept-Language: de' "$ALM/projects/DEMO/items?ql=color:red"
+```
+
+| Area | Endpoints |
+|---|---|
+| Work records | `GET /projects/{k}/items/{key}/work` (`estimate`, `spent`, `remaining`, `records` — own records, all for managers — `by_user` for managers), `POST /projects/{k}/items/{key}/work` (`day`, `hours`, `comment`), `PATCH`/`DELETE /projects/{k}/work/{id}` (author or manager) |
+| Timesheet | `GET /projects/{k}/timesheet?week=<any day>&user=<username>` (other users: managers), `PUT /projects/{k}/timesheet` (`item`, `day`, `hours`; replaces the user's hours of that item and day, 0 clears) |
+| Resources | `GET /projects/{k}/resources?start=<date>&weeks=1..52` — per person and week `planned`, `capacity`, `load`, `actual`, `items`; `unassigned` |
+| Levelling | `POST /projects/{k}/resources/level` — `plan` (optional), `dry_run` (default `true`) → `moves`, `remaining_overloads`, `remaining_conflicts` |
+| Capacity | `PUT /projects/{k}/members` with `hours_per_day` (0–24); `GET /projects/{k}/members` returns it |
+| Language | `PUT /auth/me/locale` (`{"locale": "de"}`, `"en"` or `null`); `GET /auth/me` returns `locale`. Requests without a saved language use `Accept-Language`; messages, activity, notifications, document views and exports follow it |
 

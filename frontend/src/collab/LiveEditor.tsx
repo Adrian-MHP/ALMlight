@@ -12,6 +12,7 @@ import { bodyExtensions, titleExtensions } from "@/components/rich/extensions";
 import { itemSuggestion } from "@/components/rich/suggestion";
 import { EditorFrame, uploadError, uploadImage } from "@/components/rich/EditorFrame";
 import { useLiveSession, type LiveSession, type LiveTarget, type Participant } from "./session";
+import { tx } from "@/lib/i18n";
 
 const PALETTE = ["#e8590c", "#1971c2", "#2f9e44", "#c2255c", "#6741d9", "#0c8599", "#e67700", "#5c940d"];
 
@@ -30,7 +31,7 @@ export function ParticipantAvatars({ people, max = 5, size = 26 }: { people: { i
     <Tooltip.Group openDelay={200}>
       <Avatar.Group spacing={6}>
         {people.slice(0, max).map((p) => (
-          <Tooltip key={p.id} label={`${p.name}${p.editing ? " — editing" : ""}`}>
+          <Tooltip key={p.id} label={`${p.name}${p.editing ? tx(" — editing") : ""}`}>
             <Avatar size={size} radius="xl" color={p.color} variant="filled" className={p.editing ? "avatar-editing" : undefined}
               style={{ background: p.color, outline: p.editing ? `2px solid ${p.color}` : undefined, outlineOffset: 2 }}
               data-testid={`avatar-${p.name}`}>
@@ -57,7 +58,7 @@ export function LiveEditor({ target, projectKey, canWrite, onClose, withTitle = 
   const qc = useQueryClient();
   const session = useLiveSession(target, me ? { id: me.id, name: me.display_name } : null,
     () => qc.invalidateQueries({ queryKey: pk(projectKey) }));
-  if (!session || !me) return <Group p="md"><Loader size="sm" /><Text size="sm">Connecting…</Text></Group>;
+  if (!session || !me) return <Group p="md"><Loader size="sm" /><Text size="sm">{tx("Connecting…")}</Text></Group>;
   return <LiveEditorInner key={session.doc.guid} session={session} target={target} projectKey={projectKey}
     canWrite={canWrite} onClose={onClose} withTitle={withTitle} withBody={withBody} testId={testId}
     me={{ id: me.id, name: me.display_name }} />;
@@ -83,7 +84,7 @@ function LiveEditorInner({ session, target, projectKey, canWrite, onClose, withT
     editable: false,
   }, [session.doc]);
   const title = useEditor({
-    extensions: [...titleExtensions("Title"), Collaboration.configure({ document: session.doc, field: "title" })],
+    extensions: [...titleExtensions(tx("Title")), Collaboration.configure({ document: session.doc, field: "title" })],
     editable: false,
   }, [session.doc]);
 
@@ -98,11 +99,11 @@ function LiveEditorInner({ session, target, projectKey, canWrite, onClose, withT
       const res = await api.post<{ saved: boolean; version?: string; error?: string }>(
         `/projects/${projectKey}/items/${target.key}/collab/save`);
       if (res.error) {
-        notifications.show({ color: "red", title: "Not saved", message: res.error });
+        notifications.show({ color: "red", title: tx("Not saved"), message: res.error });
         return;
       }
-      if (res.saved) notifications.show({ color: "green", message: `Saved ${target.key} as version ${res.version}` });
-      else if (!close) notifications.show({ message: "No changes to save" });
+      if (res.saved) notifications.show({ color: "green", message: tx("Saved {key} as version {version}", { key: target.key, version: res.version }) });
+      else if (!close) notifications.show({ message: tx("No changes to save") });
       qc.invalidateQueries({ queryKey: pk(projectKey) });
       if (close) onClose?.();
     } finally {
@@ -112,35 +113,35 @@ function LiveEditorInner({ session, target, projectKey, canWrite, onClose, withT
 
   const others: Participant[] = session.participants.filter((p) => p.id !== me.id);
   const status = session.status === "connected"
-    ? <Badge color="green" variant="dot" data-testid="live-status">Live{others.length ? ` · ${others.length + 1} editing` : ""}</Badge>
+    ? <Badge color="green" variant="dot" data-testid="live-status">{tx("Live{v}", { v: others.length ? tx(" · {v} editing", { v: others.length + 1 }) : "" })}</Badge>
     : session.status === "error"
-      ? <Badge color="red" variant="light" leftSection={<IconWifiOff size={12} />}>Not connected</Badge>
-      : <Badge color="yellow" variant="light" leftSection={<IconWifiOff size={12} />} data-testid="live-status">Connecting…</Badge>;
+      ? <Badge color="red" variant="light" leftSection={<IconWifiOff size={12} />}>{tx("Not connected")}</Badge>
+      : <Badge color="yellow" variant="light" leftSection={<IconWifiOff size={12} />} data-testid="live-status">{tx("Connecting…")}</Badge>;
 
   return (
     <div className="live-editor" data-testid={testId}>
       <Group justify="space-between" mb={6} wrap="wrap" gap="xs">
         <Group gap="xs">
           {status}
-          {!canWrite && <Badge color="gray" variant="light" leftSection={<IconLock size={12} />}>Read-only</Badge>}
+          {!canWrite && <Badge color="gray" variant="light" leftSection={<IconLock size={12} />}>{tx("Read-only")}</Badge>}
           <ParticipantAvatars people={session.participants.map((p) => ({ ...p, editing: true }))} />
           {others.length > 0 && (
-            <Text size="xs" c="dimmed"><IconUsers size={12} style={{ verticalAlign: -2 }} /> {others.map((o) => o.name).join(", ")} {others.length === 1 ? "is" : "are"} editing too</Text>
+            <Text size="xs" c="dimmed"><IconUsers size={12} style={{ verticalAlign: -2 }} /> {others.length === 1 ? tx("{names} is editing too", { names: others[0].name }) : tx("{names} are editing too", { names: others.map((o) => o.name).join(", ") })}</Text>
           )}
         </Group>
         <Group gap="xs">
           {canWrite && (
             <Button size="xs" variant="default" leftSection={<IconDeviceFloppy size={14} />} loading={saving}
-              onClick={() => save(false)} disabled={!session.ready} data-testid="live-save">Save version</Button>
+              onClick={() => save(false)} disabled={!session.ready} data-testid="live-save">{tx("Save version")}</Button>
           )}
           {onClose && (
             <Button size="xs" leftSection={<IconCheck size={14} />} onClick={() => (canWrite ? save(true) : onClose())}
-              loading={saving} data-testid="live-done">Done</Button>
+              loading={saving} data-testid="live-done">{tx("Done")}</Button>
           )}
         </Group>
       </Group>
       {session.closed && (
-        <Alert color="red" mb="xs" title="Live editing unavailable">{session.closed.reason || `Connection closed (${session.closed.code})`}</Alert>
+        <Alert color="red" mb="xs" title={tx("Live editing unavailable")}>{session.closed.reason || tx("Connection closed ({code})", { code: session.closed.code })}</Alert>
       )}
       {withTitle && (
         <div className="live-title" data-testid={`${testId}-title`}>
@@ -149,8 +150,7 @@ function LiveEditorInner({ session, target, projectKey, canWrite, onClose, withT
       )}
       {withBody && <EditorFrame editor={body} onImageUpload={canWrite ? upload : undefined} testId={`${testId}-body`} toolbar={canWrite} />}
       <Text size="xs" c="dimmed" mt={4}>
-        Changes are shared instantly with everyone working on this item. A new version is saved with “Save version”,
-        “Done” or automatically when the last editor leaves.{withBody ? <> Type <b>#</b> to reference an item.</> : null}
+        {tx("Changes are shared instantly with everyone working on this item. A new version is saved with “Save version”, “Done” or automatically when the last editor leaves.")}{withBody ? <> {tx("Type")} <b>#</b> {tx("to reference an item.")}</> : null}
       </Text>
     </div>
   );

@@ -1,9 +1,11 @@
-# 14 Beta test report (0.4 → 0.6)
+# 14 Beta test report (0.4 → 0.7)
 
 Two beta rounds were run against the complete application in Docker (`compose.test.yaml`: PostgreSQL 16, the
 production image with demo data, Playwright/Chromium), in addition to the automated suites. Round 1 finalised 0.4
 (rich text, co-editing, new UI); round 2 tested the engineering-backbone features of 0.5; round 3 the
-work-management features of 0.6 (query builder, bulk edit, boards, plans, timeline, workflow viewer).
+work-management features of 0.6 (query builder, bulk edit, boards, plans, timeline, workflow viewer); round 4 the
+0.7 additions (boolean queries, dependency types and auto-scheduling, time recording, resources and levelling,
+German user interface).
 
 ## 14.1 Method
 
@@ -140,14 +142,73 @@ title, version, state, date and page number, the table of contents and the docum
 language, columns and sorting, bulk edit with preview, board drag & drop with transitions and comment prompt,
 planning board, timeline with baseline, rescheduling and dependencies, workflow viewer).
 
-## 14.6 Known limitations
+## 14.6 Round 4 — scheduling, time, resources and German (0.7)
+
+**Crawler**: all pages and tabs as manager, contributor and viewer; dark theme; a phone pass in **German**; plus a
+German screenshot review of 15 main pages on desktop and phone — 0 JavaScript errors.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | After *OR …* turned a chip into a group, reopening the group showed the member editor instead of the member list | bug | The editor focus is reset whenever the chip closes |
+| 2 | The automated marking of interface texts also caught identifiers (a co-editing field name, an editor node group, three comparisons, colour names, a test id) | review | Restored; the extraction rules exclude such positions; a build check now lists every text and its translation |
+| 3 | Load test: every task of unplanned chains was critical — each chain was measured against its own finish | logic | Unplanned tasks are measured against the project finish (latest finish of all dated work), plan tasks against the plan due date, as in Schedule Manager/MS Project |
+| 4 | German workflow diagram clipped longer transition labels ("Zur Prüfung einreichen") | UI | State boxes and gaps are sized from the labels |
+| 5 | Resource heatmap: the colours for ≤ 60 % and ≤ 90 % looked the same | UI | Distinct shades |
+| 6 | Hours shown as "32.5 h" in German; hour inputs used a decimal point | UI | Number format and decimal comma follow the language |
+| 7 | Readers (viewer role) appeared as empty resource rows | UI | Only members who can do work are resources (readers only when they own tasks) |
+| 8 | Item picker placeholder cut off in the timesheet | UI | Wider field |
+
+**Permission matrix (0.7 endpoints)**
+
+| Action | Viewer | Non-member | Contributor | Reviewer | Manager |
+|---|---|---|---|---|---|
+| Read item time (totals) | 200 | 404 | 200 | 200 | 200 |
+| Record time | 403 | 404 | 201 | 201 | 201 |
+| Change another person's record | 403 | 404 | 200 (own) | 403 | 200 |
+| Own timesheet / set a cell | 200 / 403 | 404 | 200 | 200 | 200 |
+| Another person's timesheet | 403 | 404 | 200 (own) | 403 | 200 |
+| Resource load | 200 | 404 | 200 | 200 | 200 |
+| Levelling / auto-schedule preview | 403 | 404 | 200 | 200 | 200 |
+| Change a dependency type | 403 | 404 | 200 | 200 | 200 |
+| Hours per day of a member | 403 | 404 | 403 | 403 | 200 |
+| Query with OR group | 200 | 404 | 200 | 200 | 200 |
+| Set own language | 200 | 200 | 200 | 200 | 200 |
+
+65 checks, **0 unexpected**.
+
+**Load test** (600 tasks in 30 chains with 570 dependencies — some start-to-start/finish-to-finish with lag —, 25
+people, 1,500 requirements, 3,000 time records)
+
+| Operation | Result |
+|---|---|
+| Timeline with 600 tasks (dependency types, slack, critical path) | 25 ms |
+| Auto-schedule preview: resolve conflicts (434 moves) / as soon as possible (504 moves) | 1.1 s / 1.0 s |
+| Resource load, 12 / 26 weeks | 32 ms / 56 ms |
+| Levelling preview / apply (583 moves) | 2.1 s / 2.1 s |
+| Record a time entry | 4.8 ms |
+| Item time tab / resource load with actuals | 5 ms / 33 ms |
+| Query with OR across fields / nested groups (1,500 requirements) | 9 ms / 8 ms |
+| Activity in German (100 entries translated) | 12 ms |
+
+Previews of auto-scheduling and levelling run the real changes and roll them back (ADR-0027), hence seconds for
+hundreds of moves.
+
+**Automated tests at the end of round 4**: 173 backend tests (new: boolean queries, dependency types, slack and
+auto-schedule, working-day calendar, time records and privacy, timesheet, resources and levelling, message catalogue
+completeness, German errors/activity/notifications/document export/e-mail digest, user language, model translations
+in template updates), 48 browser E2E tests (new: OR group built with chips and the query text, typed dependency with
+label, auto-schedule, time recording, timesheet, resource heatmap and levelling, German user interface following the
+user), translation check in the frontend build (1,440 texts).
+
+## 14.7 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
-- The user interface is in English; German is on the roadmap.
+- Two interface languages (English, German); request-validation details from the API framework stay English.
 - PDF export uses the standard layout; corporate templates apply to Word.
 - E-mail digests were tested with a simulated SMTP server, single sign-on with a simulated identity provider
   (discovery, JWKS, signed tokens, PKCE) — a check against the customer's mail server and Entra ID/Keycloak tenant
   belongs to the installation.
 - The demo data is created in one go, so the demo burn-up shows a single step.
-- The query language has no top-level OR across fields; schedules know finish-to-start dependencies only.
+- Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
+  split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
 - Out of scope by design: manufacturing BOM/bill of process, CAD-authoring integrations, multi-site replication.

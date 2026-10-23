@@ -7,6 +7,7 @@ import { useMe, useProjectMutation, useProjects, useTemplates } from "@/api/hook
 import type { Project } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { useQueryClient } from "@tanstack/react-query";
+import { tx } from "@/lib/i18n";
 
 export function ProjectsPage() {
   const me = useMe().data!;
@@ -14,10 +15,10 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <PageHeader title="All projects" subtitle="Engineering projects you are a member of"
-        actions={me.is_admin && <Button leftSection={<IconPlus size={16} />} onClick={() => setOpen(true)} data-testid="new-project">New project</Button>} />
+      <PageHeader title={tx("All projects")} subtitle={tx("Engineering projects you are a member of")}
+        actions={me.is_admin && <Button leftSection={<IconPlus size={16} />} onClick={() => setOpen(true)} data-testid="new-project">{tx("New project")}</Button>} />
       {!isLoading && projects.length === 0 && (
-        <Card withBorder p="xl"><Text c="dimmed">No projects yet. {me.is_admin ? "Create the first one." : "Ask an administrator to add you to a project."}</Text></Card>
+        <Card withBorder p="xl"><Text c="dimmed">{tx("No projects yet. {v}", { v: me.is_admin ? tx("Create the first one.") : tx("Ask an administrator to add you to a project.") })}</Text></Card>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {projects.map((p) => <ProjectCard key={p.key} p={p} />)}
@@ -41,7 +42,7 @@ export function ProjectCard({ p }: { p: Project }) {
         {p.role && <Badge variant="light" color="gray" style={{ flexShrink: 0, maxWidth: "none" }}>{p.role}</Badge>}
       </Group>
       <Text size="sm" c="dimmed" lineClamp={2}>{p.description || "—"}</Text>
-      <Text size="xs" c="dimmed" mt="sm">Process template: {p.template_key}</Text>
+      <Text size="xs" c="dimmed" mt="sm">{tx("Process template: {template_key}", { template_key: p.template_key })}</Text>
     </Card>
   );
 }
@@ -55,26 +56,26 @@ function CreateProjectModal({ opened, onClose }: { opened: boolean; onClose: () 
   const navigate = useNavigate();
   const qc = useQueryClient();
   const create = useProjectMutation(null, () => api.post<Project>("/projects", { key, name, description, template }), {
-    success: "Project created",
+    success: tx("Project created"),
     onSuccess: (p) => { qc.invalidateQueries({ queryKey: ["projects"] }); qc.invalidateQueries({ queryKey: ["me"] }); onClose(); navigate(`/p/${p.key}`); },
   });
   const tpl = templates.find((t) => t.key === template);
   return (
-    <Modal opened={opened} onClose={onClose} title="New project" size="lg">
+    <Modal opened={opened} onClose={onClose} title={tx("New project")} size="lg">
       <Stack>
         <Group grow align="flex-start">
-          <TextInput label="Key" description="2–16 characters, e.g. SENSOR" value={key} required maxLength={16}
+          <TextInput label={tx("Key")} description={tx("2–16 characters, e.g. SENSOR")} value={key} required maxLength={16}
             onChange={(e) => setKey(e.currentTarget.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} data-testid="project-key" />
-          <TextInput label="Name" value={name} required onChange={(e) => setName(e.currentTarget.value)} data-testid="project-name" />
+          <TextInput label={tx("Name")} value={name} required onChange={(e) => setName(e.currentTarget.value)} data-testid="project-name" />
         </Group>
-        <Textarea label="Description" value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
-        <Select label="Process template" description="Information model: item types, links and workflows (can be tailored later)"
+        <Textarea label={tx("Description")} value={description} onChange={(e) => setDescription(e.currentTarget.value)} autosize minRows={2} />
+        <Select label={tx("Process template")} description={tx("Information model: item types, links and workflows (can be tailored later)")}
           data={templates.map((t) => ({ value: t.key, label: t.label }))} value={template} onChange={setTemplate} allowDeselect={false} />
-        {tpl && <Text size="xs" c="dimmed">{tpl.description} Item types: {tpl.item_types.join(", ")}.</Text>}
+        {tpl && <Text size="xs" c="dimmed">{tx("{description} Item types: {item_types}.", { description: tpl.description, item_types: tpl.item_types.join(", ") })}</Text>}
         <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>Cancel</Button>
+          <Button variant="default" onClick={onClose}>{tx("Cancel")}</Button>
           <Button onClick={() => create.mutate(undefined)} loading={create.isPending} disabled={key.length < 2 || !name.trim()}
-            data-testid="project-create">Create</Button>
+            data-testid="project-create">{tx("Create")}</Button>
         </Group>
       </Stack>
     </Modal>

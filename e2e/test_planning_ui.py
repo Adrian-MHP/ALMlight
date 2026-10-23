@@ -5,6 +5,7 @@ the timeline (critical path, baseline comparison, rescheduling, dependencies) an
 import re
 import uuid
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from playwright.sync_api import Page, expect
 
@@ -33,9 +34,9 @@ def test_query_builder_language_columns_and_sorting(page: Page):
     expect(page.get_by_text(f"{total} item(s)")).to_be_visible()
     rows = page.get_by_test_id("items-table").locator("tbody tr")
     # a wrong query explains itself
-    page.get_by_test_id("qtext").fill("state:draft OR state:approved")
+    page.get_by_test_id("qtext").fill("priority:(must OR")
     page.get_by_test_id("qtext-apply").click()
-    expect(page.get_by_test_id("qtext-error")).to_contain_text("OR combines values")
+    expect(page.get_by_test_id("qtext-error")).to_contain_text("Expected a value")
     # chips: negate the priority filter
     page.get_by_test_id("qchip-field.priority").click()
     page.get_by_test_id("qedit").get_by_text("is not", exact=True).click()
@@ -54,6 +55,29 @@ def test_query_builder_language_columns_and_sorting(page: Page):
     expect(page).to_have_url(re.compile(r"sort=-field\.estimate"))
     top = page.request.get(f"{API}/items?type=system_requirement&sort=-field.estimate&limit=1").json()["items"][0]["key"]
     expect(rows.first).to_contain_text(top)
+    # OR across different fields, built with the chips: priority must OR nobody owns it
+    add_filter(page, "field.priority", options=("must",))
+    editor = page.get_by_test_id("qedit")
+    page.get_by_test_id("qchip-field.priority").click()
+    editor.get_by_test_id("qor").click()
+    editor.get_by_test_id("qfield-owner").click()
+    editor.get_by_test_id("qopt-none").click()
+    expect(editor.get_by_test_id("qopt-none")).to_be_checked()
+    editor.get_by_role("button", name="Done").click()
+    expect(page.get_by_test_id("qgroup-editor")).to_contain_text("Owner: Nobody")
+    page.get_by_test_id("qgroup-done").click()
+    expect(page.get_by_test_id("qgroup-1")).to_contain_text("(Priority: Must OR Owner: Nobody)")
+    ql = "type:system_requirement (priority:must OR owner:none)"
+    total = page.request.get(f"{API}/items?ql={quote(ql)}&limit=1").json()["total"]
+    expect(page.get_by_text(f"{total} item(s)")).to_be_visible()
+    expect(page.get_by_test_id("qtext")).to_have_value(ql)
+    # the query text accepts the same, negated groups included
+    page.get_by_test_id("qtext").fill("type:system_requirement NOT (priority:must OR owner:none)")
+    page.get_by_test_id("qtext-apply").click()
+    expect(page.get_by_test_id("qgroup-1")).to_contain_text("NOT (Priority: Must OR Owner: Nobody)")
+    page.get_by_test_id("qgroup-1").click()
+    page.get_by_test_id("qmember-remove-1").click()
+    expect(page.get_by_test_id("qchip-field.priority")).to_contain_text("NOT Priority: Must")
     shot(page, "50-query-builder")
 
 
@@ -193,9 +217,69 @@ def test_timeline_baseline_reschedule_and_dependency(page: Page):
     page.get_by_test_id("tl-dep-picker").click()
     page.get_by_test_id("tl-dep-picker").fill(proto["key"])
     page.get_by_role("option", name=re.compile(proto["key"])).click()
+    # start-to-start with two working days lag
+    page.get_by_test_id("tl-dep-type").click()
+    page.get_by_role("option", name=re.compile("Start-to-start")).click()
+    page.get_by_test_id("tl-dep-lag").fill("2")
     page.get_by_test_id("tl-dep-save").click()
-    expect(page.get_by_text(f"{task} now starts after {proto['key']} finishes")).to_be_visible()
-    assert {r["key"]: r for r in page.request.get(f"{API}/timeline").json()["rows"]}[task]["depends_on"] == [proto["key"]]
+    expect(page.get_by_text(f"{task} starts when the predecessor starts ({proto['key']})")).to_be_visible()
+    dep = {r["key"]: r for r in page.request.get(f"{API}/timeline").json()["rows"]}[task]["dependencies"]
+    assert [(d["key"], d["type"], d["lag"]) for d in dep] == [(proto["key"], "ss", 2)]
+    expect(page.get_by_test_id(f"tl-dep-row-{proto['key']}")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_test_id(f"tl-deplabel-{proto['key']}>{task}")).to_have_text("SS +2d")
+    # auto-schedule resolves the slipped qualification: preview, then apply
+    dr2 = rows["Design review DR2"]["key"]
+    page.get_by_test_id("tl-schedule").click()
+    page.get_by_test_id("tl-sched-preview").click()
+    expect(page.get_by_test_id(f"tl-move-{dr2}")).to_contain_text("+1 d")
+    shot(page, "55-auto-schedule")
+    page.get_by_test_id("tl-sched-apply").click()
+    expect(page.get_by_text(re.compile(r"Scheduled: \d+ moved"))).to_be_visible()
+    assert page.request.get(f"{API}/timeline").json()["conflicts"] == []
+
+
+def test_time_recording_timesheet_and_resource_levelling(page: Page):
+    login(page, "alex", DEMO_PW)
+    rows = {r["title"]: r for r in page.request.get(f"{API}/timeline").json()["rows"]}
+    fmea = rows["Update FMEA after EMC findings"]["key"]
+    # record time on the item: spent and remaining follow
+    page.goto(f"/p/DEMO/items/{fmea}?tab=time")
+    page.get_by_test_id("time-hours").fill("1.5")
+    page.get_by_test_id("time-comment").fill("Review of the EMC findings")
+    page.get_by_test_id("time-record").click()
+    expect(page.get_by_test_id("time-spent")).to_have_text("1.5 h")
+    expect(page.get_by_test_id("time-remaining")).to_have_text("30.5 h")
+    expect(page.get_by_test_id("time-records")).to_contain_text("Review of the EMC findings")
+    # the timesheet shows the hours in today's cell; changing the cell replaces them
+    ts = page.request.get(f"{API}/timesheet").json()
+    today, before = ts["today"], ts["totals"][ts["today"]]
+    page.goto("/p/DEMO/timesheet")
+    cell = page.get_by_test_id(f"ts-cell-{fmea}-{today}")
+    expect(cell).to_have_value("1.5")
+    cell.fill("3")
+    cell.press("Enter")
+    expect(page.get_by_test_id(f"ts-total-{today}")).to_have_text(f"{before + 1.5:g}")
+    assert page.request.get(f"{API}/items/{fmea}/work").json()["spent"] == 3
+    shot(page, "56-timesheet")
+    # resources: alex is double-booked; levelling moves the FMEA update behind the EMC test
+    res = page.request.get(f"{API}/resources").json()
+    alex = next(p for p in res["people"] if p["user"]["username"] == "alex")
+    week = next(c["week"] for c in alex["weeks"] if c["load"] and c["load"] > 1)
+    page.goto("/p/DEMO/timeline")
+    page.get_by_test_id("tl-view").get_by_text("Resources").click()
+    cell = page.get_by_test_id(f"rs-cell-alex-{week}")
+    expect(cell).to_have_class(re.compile("rs-l4"))
+    cell.click()
+    expect(page.get_by_test_id("rs-detail")).to_contain_text(fmea)
+    page.get_by_test_id("rs-level").click()
+    page.get_by_test_id("rs-level-preview").click()
+    expect(page.get_by_test_id(f"tl-move-{fmea}")).to_be_visible()
+    shot(page, "57-resource-levelling")
+    page.get_by_test_id("rs-level-apply").click()
+    expect(page.get_by_text(re.compile(r"Levelled: \d+ task\(s\) moved"))).to_be_visible()
+    moved = page.request.get(f"{API}/items/{fmea}").json()["fields"]["start_date"]
+    assert moved > rows["Update FMEA after EMC findings"]["start_date"]
 
 
 def test_workflow_viewer_shows_state_and_next_steps(page: Page):

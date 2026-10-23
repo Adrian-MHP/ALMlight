@@ -5,18 +5,19 @@ import type { ReportWidget, WidgetData } from "@/api/types";
 import { Markdown } from "@/components/Markdown";
 import { fmtDate } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
+import { tx } from "@/lib/i18n";
 
 export const PALETTE = ["indigo.6", "teal.6", "orange.6", "grape.6", "cyan.6", "pink.6", "lime.7", "yellow.6", "red.6", "blue.6",
   "violet.6", "gray.6"];
 
-const SERIES_LABELS: Record<string, string> = { created: "Created", released: "Released / approved", changed: "Changed" };
+const SERIES_LABELS: Record<string, string> = { created: tx("Created"), released: tx("Released / approved"), changed: tx("Changed") };
 
 /** Renders the evaluated data of one report widget. */
 export function WidgetView({ widget, data }: { widget: ReportWidget; data: WidgetData | undefined }) {
-  if (!data) return <Text c="dimmed" size="sm">Loading…</Text>;
+  if (!data) return <Text c="dimmed" size="sm">{tx("Loading…")}</Text>;
   if (!data.ok) return <Alert color="red" variant="light">{data.error}</Alert>;
   switch (widget.type) {
-    case "markdown": return <Markdown text={data.text} empty="(empty text block)" />;
+    case "markdown": return <Markdown text={data.text} empty={tx("(empty text block)")} />;
     case "kpi": return <KpiValue data={data} />;
     case "chart": return <ChartView widget={widget} data={data} />;
     case "table": return <TableView data={data} />;
@@ -48,8 +49,8 @@ function KpiValue({ data }: { data: WidgetData }) {
   return (
     <Stack gap={4}>
       <Text fz={40} fw={700} c={color} lh={1} data-testid="kpi-value">{data.value}{data.unit}</Text>
-      {data.unit === "%" && <Text size="xs" c="dimmed">{data.numerator} of {data.denominator} items</Text>}
-      {data.target !== null && data.target !== undefined && <Text size="xs" c="dimmed">Target {data.target}{data.unit}</Text>}
+      {data.unit === "%" && <Text size="xs" c="dimmed">{tx("{numerator} of {denominator} items", { numerator: data.numerator, denominator: data.denominator })}</Text>}
+      {data.target !== null && data.target !== undefined && <Text size="xs" c="dimmed">{tx("Target {target}{unit}", { target: data.target, unit: data.unit })}</Text>}
     </Stack>
   );
 }
@@ -62,7 +63,7 @@ function ItemKey({ k }: { k: string }) {
 function ChartView({ widget, data }: { widget: ReportWidget; data: WidgetData }) {
   const groups = data.groups as { key: string; label: string; total: number; series: Record<string, number> }[];
   const stacks = data.stacks as { key: string; label: string }[];
-  if (!groups.length) return <Text c="dimmed" size="sm">No items match.</Text>;
+  if (!groups.length) return <Text c="dimmed" size="sm">{tx("No items match.")}</Text>;
   if (widget.chart === "donut" || widget.chart === "pie") {
     const cells = groups.map((g, i) => ({ name: g.label, value: g.total, color: PALETTE[i % PALETTE.length] }));
     return (
@@ -83,7 +84,7 @@ function ChartView({ widget, data }: { widget: ReportWidget; data: WidgetData })
   const rows = groups.map((g) => ({ label: g.label, ...(stacks.length ? g.series : { total: g.total }) }));
   const series = stacks.length
     ? stacks.map((s, i) => ({ name: s.key, label: s.label, color: PALETTE[i % PALETTE.length] }))
-    : [{ name: "total", label: "Items", color: "indigo.6" }];
+    : [{ name: "total", label: tx("Items"), color: "indigo.6" }];
   return (
     <BarChart h={Math.max(200, widget.chart === "horizontal" ? groups.length * 34 + 40 : 240)} data={rows} dataKey="label"
       series={series} type={stacks.length ? "stacked" : "default"} orientation={widget.chart === "horizontal" ? "vertical" : "horizontal"}
@@ -113,8 +114,8 @@ function TableView({ data }: { data: WidgetData }) {
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      {data.total > rows.length && <Text size="xs" c="dimmed" mt={4}>Showing {rows.length} of {data.total}</Text>}
-      {data.total === 0 && <Text size="sm" c="dimmed">No items match.</Text>}
+      {data.total > rows.length && <Text size="xs" c="dimmed" mt={4}>{tx("Showing {length} of {total}", { length: rows.length, total: data.total })}</Text>}
+      {data.total === 0 && <Text size="sm" c="dimmed">{tx("No items match.")}</Text>}
     </>
   );
 }
@@ -131,11 +132,11 @@ function TrendView({ data }: { data: WidgetData }) {
 }
 
 function CoverageView({ data }: { data: WidgetData }) {
-  const bars: [string, number, string][] = [["Refined", data.refined_pct, "indigo"], ["Allocated", data.allocated_pct, "grape"],
-    ["With tests", data.with_tests_pct, "teal"], ["Verified", data.verified_pct, "green"]];
+  const bars: [string, number, string][] = [[tx("Refined"), data.refined_pct, "indigo"], [tx("Allocated"), data.allocated_pct, "grape"],
+    [tx("With tests"), data.with_tests_pct, "teal"], [tx("Verified"), data.verified_pct, "green"]];
   return (
     <Stack gap="xs">
-      <Text size="sm">{data.label}: {data.total} items</Text>
+      <Text size="sm">{tx("{label}: {total} items", { label: data.label, total: data.total })}</Text>
       {bars.map(([l, v, c]) => (
         <div key={l}>
           <Group justify="space-between"><Text size="xs">{l}</Text><Text size="xs">{v}%</Text></Group>
@@ -144,7 +145,7 @@ function CoverageView({ data }: { data: WidgetData }) {
       ))}
       {(data.gaps as { key: string; title: string; verification: string }[]).length > 0 && (
         <>
-          <Text size="xs" c="dimmed" mt={4}>Not yet verified</Text>
+          <Text size="xs" c="dimmed" mt={4}>{tx("Not yet verified")}</Text>
           {(data.gaps as { key: string; title: string; verification: string }[]).slice(0, 8).map((g) => (
             <Group key={g.key} gap={6} wrap="nowrap"><ItemKey k={g.key} /><Text size="xs" truncate>{g.title}</Text>
               <Badge size="xs" variant="light" color="gray">{g.verification}</Badge></Group>
@@ -161,7 +162,7 @@ function MatrixView({ data }: { data: WidgetData }) {
   const cells = new Map((data.cells as { row: string; col: string; suspect: boolean }[]).map((c) => [`${c.row}|${c.col}`, c]));
   return (
     <>
-      <Text size="xs" c="dimmed" mb={4}>{data.rows_covered_pct}% of rows have at least one link</Text>
+      <Text size="xs" c="dimmed" mb={4}>{tx("{rows_covered_pct}% of rows have at least one link", { rows_covered_pct: data.rows_covered_pct })}</Text>
       <Table.ScrollContainer minWidth={300}>
         <Table withColumnBorders>
           <Table.Thead><Table.Tr><Table.Th />{cols.map((c) => <Table.Th key={c.id} className="matrix-cell"><Tooltip label={c.title}><span className="item-key" style={{ writingMode: "vertical-rl" }}>{c.key}</span></Tooltip></Table.Th>)}</Table.Tr></Table.Thead>
@@ -204,16 +205,16 @@ function ReuseView({ data }: { data: WidgetData }) {
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 2, md: 4 }}>
-        <Tile label="Modules" value={data.modules} />
-        <Tile label="Reuse rate" value={data.reuse_rate_pct} unit="%" hint="Modules/components with strategy reused, standard or purchased" />
-        <Tile label="Used in ≥ 2 products" value={data.multi_use_pct} unit="%" />
-        <Tile label="Products per module" value={data.avg_products_per_module} />
+        <Tile label={tx("Modules")} value={data.modules} />
+        <Tile label={tx("Reuse rate")} value={data.reuse_rate_pct} unit="%" hint={tx("Modules/components with strategy reused, standard or purchased")} />
+        <Tile label={tx("Used in ≥ 2 products")} value={data.multi_use_pct} unit="%" />
+        <Tile label={tx("Products per module")} value={data.avg_products_per_module} />
       </SimpleGrid>
       {strategies.length > 0 && (
         <Group gap={6}>{strategies.map(([s, n], i) => <Badge key={s} variant="light" color={PALETTE[i % PALETTE.length].split(".")[0]}>{s}: {n}</Badge>)}</Group>
       )}
       <Table>
-        <Table.Thead><Table.Tr><Table.Th>Module</Table.Th><Table.Th>Level</Table.Th><Table.Th>Strategy</Table.Th><Table.Th ta="right">Products</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>{tx("Module")}</Table.Th><Table.Th>{tx("Level")}</Table.Th><Table.Th>{tx("Strategy")}</Table.Th><Table.Th ta="right">{tx("Products")}</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {rows.slice(0, 12).map((r) => (
             <Table.Tr key={r.key}><Table.Td><Group gap={6} wrap="nowrap"><ItemKey k={r.key} /><Text size="sm" truncate>{r.title}</Text></Group></Table.Td>
@@ -232,12 +233,12 @@ function LeadTimeView({ data }: { data: WidgetData }) {
   const trend = data.trend as { period: string; finished: number; avg_lead_days: number }[];
   const open = (data.rows as { key: string; title: string; state: string; open_age_days: number | null }[])
     .filter((r) => r.open_age_days !== null).sort((a, b) => (b.open_age_days ?? 0) - (a.open_age_days ?? 0)).slice(0, 6);
-  if (!types.length) return <Text c="dimmed" size="sm">No change items yet.</Text>;
+  if (!types.length) return <Text c="dimmed" size="sm">{tx("No change items yet.")}</Text>;
   return (
     <Stack gap="sm">
       <Table>
-        <Table.Thead><Table.Tr><Table.Th>Type</Table.Th><Table.Th ta="right">Total</Table.Th><Table.Th ta="right">Open</Table.Th>
-          <Table.Th ta="right">Avg lead (d)</Table.Th><Table.Th ta="right">Median</Table.Th><Table.Th ta="right">P90</Table.Th><Table.Th ta="right">Open age (d)</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>{tx("Type")}</Table.Th><Table.Th ta="right">{tx("Total")}</Table.Th><Table.Th ta="right">{tx("Open")}</Table.Th>
+          <Table.Th ta="right">{tx("Avg lead (d)")}</Table.Th><Table.Th ta="right">{tx("Median")}</Table.Th><Table.Th ta="right">P90</Table.Th><Table.Th ta="right">{tx("Open age (d)")}</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {types.map(([k, t]) => (
             <Table.Tr key={k}><Table.Td>{t.label}</Table.Td><Table.Td ta="right">{t.count}</Table.Td><Table.Td ta="right">{t.open}</Table.Td>
@@ -247,14 +248,14 @@ function LeadTimeView({ data }: { data: WidgetData }) {
         </Table.Tbody>
       </Table>
       {data.end_to_end?.avg !== null && data.end_to_end?.avg !== undefined && (
-        <Text size="sm">End-to-end (change request → change order released): <b>{data.end_to_end.avg} days</b> on average</Text>
+        <Text size="sm">{tx("End-to-end (change request → change order released):")} <b>{tx("{avg} days", { avg: data.end_to_end.avg })}</b> {tx("on average")}</Text>
       )}
       {trend.length > 1 && (
-        <LineChart h={180} data={trend} dataKey="period" series={[{ name: "avg_lead_days", label: "Avg lead time (days)", color: "orange.6" }]} />
+        <LineChart h={180} data={trend} dataKey="period" series={[{ name: "avg_lead_days", label: tx("Avg lead time (days)"), color: "orange.6" }]} />
       )}
       {open.length > 0 && (
         <Stack gap={2}>
-          <Text size="xs" c="dimmed">Oldest open changes</Text>
+          <Text size="xs" c="dimmed">{tx("Oldest open changes")}</Text>
           {open.map((r) => <Group key={r.key} gap={6} wrap="nowrap"><ItemKey k={r.key} /><Text size="xs" truncate>{r.title}</Text>
             <Badge size="xs" variant="light">{r.state}</Badge><Text size="xs" c="dimmed">{r.open_age_days} d</Text></Group>)}
         </Stack>
@@ -270,19 +271,19 @@ function RetestView({ data }: { data: WidgetData }) {
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 2, md: 4 }}>
-        <Tile label="Test cases" value={overall.applicable} />
-        <Tile label="Current & passed" value={overall.passed_current} color="teal" />
-        <Tile label="Need (re-)test" value={overall.needs_retest} color={overall.needs_retest ? "orange" : undefined} />
-        <Tile label="Est. effort" value={overall.estimated_minutes} unit=" min" hint="Sum of the last known durations" />
+        <Tile label={tx("Test cases")} value={overall.applicable} />
+        <Tile label={tx("Current & passed")} value={overall.passed_current} color="teal" />
+        <Tile label={tx("Need (re-)test")} value={overall.needs_retest} color={overall.needs_retest ? "orange" : undefined} />
+        <Tile label={tx("Est. effort")} value={overall.estimated_minutes} unit={tx(" min")} hint={tx("Sum of the last known durations")} />
       </SimpleGrid>
       {variants.length > 0 && (
         <>
           <BarChart h={Math.max(160, variants.length * 36 + 40)} data={variants.map((v) => ({ label: v.variant, passed: v.passed_current, retest: v.needs_retest }))}
             dataKey="label" type="stacked" orientation="vertical" withLegend
-            series={[{ name: "passed", label: "Current & passed", color: "teal.6" }, { name: "retest", label: "Needs (re-)test", color: "orange.6" }]} />
+            series={[{ name: "passed", label: tx("Current & passed"), color: "teal.6" }, { name: "retest", label: tx("Needs (re-)test"), color: "orange.6" }]} />
           <Table>
-            <Table.Thead><Table.Tr><Table.Th>Variant</Table.Th><Table.Th ta="right">Applicable</Table.Th><Table.Th ta="right">Re-test</Table.Th>
-              <Table.Th ta="right">Failed</Table.Th><Table.Th ta="right">Never run</Table.Th><Table.Th ta="right">Effort (min)</Table.Th></Table.Tr></Table.Thead>
+            <Table.Thead><Table.Tr><Table.Th>{tx("Variant")}</Table.Th><Table.Th ta="right">{tx("Applicable")}</Table.Th><Table.Th ta="right">{tx("Re-test")}</Table.Th>
+              <Table.Th ta="right">{tx("Failed")}</Table.Th><Table.Th ta="right">{tx("Never run")}</Table.Th><Table.Th ta="right">{tx("Effort (min)")}</Table.Th></Table.Tr></Table.Thead>
             <Table.Tbody>
               {variants.map((v) => (
                 <Table.Tr key={v.variant}><Table.Td><Group gap={6} wrap="nowrap"><ItemKey k={v.variant} /><Text size="sm" truncate>{v.title}</Text></Group></Table.Td>
@@ -302,18 +303,18 @@ function RatioView({ data }: { data: WidgetData }) {
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 2, md: 4 }}>
-        <Tile label="Offered variants" value={data.offered_variants} />
-        <Tile label="Modules" value={data.modules_total} hint={`${data.modules_common} common, ${data.modules_variant_specific} variant-specific`} />
-        <Tile label="Modules / variant" value={data.modules_per_variant_ratio} />
-        <Tile label="Variant-specific / variant" value={data.variant_specific_per_variant} />
+        <Tile label={tx("Offered variants")} value={data.offered_variants} />
+        <Tile label={tx("Modules")} value={data.modules_total} hint={tx("{modules_common} common, {modules_variant_specific} variant-specific", { modules_common: data.modules_common, modules_variant_specific: data.modules_variant_specific })} />
+        <Tile label={tx("Modules / variant")} value={data.modules_per_variant_ratio} />
+        <Tile label={tx("Variant-specific / variant")} value={data.variant_specific_per_variant} />
       </SimpleGrid>
       <Table>
-        <Table.Thead><Table.Tr><Table.Th>Variant</Table.Th><Table.Th ta="right">Modules used</Table.Th><Table.Th ta="right">Variant-specific</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>{tx("Variant")}</Table.Th><Table.Th ta="right">{tx("Modules used")}</Table.Th><Table.Th ta="right">{tx("Variant-specific")}</Table.Th><Table.Th /></Table.Tr></Table.Thead>
         <Table.Tbody>
           {rows.map((r) => (
             <Table.Tr key={r.variant}><Table.Td><Group gap={6} wrap="nowrap"><ItemKey k={r.variant} /><Text size="sm" truncate>{r.title}</Text></Group></Table.Td>
               <Table.Td ta="right">{r.modules}</Table.Td><Table.Td ta="right">{r.variant_specific_modules}</Table.Td>
-              <Table.Td>{!r.valid && <Badge size="xs" color="red">invalid</Badge>}</Table.Td></Table.Tr>
+              <Table.Td>{!r.valid && <Badge size="xs" color="red">{tx("invalid")}</Badge>}</Table.Td></Table.Tr>
           ))}
         </Table.Tbody>
       </Table>

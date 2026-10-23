@@ -9,7 +9,8 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db, utcnow
-from almlight.core.deps import current_user
+from almlight.core.deps import current_user, ui_locale
+from almlight.core.i18n import tr
 from almlight.core.schemas import Ok
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
@@ -31,15 +32,17 @@ class PreferencesIn(BaseModel):
     email_notifications: bool
 
 
-def _out(n: Notification, keys: dict[uuid.UUID, str]) -> dict[str, Any]:
-    return {"id": str(n.id), "kind": n.kind, "title": n.title, "body": n.body, "item_key": n.item_key,
+def _out(n: Notification, keys: dict[uuid.UUID, str], locale: str = "en") -> dict[str, Any]:
+    # a digest lists change summaries (translated); other bodies are user text (comment excerpts) and stay as written
+    body = "\n".join(tr(line, locale) or "" for line in n.body.split("\n")) if n.body and n.kind == "digest" else n.body
+    return {"id": str(n.id), "kind": n.kind, "title": tr(n.title, locale), "body": body, "item_key": n.item_key,
             "project": keys.get(n.project_id) if n.project_id else None, "actor": n.actor_name,
             "created_at": n.created_at.isoformat(), "read": n.read_at is not None}
 
 
 @router.get("/notifications", summary="My notifications (newest first)")
 def list_notifications(unread_only: bool = False, limit: int = 50, user: User = Depends(current_user),
-                       db: Session = Depends(get_db)) -> dict[str, Any]:
+                       db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> dict[str, Any]:
     stmt = select(Notification).where(Notification.user_id == user.id)
     if unread_only:
         stmt = stmt.where(Notification.read_at.is_(None))
@@ -48,7 +51,7 @@ def list_notifications(unread_only: bool = False, limit: int = 50, user: User = 
         Notification.user_id == user.id, Notification.read_at.is_(None))).scalar_one()
     pids = {n.project_id for n in rows if n.project_id}
     keys = dict(db.execute(select(Project.id, Project.key).where(Project.id.in_(pids))).all()) if pids else {}
-    return {"unread": unread, "items": [_out(n, keys) for n in rows], "email": service.email_enabled(),
+    return {"unread": unread, "items": [_out(n, keys, locale) for n in rows], "email": service.email_enabled(),
             "email_notifications": user.email_notifications}
 
 

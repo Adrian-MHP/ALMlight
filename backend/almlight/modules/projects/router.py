@@ -5,12 +5,13 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.db import get_db
-from almlight.core.deps import admin_user, current_user
+from almlight.core.deps import admin_user, current_user, ui_locale
+from almlight.core.i18n import tr
 from almlight.core.schemas import Ok, UserDirectory
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.audit.service import verify_chain
@@ -50,6 +51,7 @@ class ProjectOut(BaseModel):
 class MemberIn(BaseModel):
     user_id: uuid.UUID
     role: str
+    hours_per_day: float | None = Field(default=None, ge=0, le=24, description="Working hours per day for this project")
 
 
 def _out(db: Session, p: Project, user: User) -> ProjectOut:
@@ -133,14 +135,14 @@ def members(project_key: str, user: User = Depends(current_user), db: Session = 
     rows = db.execute(select(ProjectMember, User).join(User, User.id == ProjectMember.user_id)
                       .where(ProjectMember.project_id == project.id).order_by(User.display_name)).all()
     return [{"user_id": str(u.id), "username": u.username, "display_name": u.display_name, "role": m.role,
-             "active": u.is_active} for m, u in rows]
+             "active": u.is_active, "hours_per_day": m.hours_per_day} for m, u in rows]
 
 
 @router.put("/projects/{project_key}/members", response_model=Ok)
 def set_member(project_key: str, body: MemberIn, user: User = Depends(current_user),
                db: Session = Depends(get_db)) -> Ok:
     project = get_project(db, project_key, user, "manager")
-    service.set_member(db, user, project, get_user(db, body.user_id), body.role)
+    service.set_member(db, user, project, get_user(db, body.user_id), body.role, hours_per_day=body.hours_per_day)
     db.commit()
     return Ok()
 
@@ -157,7 +159,7 @@ def remove_member(project_key: str, user_id: uuid.UUID, user: User = Depends(cur
 @router.get("/projects/{project_key}/audit", summary="Audit trail of the project")
 def audit_log(project_key: str, action: str | None = None, limit: int = Query(default=100, ge=1, le=1000),
               before_id: int | None = None, user: User = Depends(current_user),
-              db: Session = Depends(get_db)) -> list[dict]:
+              db: Session = Depends(get_db), locale: str = Depends(ui_locale)) -> list[dict]:
     project = get_project(db, project_key, user)
     stmt = select(AuditEntry).where(AuditEntry.project_id == project.id)
     if action:
@@ -166,8 +168,8 @@ def audit_log(project_key: str, action: str | None = None, limit: int = Query(de
         stmt = stmt.where(AuditEntry.id < before_id)
     rows = db.execute(stmt.order_by(AuditEntry.id.desc()).limit(limit)).scalars().all()
     return [{"id": e.id, "ts": e.ts.isoformat(), "actor": e.actor_name, "action": e.action,
-             "entity_type": e.entity_type, "entity_id": e.entity_id, "summary": e.summary, "details": e.details,
-             "hash": e.hash} for e in rows]
+             "entity_type": e.entity_type, "entity_id": e.entity_id, "summary": tr(e.summary, locale),
+             "details": e.details, "hash": e.hash} for e in rows]
 
 
 @router.get("/admin/audit/verify", summary="Verify the tamper-evident hash chain of the audit trail")

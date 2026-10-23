@@ -110,14 +110,14 @@ def entries(db: Session, c: Collection) -> list[tuple[CollectionEntry, Item, Bas
     return [(e, i, b) for e, i, b in rows]
 
 
-def export_zip(db: Session, project: Project, c: Collection, fmt: str) -> bytes:
+def export_zip(db: Session, project: Project, c: Collection, fmt: str, locale: str | None = None) -> bytes:
     if fmt not in ("pdf", "docx"):
         raise ValidationFailed("format must be pdf or docx")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         manifest = [f"Collection: {c.name}", f"Status: {c.status}", ""]
         for _, doc, baseline in entries(db, c):
-            snap = build_snapshot(db, project, doc, baseline_id=baseline.id)
+            snap = build_snapshot(db, project, doc, baseline_id=baseline.id, locale=locale)
             data = render_pdf(snap) if fmt == "pdf" else render_docx(snap)
             name = f"{doc.key}-{snap.root.version}.{fmt}"
             z.writestr(name, data)

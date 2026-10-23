@@ -96,7 +96,7 @@ def test_query_language_round_trip_and_sorting(team, project):
     assert _ql(c, project, 'pressure') == {k["a"]}
     assert _ql(c, project, 'owner:none type:system_requirement') == {k["d"]}
     assert _ql(c, project, 'release:' + k["rel"]) == {k["a"]}
-    for wrong, message in [("state:draft OR state:approved", "OR combines values"), ("color:red", "Unknown query field"),
+    for wrong, message in [("priority:must OR", "OR needs a condition"), ("color:red", "Unknown query field"),
                            ("rpn:[1 10]", "range"), ("priority:(must", "Expected ')'"), ("updated:[yesterday TO *]", "not a date")]:
         err = c.post(f"/projects/{project}/query/parse", {"text": wrong}, expect=422) if "date" not in message else \
             c.get(f"/projects/{project}/items?ql=" + urllib.parse.quote(wrong), expect=422)
@@ -122,3 +122,39 @@ def test_saved_query_and_export_with_conditions(team, project):
     rows = list(csv.reader(io.StringIO(c.get(f"/projects/{project}/export.csv?ql=" + urllib.parse.quote(
         "type:system_requirement NOT link.verifies.in:*")).content.decode("utf-8-sig"))))
     assert {r[0] for r in rows[1:]} == {k["b"], k["d"]}
+
+
+
+def test_boolean_queries_across_fields(team, project):
+    c = team["contributor"]
+    k = _setup(team, project)
+    # OR across different fields, with grouping and negation
+    assert _ql(c, project, "type:risk (rpn:[200 TO *] OR severity:4)") == {k["r1"], k["r2"]}
+    assert _ql(c, project, "type:system_requirement (priority:must OR owner:none)") == {k["a"], k["d"]}
+    assert _ql(c, project, "type:system_requirement NOT (priority:must OR priority:could)") == {k["b"]}
+    assert _ql(c, project, "(type:risk severity:9) OR (type:system_requirement safety_relevant:true)") == {k["r1"], k["a"]}
+    assert _ql(c, project, "state:draft OR state:open") >= {k["a"], k["b"], k["d"], k["r1"]}
+    # free words inside OR branches search the text of that branch
+    assert _ql(c, project, "type:system_requirement (pressure OR vibration)") == {k["a"], k["d"]}
+    # round trip keeps the structure
+    text = "type:system_requirement (priority:must OR NOT link.verifies.in:*) NOT (owner:none OR safety_relevant:true)"
+    parsed = c.post(f"/projects/{project}/query/parse", {"text": text})
+    assert [list(x)[0] for x in parsed["conditions"]] == ["field", "or", "or"]
+    assert parsed["conditions"][2].get("not") is True
+    assert c.post(f"/projects/{project}/query/format", parsed)["text"] == text
+    assert _ql(c, project, text) == {k["b"]}
+    # JSON groups work in the API, saved queries and boards; unknown fields inside groups are refused
+    cond = [{"field": "type", "op": "in", "values": ["risk"]},
+            {"or": [{"field": "field.rpn", "op": "between", "values": [200, None]},
+                    {"field": "field.severity", "op": "in", "values": [4]}]}]
+    assert _cond(c, project, cond) == {k["r1"], k["r2"]}
+    bad = [{"or": [{"field": "nope", "op": "in", "values": [1]}, {"field": "type", "op": "in", "values": ["risk"]}]}]
+    c.post(f"/projects/{project}/queries", {"name": "bad", "query": {"conditions": bad}}, expect=422)
+    c.post(f"/projects/{project}/boards", {"name": "b", "config": {"conditions": bad}}, expect=422)
+    c.get(f"/projects/{project}/items?cond=" + urllib.parse.quote(json.dumps([{"or": []}])), expect=422)
+    saved = c.post(f"/projects/{project}/queries", {"name": "Risks", "query": {"conditions": cond}}, expect=201)
+    assert next(x for x in c.get(f"/projects/{project}/queries") if x["id"] == saved["id"])["count"] == 2
+    for wrong, message in [("(priority:must", "Expected ')'"), ("priority:must OR", "OR needs a condition"),
+                           ("OR priority:must", "OR needs a condition"), ("()", "Empty parentheses")]:
+        err = c.post(f"/projects/{project}/query/parse", {"text": wrong}, expect=422)
+        assert message in err["error"]["message"], (wrong, err)

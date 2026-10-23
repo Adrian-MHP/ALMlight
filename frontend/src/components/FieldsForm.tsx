@@ -4,6 +4,7 @@ import { StepsEditor } from "./TestSteps";
 import { useDirectory } from "@/api/hooks";
 import { fmtValue } from "@/lib/format";
 import { withComputed } from "@/lib/formula";
+import { tx } from "@/lib/i18n";
 
 /** Form inputs generated from the configured field definitions of an item type. */
 export function FieldsForm({ defs, values, onChange }: {
@@ -36,8 +37,8 @@ function FieldInput({ def, value, onChange, users }: {
     const shown = def.type === "enum" ? def.options.find((o) => o.key === value)?.label ?? (value as string) : value;
     return (
       <TextInput {...common} readOnly value={shown === undefined || shown === null ? "–" : String(shown)}
-        description={def.formula ? `Calculated: ${def.formula}` : `Calculated from ${def.classify?.field}`}
-        rightSection={<Badge size="xs" variant="light" color="gray">calc</Badge>} rightSectionWidth={52} />
+        description={def.formula ? tx("Calculated: {formula}", { formula: def.formula }) : tx("Calculated from {field}", { field: def.classify?.field })}
+        rightSection={<Badge size="xs" variant="light" color="gray">{tx("calc")}</Badge>} rightSectionWidth={52} />
     );
   }
   switch (def.type) {

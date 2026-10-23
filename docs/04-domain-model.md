@@ -6,7 +6,7 @@
 erDiagram
     PROJECT ||--o{ ITEM : contains
     PROJECT ||--|| PROJECT_CONFIG : "information model (template copy)"
-    PROJECT ||--o{ MEMBER : "user + role"
+    PROJECT ||--o{ MEMBER : "user + role + hours per day"
     ITEM ||--|{ ITEM_VERSION : "immutable versions"
     ITEM ||--o{ LINK : "source of"
     ITEM ||--o{ LINK : "target of"
@@ -21,6 +21,7 @@ erDiagram
     BASELINE ||--o{ BASELINE_LINK : "link copies"
     ITEM ||--o{ TEST_RECORD : "test run results"
     PROJECT ||--o{ AUDIT_ENTRY : "hash-chained"
+    ITEM ||--o{ WORK_RECORD : "hours per user and day"
 ```
 
 ## 4.2 Information model (configuration)
@@ -36,7 +37,8 @@ Each project holds a copy of a **process template** (see [configuration guide](0
   (allowed from-states, minimum role, comment required, direct e-signature, approval: roles × count, signature,
   four-eyes, reject target; guards; effects).
 - **Semantics** — binds engine features to keys (affects, verifies, satisfies, derives, requires/excludes links;
-  test case / test run / stakeholder / element types).
+  test case / test run / stakeholder / element types; plans, tasks, dependency attributes, estimate and capacity).
+- **Translations** — labels of the model in other languages (`translations.de`: English label → German label).
 
 ## 4.3 Items and versions
 
@@ -163,3 +165,13 @@ variant) and are evaluated on demand (see ADR-0014).
 Every mutation writes an audit entry (actor, action, entity, summary, details, related item ids). Each entry stores
 the SHA-256 of its canonical content and the previous entry's hash; `GET /admin/audit/verify` recomputes the chain
 and reports the first broken entry.
+
+## 4.15 Time records, capacity and language
+
+- **Work records** (`work_records`): item, user, day, hours, comment. Actuals only (today or earlier, at most 24 h per
+  person and day); they do not version the item. Spent = sum of records; remaining = estimate − spent (0 when the
+  item is finished). Records are visible to their author and to project managers; totals to every member.
+- **Capacity**: `project_members.hours_per_day` (default 8) — used by the resource load and levelling.
+- **Language**: `users.locale` (`en`, `de` or empty = browser language) — used for the interface, server messages,
+  e-mail digests and exports. Stored texts (audit summaries, notifications) remain English and are translated when
+  read.

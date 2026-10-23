@@ -284,5 +284,6 @@ def parse_at(value: str | None) -> datetime | None:
 
 
 def snapshot_for(db: Session, project: Project, root: Item, *, at: str | None, baseline: uuid.UUID | None,
-                 variant: str | None = None) -> DocSnapshot:
-    return build_snapshot(db, project, root, at=parse_at(at), baseline_id=baseline, variant_key=variant)
+                 variant: str | None = None, locale: str | None = None) -> DocSnapshot:
+    return build_snapshot(db, project, root, at=parse_at(at), baseline_id=baseline, variant_key=variant,
+                          locale=locale)

@@ -10,8 +10,9 @@ import type {
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
   TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview, Report, ReportSummary, ReportTemplate,
   ReportWidget, WidgetData, DocSnapshot, DocHistory, DocStateRef, CompareResult, CommentThread, DocCollection, RecycledItem,
-  NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo, Condition, Board, Timeline,
+  NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo, QNode, Board, ItemWork, Timesheet, Resources, Timeline,
 } from "./types";
+import { tx } from "@/lib/i18n";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
 
@@ -57,7 +58,7 @@ export interface ItemFilter {
   link_dir?: "in" | "out";
   link_exists?: boolean;
   planned_in?: string;
-  conditions?: Condition[];
+  conditions?: QNode[];
 }
 
 export function useItems(key: string, f: ItemFilter, enabled = true) {
@@ -249,7 +250,7 @@ export function useProjectMutation<TVars, TResult = unknown>(
       opts.onSuccess?.(result, vars);
     },
     onError: (err) => {
-      if (!opts.silentError) notifications.show({ color: "red", title: "Action failed", message: err.full ?? err.message });
+      if (!opts.silentError) notifications.show({ color: "red", title: tx("Action failed"), message: err.full ?? err.message });
     },
   });
 }
@@ -412,6 +413,20 @@ export function useDocTemplates(key: string) {
 
 export function useBoards(key: string) {
   return useQuery<Board[]>({ queryKey: pk(key, "boards"), queryFn: () => api.get(`/projects/${key}/boards`) });
+}
+
+export function useItemWork(key: string, itemKey: string) {
+  return useQuery<ItemWork>({ queryKey: pk(key, "work", itemKey), queryFn: () => api.get(`/projects/${key}/items/${itemKey}/work`) });
+}
+
+export function useTimesheet(key: string, week: string, user: string | null) {
+  return useQuery<Timesheet>({ queryKey: pk(key, "timesheet", week, user), queryFn: () => api.get(`/projects/${key}/timesheet${qs({ week, user: user ?? undefined })}`),
+    placeholderData: (prev) => prev });
+}
+
+export function useResources(key: string, start: string | null, weeks: number) {
+  return useQuery<Resources>({ queryKey: pk(key, "resources", start, weeks), queryFn: () => api.get(`/projects/${key}/resources${qs({ start: start ?? undefined, weeks })}`),
+    placeholderData: (prev) => prev });
 }
 
 export function useTimeline(key: string, baseline: string | null) {

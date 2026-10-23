@@ -37,7 +37,7 @@ def test_all_pages_and_tabs_load_cleanly(page: Page, browser: Browser):
               "/p/DEMO/changes", "/p/DEMO/verification", "/p/DEMO/variants", "/p/DEMO/baselines", "/p/DEMO/reports",
               "/p/DEMO/activity", "/p/DEMO/settings", "/p/DEMO/risks", "/p/DEMO/plans", "/p/DEMO/plans?release=REL-1",
               "/p/DEMO/structure?view=bom", "/p/DEMO/items/RSK-1", "/p/DEMO/items/REL-1", "/p/DEMO/items/TC-5",
-              "/p/DEMO/items/SE-5", "/p/NOPE", "/no-such-page"]
+              "/p/DEMO/items/SE-5", "/p/DEMO/boards", "/p/DEMO/timeline", "/p/NOPE", "/no-such-page"]
     for route in routes:
         page.goto(route)
         _settle(page)
@@ -50,7 +50,7 @@ def test_all_pages_and_tabs_load_cleanly(page: Page, browser: Browser):
         _watch(other, problems)
         login(other, "alex", DEMO_PW)
         for route in ("/", "/p/DEMO/items/SYS-5", "/p/DEMO/documents/SPEC-2", "/p/DEMO/reports", "/p/DEMO/risks",
-                      "/p/DEMO/plans?release=REL-1", "/p/DEMO/structure?view=bom"):
+                      "/p/DEMO/plans?release=REL-1", "/p/DEMO/structure?view=bom", "/p/DEMO/boards", "/p/DEMO/timeline"):
             other.goto(route)
             _settle(other)
         ctx.close()

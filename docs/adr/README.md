@@ -27,5 +27,7 @@
 | [0023](0023-backbone-features-on-the-generic-model.md) | Tests, risks, plans and BOM as views on the generic item/link model | accepted |
 | [0024](0024-single-sign-on-oidc.md) | Single sign-on with OpenID Connect | accepted |
 | [0025](0025-file-check-out-and-word-templates.md) | File check-out beside the version; Word templates with placeholders | accepted |
+| [0026](0026-structured-queries-and-query-language.md) | Structured query conditions with a Polarion-like query language | accepted |
+| [0027](0027-bulk-edit-boards-and-timeline-through-services.md) | Bulk edit, boards and the timeline change items only through the normal services | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

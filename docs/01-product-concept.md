@@ -86,8 +86,8 @@ Product consequences:
 | Configuration & change management | ✔ PR → CR → CO, change-controlled revisions, release via CO (blocked by checked-out files) | Effectivity on change orders (date/serial) |
 | Variants & product structure | ✔ feature model, constraints, variants, applicability (150% model); multi-level BOM with quantities, find numbers, date effectivity, roll-up, Excel/CSV, where-used | Variant-specific baselines, substitutes |
 | Verification | ✔ test cases with steps, test runs, step-wise execution, defects from failed steps, JUnit import, re-test detection, coverage, maturity | Parametrised test runs |
-| Search & navigation | ✔ full-text, filters, global search, dashboards, saved and shared views, traceability-gap filters, export of the current view | Query language |
-| Risks & planning | ✔ FMEA risks with computed RPN and level, risk matrix before/after mitigation, mitigation traceability; releases with timeline, progress, schedule status and burn-up | Capacity planning, ASIL tables |
+| Search & navigation | ✔ full-text, query builder on any field, query language, configurable table, saved and shared views, traceability-gap filters, bulk edit, export of the current view | Top-level OR in queries |
+| Risks & planning | ✔ FMEA risks with computed RPN and level, risk matrix, mitigation traceability; plan hierarchy with capacity, burn-up/down and planning board; Kanban boards; Gantt timeline with dependencies, critical path and baseline comparison | Resource levelling, ASIL tables |
 | Reports & KPIs | ✔ user-built reports (KPI, chart, table, trend, coverage, matrix, maturity), KPIs reuse rate, change lead time, re-test effort, module/variant ratio, Excel export, templates | Scheduled report mails |
 | Users & roles | ✔ local users, project roles, API tokens, single sign-on (OIDC: Entra ID, Keycloak), admin group | Groups → project roles |
 | Audit & compliance | ✔ hash-chained audit trail, signatures, status accounting | Compliance report templates |

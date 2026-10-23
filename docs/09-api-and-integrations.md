@@ -205,3 +205,27 @@ curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items/SE-10/attachmen
 | Template updates | `GET`/`POST /projects/{k}/template-updates` (manager) |
 | Single sign-on | `GET /auth/oidc/config`, `GET /auth/oidc/login?next=/`, `GET /auth/oidc/callback` |
 
+## 9.13 Queries, bulk edit, boards, plans and timeline (0.6)
+
+See [15-work-management](15-work-management.md).
+
+```bash
+# query language or JSON conditions on the item list (and on export.csv / export.xlsx); sort by custom fields
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items" -G \
+  --data-urlencode 'ql=type:system_requirement priority:(must OR should) NOT link.verifies.in:*' --data-urlencode 'sort=-field.estimate'
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items" -G \
+  --data-urlencode 'cond=[{"field":"field.rpn","op":"between","values":[100,null]},{"field":"owner","op":"in","values":["me"]}]'
+
+# bulk edit: dry run (default) shows per item ok / unchanged / skipped; dry_run=false applies
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/items/bulk" \
+  -d '{"query": {"ql": "type:system_requirement state:draft"}, "action": "transition", "transition": "submit", "dry_run": false}'
+```
+
+| Area | Endpoints |
+|---|---|
+| Item queries | `GET /projects/{k}/items?ql=…` or `?cond=<JSON>`; `sort=field.<key>` / `-field.<key>`; `POST /projects/{k}/query/parse` (`{text}` → `{q, conditions}`), `POST /projects/{k}/query/format` |
+| Bulk edit | `POST /projects/{k}/items/bulk` — `keys` or `query` (`q`, `types`, `conditions`, `ql`); `action` = `update` (`fields`, `owner_id`+`set_owner`, `applicability`+`set_applicability`), `transition` (`transition`, `comment`, `password`), `plan`/`unplan` (`release`, `from_release`), `link` (`link_type`, `link_dir`, `target`), `watch`, `unwatch`, `delete`; `dry_run` (default `true`); max 1,000 items |
+| Boards | `GET`/`POST /projects/{k}/boards`, `GET`/`PUT`/`DELETE /projects/{k}/boards/{id}` — config: `types`, `q`, `conditions`, `columns_by` / `swimlanes_by` (`state`, `owner`, `release`, `type`, `field.<key>`), `hidden_columns`, `column_order`, `wip`, `card_fields` |
+| Plans | `GET /projects/{k}/plans` (hierarchy `parent`/`children`, `estimate`, `capacity`, `load`), `GET /projects/{k}/plans/{key}` (`items` with `plan` and `estimate`, `child_plans`, `burnup` with `remaining` and estimate series) |
+| Timeline | `GET /projects/{k}/timeline?baseline=<id>` — rows (plans, tasks, milestones) with dates, progress, `parent`, `depends_on`, `slack` (working days), `critical`, `baseline` dates; `conflicts` |
+

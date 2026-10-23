@@ -3,6 +3,7 @@
 from almlight.core.db import Base
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
+from almlight.modules.boards.models import Board
 from almlight.modules.branches.models import Branch, BranchItem
 from almlight.modules.collab.models import CollabDraft
 from almlight.modules.doc_collections.models import Collection, CollectionEntry
@@ -36,6 +37,7 @@ __all__ = [
     "BaselineItem",
     "BaselineLink",
     "Blob",
+    "Board",
     "Branch",
     "BranchItem",
     "CollabDraft",

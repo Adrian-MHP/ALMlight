@@ -167,8 +167,10 @@ def execute_transition(
     *,
     comment: str | None = None,
     password: str | None = None,
+    signature_verified: bool = False,
 ) -> dict[str, Any]:
-    """Run a transition. Returns ``{"status": "done"}`` or ``{"status": "approval_requested", ...}``."""
+    """Run a transition. Returns ``{"status": "done"}`` or ``{"status": "approval_requested", ...}``.
+    ``signature_verified``: the caller already checked the e-signature once (bulk transitions)."""
     wf = _workflow(project, item)
     t = wf.transition(transition_key)
     if t is None:
@@ -217,7 +219,7 @@ def execute_transition(
                                                     "transition": t.key, "request_id": req.id})
         return {"status": "approval_requested", "request_id": str(req.id)}
 
-    if t.signature:
+    if t.signature and not signature_verified:
         _check_signature(actor, password)
     existing = pending_request(db, item)
     if existing:

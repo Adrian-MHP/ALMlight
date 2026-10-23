@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP, 0.2 – 0.5 increments)
+## 6.1 Implemented (v0.1 MVP, 0.2 – 0.6 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -77,6 +77,13 @@ history and preview, Word export in customer templates, single sign-on via OIDC,
 existing projects. See [12-engineering-backbone](12-engineering-backbone.md), the
 [feature catalogue](13-feature-catalogue.md) and the [beta test report](14-beta-test-report.md).
 
+**Work management (0.6)**: Polarion-like query builder and query language (any field, links, dates, users, plans),
+configurable table with custom-field columns, sorting and preview, bulk edit with preview (fields, owner, status,
+plan, links, watch, delete), configurable Kanban boards with drag & drop transitions, WIP limits and swimlanes, plan
+hierarchy (release → iterations, milestones) with estimates, capacity, burn-down and a planning board, Gantt timeline
+with tasks, dependencies, critical path, conflicts, baseline comparison and drag-to-reschedule, workflow viewer.
+See [15-work-management](15-work-management.md).
+
 **Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check, SMTP and OIDC
 configuration
 
@@ -93,20 +100,20 @@ configuration
 
 ## 6.3 Roadmap
 
-**Next increment (0.6) — scale and comfort**
+**Next increment (0.7) — scale and comfort**
+- German user interface (i18n), visual template editor, template versioning
 - Live sessions across several app processes (shared bus), comments anchored to text ranges
-- German user interface (i18n of the whole UI), visual template editor, template versioning
 - Effectivity on change orders (date / serial number), BOM substitutes and alternates
-- Parametrised test runs and test run templates; capacity and effort planning
+- Parametrised test runs and test run templates; time recording; start-to-start / finish-to-finish dependencies
 - Lookup-table computed fields (e.g. ISO 26262 ASIL determination); group → project role mapping for SSO
-- Scheduled report e-mails; S3-compatible file storage; scheduled backups; PDF export in customer templates
+- Scheduled report e-mails; S3-compatible / Azure Blob file storage; PDF export in customer templates
 
-**0.7 — digital thread**
+**0.8 — digital thread**
 - SysML v2 API connector (link items to model elements, e.g. SysON)
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**0.8 — assisted engineering (governed AI)**
+**0.9 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

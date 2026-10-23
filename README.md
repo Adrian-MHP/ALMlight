@@ -17,11 +17,17 @@ ALMlight.)*
 
 ![Compare a baseline with the live document](docs/images/compare.png)
 
+![Query builder, bulk edit and preview pane](docs/images/query.png)
+
+![Kanban board: drag a card to run the workflow transition](docs/images/board.png)
+
+![Timeline with critical path, conflict and schedule baseline](docs/images/timeline.png)
+
 ![Risk matrix and FMEA register](docs/images/risks.png)
 
 ![Multi-level bill of materials with effectivity](docs/images/bom.png)
 
-![Release plan with burn-up](docs/images/plans.png)
+![Planning board: backlog and iterations with capacity](docs/images/planning.png)
 
 ## Highlights
 
@@ -56,7 +62,18 @@ ALMlight.)*
   (specified / realised / verified / validated).
 - **Risk management (FMEA)**: severity, occurrence, detection, computed RPN and risk level, risk matrix before and
   after mitigation, mitigation traceability and residual-risk acceptance with e-signature.
-- **Release planning**: releases and milestones with timeline, progress, schedule status and burn-up.
+- **Queries like Polarion**: query builder with chips for any field, link, date, user or plan (*is / is not*,
+  Any/None, periods), a query language to copy, paste and edit, configurable columns incl. custom fields, sorting,
+  a preview pane, and saved views with their columns.
+- **Bulk edit**: select rows or the whole result and edit fields or owner, change the status, plan, link, watch or
+  delete — with a per-item preview of what will change and what is skipped and why.
+- **Kanban boards**: any items, columns and swimlanes by status, owner, plan, type or field, WIP limits; dragging a
+  card runs the real workflow transition (with comment or e-signature when required).
+- **Plans**: releases with iterations and milestones, estimates against capacity, burn-up and burn-down, and a
+  planning board to drag work from the backlog into iterations.
+- **Timeline (Gantt)**: tasks, milestones and plans with finish-to-start dependencies, critical path, scheduling
+  conflicts and schedule-baseline comparison; drag bars to reschedule.
+- **Workflow viewer**: every item shows its state diagram with the path taken and the transitions possible now.
 - **Bill of materials**: multi-level BOM with quantities, units, find numbers, date effectivity, rolled-up totals,
   Excel/CSV export and where-used across projects.
 - **File management**: check-out/check-in with file revisions, revision history and preview; items with
@@ -108,9 +125,10 @@ API documentation: <http://localhost:48080/api/v1/docs>
 | [Live documents](docs/10-live-documents.md) | Feature parity with enterprise live documents, time travel |
 | [Rich text & co-editing](docs/11-rich-text-and-co-editing.md) | Editor, images, live sessions, saving, formats, operation |
 | [Engineering backbone](docs/12-engineering-backbone.md) | Notifications, views, computed fields, tests, risks, plans, BOM, files, Word templates, SSO |
+| [Work management](docs/15-work-management.md) | Query builder and language, bulk edit, boards, plans, timeline, workflow viewer |
 | [Feature catalogue](docs/13-feature-catalogue.md) | Ariadne compared with Polarion/Teamcenter capability areas |
 | [Beta test report](docs/14-beta-test-report.md) | Method, findings and fixes, permission matrix, load test |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0025 |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0027 |
 
 ## Technology
 
@@ -127,17 +145,17 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 153 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 163 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 40 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 46 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.5: the engineering backbone — notifications and mentions, saved views with traceability gaps, computed
-fields, step-wise test execution with defects, FMEA risk management, release planning, multi-level BOM with
-effectivity and where-used, file check-out/check-in, Word export in customer templates and single sign-on — on top
-of 0.4 (rich text, real-time co-editing, live documents with time travel, branches, reports, Word/ReqIF round trips).
+Version 0.6: Polarion/Teamcenter-class work management — query builder and query language, configurable table,
+bulk edit, Kanban boards, plan hierarchy with capacity and planning board, Gantt timeline with critical path and
+baseline comparison, workflow viewer — on top of 0.5 (tests, risks, BOM, files, notifications, Word templates, SSO)
+and 0.4 (rich text, real-time co-editing, live documents with time travel, branches, reports, Word/ReqIF round trips).
 How it compares with Polarion and Teamcenter: [feature catalogue](docs/13-feature-catalogue.md). Next increments:
 [roadmap](docs/06-mvp-scope-roadmap.md).

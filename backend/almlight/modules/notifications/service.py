@@ -137,6 +137,8 @@ def on_audit(db: Session, entry: Any, actor: User | None) -> None:
 
 @event.listens_for(Session, "before_commit")
 def _flush_notifications(session: Session) -> None:
+    if session.in_nested_transaction():
+        return  # SQLAlchemy also reports savepoint commits here; write once, for the whole transaction
     buffer = session.info.pop("notif_buffer", None)
     if not buffer:
         return

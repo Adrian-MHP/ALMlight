@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
-  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
+  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
   IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
   IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
   IconTopologyStar3, IconUser, IconUsers, type Icon,
@@ -41,8 +41,12 @@ export const PROJECT_NAV: NavGroup[] = [
     { to: "variants", label: "Variants", icon: IconTopologyStar3, hint: "Features, variants, 150% model" },
     { to: "baselines", label: "Baselines", icon: IconBinaryTree, hint: "Baselines and release collections" },
   ] },
+  { group: "Planning", color: "cyan", items: [
+    { to: "plans", label: "Plans", icon: IconCalendarStats, hint: "Releases, iterations, capacity, planning board" },
+    { to: "timeline", label: "Timeline", icon: IconTimeline, hint: "Gantt schedule: tasks, milestones, dependencies" },
+    { to: "boards", label: "Boards", icon: IconLayoutKanban, hint: "Kanban boards over any items" },
+  ] },
   { group: "Insights", color: "blue", items: [
-    { to: "plans", label: "Plans", icon: IconCalendarStats, hint: "Releases and milestones with progress" },
     { to: "reports", label: "Reports", icon: IconChartBar, hint: "KPIs and user-built reports" },
   ] },
   { group: "Project", color: "gray", items: [

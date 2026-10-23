@@ -5,7 +5,7 @@ import uuid
 
 from playwright.sync_api import Page, expect
 
-from conftest import ADMIN_PASSWORD, choose, login, logout, shot
+from conftest import ADMIN_PASSWORD, add_filter, choose, login, logout, shot
 
 DEMO_PW = "demo1234"
 
@@ -40,7 +40,7 @@ def test_items_search_and_filter(page: Page):
     page.get_by_test_id("items-search").fill("HART")
     expect(page.get_by_test_id("items-table").get_by_text("Provide HART communication")).to_be_visible()
     page.get_by_test_id("items-search").fill("")
-    choose(page, "items-type-filter", "System Requirement")
+    add_filter(page, "type", options=("system_requirement",))
     expect(page.get_by_role("heading", name="System Requirement")).to_be_visible()
     shot(page, "04-items")
 

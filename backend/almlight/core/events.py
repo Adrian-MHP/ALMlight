@@ -141,6 +141,8 @@ def _txn_ended(session: Session, transaction: Any) -> None:
 
 @event.listens_for(Session, "after_commit")
 def _after_commit(session: Session) -> None:
+    if session.in_nested_transaction():
+        return  # SQLAlchemy reports savepoint commits here too; publish only when the transaction really commits
     collected = {key: session.info.pop(key, None) for key in _TRACKED}
     _marks(session).clear()
     session.info.pop("_live_ended", None)

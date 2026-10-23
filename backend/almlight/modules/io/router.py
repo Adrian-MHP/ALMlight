@@ -34,27 +34,46 @@ class ExportFilter:
     def __init__(self, type: list[str] | None = Query(default=None), q: str | None = None,
                  state: list[str] | None = Query(default=None), suspect: bool | None = None,
                  link_type: str | None = None, link_dir: str = Query(default="out", pattern="^(out|in)$"),
-                 link_exists: bool | None = None, planned_in: str | None = None) -> None:
+                 link_exists: bool | None = None, planned_in: str | None = None,
+                 cond: str | None = Query(default=None, description="JSON conditions as in the item list"),
+                 ql: str | None = Query(default=None, description="Query language as in the item list"),
+                 sort: str = "key") -> None:
         self.types = type
-        self.query = None
-        if q or state or suspect or link_type or planned_in:
-            self.query = items_svc.ItemQuery(q=q, types=type, states=state, suspect=suspect or None,
-                                             link_type=link_type, link_dir=link_dir, link_exists=link_exists,
-                                             planned_in=planned_in, limit=tabular.MAX_ROWS)
+        self.args = dict(q=q, state=state, suspect=suspect, link_type=link_type, link_dir=link_dir,
+                         link_exists=link_exists, planned_in=planned_in, cond=cond, ql=ql, sort=sort)
+
+    def query(self, project: Any, user: User) -> items_svc.ItemQuery | None:
+        from almlight.modules.items import query as item_query
+
+        a = self.args
+        conditions = item_query.parse_conditions(a["cond"])
+        q = a["q"]
+        if a["ql"]:
+            text, more = item_query.parse_query(project, a["ql"])
+            q = " ".join(x for x in (q, text) if x) or None
+            conditions += more
+        if not (q or a["state"] or a["suspect"] or a["link_type"] or a["planned_in"] or conditions):
+            return None
+        return items_svc.ItemQuery(q=q, types=self.types, states=a["state"], suspect=a["suspect"] or None,
+                                   link_type=a["link_type"], link_dir=a["link_dir"], link_exists=a["link_exists"],
+                                   planned_in=a["planned_in"], conditions=conditions or None, user_id=user.id,
+                                   sort=a["sort"], limit=tabular.MAX_ROWS)
 
 
 @router.get("/projects/{project_key}/export.csv", summary="Items as CSV (optionally filtered like the item list)")
 def export_csv(project_key: str, f: ExportFilter = Depends(), user: User = Depends(current_user),
                db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    return _download(tabular.export_csv(db, project, f.types, f.query), f"{project.key}-{date.today()}.csv", "text/csv")
+    content = tabular.export_csv(db, project, f.types, f.query(project, user))
+    return _download(content, f"{project.key}-{date.today()}.csv", "text/csv")
 
 
 @router.get("/projects/{project_key}/export.xlsx", summary="Items as Excel (optionally filtered like the item list)")
 def export_xlsx(project_key: str, f: ExportFilter = Depends(), user: User = Depends(current_user),
                 db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    return _download(tabular.export_xlsx(db, project, f.types, f.query), f"{project.key}-{date.today()}.xlsx",
+    content = tabular.export_xlsx(db, project, f.types, f.query(project, user))
+    return _download(content, f"{project.key}-{date.today()}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 

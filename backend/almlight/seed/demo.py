@@ -136,25 +136,28 @@ def seed_demo(db: Session) -> None:
         "range": new("system_requirement", "Measure process pressure over the configured range", parent=h_meas,
                      description="The transmitter shall measure gauge pressure over the full configured measuring "
                                  "range (0-10 bar or 0-100 bar).",
-                     fields={"priority": "must", "kind": "performance"}),
+                     fields={"priority": "must", "kind": "performance", "estimate": 8}),
         "accuracy": new("system_requirement", "Accuracy of 0.1 % of span", parent=h_meas,
                         description="The measurement deviation shall not exceed +/- 0.1 % of span at reference "
-                                    "conditions.", fields={"priority": "must", "kind": "performance"}),
+                                    "conditions.", fields={"priority": "must", "kind": "performance", "estimate": 5}),
         "analog": new("system_requirement", "Provide a 4-20 mA output signal", parent=h_if,
                       description="The measured value shall be provided as a 4-20 mA current signal.",
-                      fields={"priority": "must", "kind": "interface"}, applicability="OUT_420 or OUT_HART"),
+                      fields={"priority": "must", "kind": "interface", "estimate": 3},
+                      applicability="OUT_420 or OUT_HART"),
         "hart": new("system_requirement", "Provide HART communication", parent=h_if,
                     description="Configuration and diagnostics shall be available via HART 7.",
-                    fields={"priority": "must", "kind": "interface"}, applicability="OUT_HART"),
+                    fields={"priority": "must", "kind": "interface", "estimate": 8}, applicability="OUT_HART"),
         "iolink": new("system_requirement", "Provide an IO-Link interface", parent=h_if,
                       description="The transmitter shall act as an IO-Link device (COM2).",
-                      fields={"priority": "must", "kind": "interface"}, applicability="OUT_IOLINK"),
+                      fields={"priority": "must", "kind": "interface", "estimate": 13}, applicability="OUT_IOLINK"),
         "temp": new("system_requirement", "Operate from -40 to +85 degC", parent=h_env,
-                    fields={"priority": "must", "kind": "environmental", "verification_method": "test"}),
+                    fields={"priority": "must", "kind": "environmental", "verification_method": "test",
+                            "estimate": 5}),
         "sil": new("system_requirement", "Support a SIL 2 safety function", parent=h_env,
                    description="Systematic capability SC 2 and diagnostic coverage according to the safety "
                                "manual.", fields={"priority": "must", "kind": "safety", "safety_relevant": True,
-                                                  "verification_method": "analysis"}, applicability="SIL2"),
+                                                  "verification_method": "analysis", "estimate": 13},
+                   applicability="SIL2"),
     }
     for key, target in (("range", "monitor"), ("accuracy", "monitor"), ("analog", "integrate"),
                         ("hart", "integrate"), ("iolink", "integrate"), ("temp", "monitor"), ("sil", "safety")):
@@ -355,7 +358,7 @@ def seed_demo(db: Session) -> None:
     collections.add_document(db, project, max_, release, sys_spec, review)
 
     # --- product structure as a BOM: find numbers, quantities, effectivity -------------------------------
-    from datetime import date
+    from datetime import date, timedelta
 
     def bom(parent: Item, child: Item, find: str, qty: float = 1, unit: str = "pcs", **extra: str) -> None:
         link_row = next(lk for lk, it in links.children(db, parent, project.model.structural_link_types())
@@ -408,15 +411,65 @@ def seed_demo(db: Session) -> None:
     today = date.today()
     r10 = new("release", "Release 1.0 — pilot customers", by=max_,
               fields={"start_date": (today.replace(day=1)).isoformat(), "due_date": f"{today.year}-12-15",
-                      "goal": "Analog and IO-Link variants for pilot customers"})
+                      "goal": "Analog and IO-Link variants for pilot customers", "capacity": 50})
     engine.execute_transition(db, project, max_, r10, "start")
     r11 = new("release", "Release 1.1 — HART and SIL 2", by=max_,
               fields={"start_date": f"{today.year + 1}-01-07", "due_date": f"{today.year + 1}-04-30",
                       "goal": "Process variant with HART and SIL 2 certification"})
-    for it in (sysr["range"], sysr["accuracy"], sysr["analog"], sysr["temp"], sysr["iolink"], run):
-        link("planned_in", it, r10)
+    monday = today - timedelta(days=today.weekday())
+
+    def day(n: int) -> str:
+        return (monday + timedelta(days=n)).isoformat()
+
+    sprint_a = new("release", "Sprint 1 — core measurement", by=max_,
+                   fields={"kind": "iteration", "start_date": day(-14), "due_date": day(11), "capacity": 20,
+                           "goal": "Range, accuracy and verification run"})
+    sprint_b = new("release", "Sprint 2 — interfaces and environment", by=max_,
+                   fields={"kind": "iteration", "start_date": day(14), "due_date": day(39), "capacity": 20})
+    for sp in (sprint_a, sprint_b):
+        link("part_of", sp, r10)
+    engine.execute_transition(db, project, max_, sprint_a, "start")
+    for it in (sysr["range"], sysr["accuracy"], run):
+        link("planned_in", it, sprint_a)
+    for it in (sysr["analog"], sysr["temp"]):
+        link("planned_in", it, sprint_b)
+    link("planned_in", sysr["iolink"], r10)
     for it in (sysr["hart"], sysr["sil"], cr):
         link("planned_in", it, r11)
+    # approvals spread over the sprint, so the burn-up shows the real progression
+    for item, ago in ((sysr["range"], 12), (sysr["accuracy"], 8), (sysr["analog"], 4), (sysr["temp"], 2)):
+        _backdate(db, item, created=30, events={"in_review": ago + 1, "approved": ago})
+
+    # --- schedule: tasks with finish-to-start dependencies and milestones (timeline) ------------------
+    def task(title: str, start: int, finish: int, plan: Item, progress: int = 0, state: str | None = None) -> Item:
+        t = new("task", title, by=max_, fields={"start_date": day(start), "due_date": day(finish),
+                                                "progress": progress})
+        link("planned_in", t, plan)
+        if state in ("in_progress", "done"):
+            engine.execute_transition(db, project, max_, t, "start")
+        if state == "done":
+            engine.execute_transition(db, project, max_, t, "finish")
+        return t
+
+    proto = task("Build B-samples", -21, -10, sprint_a, 100, "done")
+    emc = task("EMC pre-compliance test", -7, 4, sprint_a, 60, "in_progress")
+    qual = task("Temperature qualification", 7, 18, sprint_b)
+    review_dr2 = task("Design review DR2", 21, 23, sprint_b)
+    freeze = new("release", "Design freeze", by=max_, fields={"kind": "milestone", "due_date": day(23)})
+    pilot = task("Pilot production preparation", 24, 46, r10)
+    sop = new("release", "Start of pilot deliveries", by=max_, fields={"kind": "milestone", "due_date": day(46)})
+    for ms in (freeze, sop):
+        link("part_of", ms, r10)
+    for succ, pred in ((emc, proto), (qual, emc), (review_dr2, qual), (freeze, review_dr2), (pilot, freeze),
+                       (sop, pilot)):
+        link("depends_on", succ, pred)
+    task("Prepare EMC test report template", -7, -3, sprint_a, 100, "done")
+    baselines.create_baseline(db, project, max_, name="Schedule baseline",
+                              description="Plan agreed at the sprint 1 kick-off")
+    # the qualification slips by three days: the timeline shows the baseline and the conflict with DR2
+    items.update_item(db, project, max_, qual, items.ContentChange(fields={"start_date": day(10),
+                                                                          "due_date": day(21)}),
+                      change_note="Climate chamber booked three days later")
 
     # --- files: a drawing and a CAD model with two revisions, checked out by alex ---------------------
     from almlight.modules.files import service as files
@@ -440,6 +493,22 @@ def seed_demo(db: Session) -> None:
                                           Item.title == "Provide NAMUR NE 107 diagnostics")).scalar_one()
     items.add_comment(db, project, alex, nm107, "@rita could you check the status mapping against NE 107 table 1?",
                       document=sys_spec)
+    link("planned_in", nm107, sprint_b)
+    from almlight.modules.boards.models import Board
+    from almlight.modules.boards.router import BoardConfig, validate_config
+
+    for name, cfg in (
+        ("Requirements by status", BoardConfig(types=["system_requirement"], columns_by="state",
+                                               swimlanes_by="field.priority", card_fields=["estimate", "kind"],
+                                               wip={"in_review": 3})),
+        ("Sprint board", BoardConfig(types=["system_requirement", "task", "test_run", "change_request",
+                                            "problem_report"],
+                                     conditions=[{"field": "release", "op": "in",
+                                                  "values": [sprint_a.key, sprint_b.key]}],
+                                     columns_by="release", swimlanes_by="type", card_fields=["estimate"])),
+    ):
+        db.add(Board(project_id=project.id, owner_id=max_.id, name=name, shared=True,
+                     config=validate_config(project, cfg)))
     db.add(SavedQuery(project_id=project.id, owner_id=rita.id, name="Unverified system requirements", shared=True,
                       query={"type": ["system_requirement"], "link_type": "verifies", "link_dir": "in",
                              "link_exists": False}))

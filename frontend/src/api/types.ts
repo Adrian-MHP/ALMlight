@@ -159,6 +159,11 @@ export interface Semantics {
   mitigation_link: string;
   release_type: string | null;
   planned_link: string;
+  subplan_link?: string;
+  dependency_link?: string;
+  task_type?: string | null;
+  estimate_field?: string;
+  capacity_field?: string;
 }
 
 export interface ProjectConfig {
@@ -199,6 +204,8 @@ export interface Item {
   applicability: string | null;
   owner: UserRef | null;
   updated_at: string;
+  created_at?: string | null;
+  author?: UserRef | null;
 }
 
 export interface Attachment {
@@ -844,17 +851,51 @@ export interface WhereUsed { item: string; used_in: number; direct_parents: stri
   paths: { key: string; title: string; project: string; version: string; quantity: number | null; find_number: string | null }[][] }
 
 export interface PlanSummary {
-  key: string; title: string; state: string | null; state_label: string | null; state_color: string | null;
-  start_date: string | null; due_date: string | null; goal: string | null; total: number; done: number;
-  progress: number; expected: number | null; status: "on_track" | "at_risk" | "overdue" | "done";
-  by_category: Record<string, number>;
+  key: string; title: string; kind: "release" | "iteration" | "milestone"; state: string | null; state_label: string | null;
+  state_color: string | null; start_date: string | null; due_date: string | null; goal: string | null; total: number;
+  done: number; progress: number; expected: number | null; status: "on_track" | "at_risk" | "overdue" | "done";
+  by_category: Record<string, number>; estimate: number; estimate_done: number; capacity: number | null;
+  load: number | null; parent: string | null; children: string[];
+}
+export interface PlanItem {
+  key: string; title: string; type_key: string; type_label: string; state: string | null; state_category: string | null;
+  state_color: string | null; version: string; owner: UserRef | null; done: boolean; estimate: number | null; plan: string;
 }
 export interface PlanDetail extends PlanSummary {
-  items: { key: string; title: string; type_key: string; type_label: string; state: string | null; state_category: string | null;
-    state_color: string | null; version: string; owner: UserRef | null; done: boolean }[];
-  burnup: { date: string; done: number; scope: number; future: boolean }[];
+  items: PlanItem[];
+  child_plans: PlanSummary[];
+  burnup: { date: string; done: number; scope: number; remaining: number; done_estimate: number; scope_estimate: number;
+    remaining_estimate: number; future: boolean }[];
 }
-export interface Plans { enabled: boolean; type?: string; type_label?: string; releases: PlanSummary[]; plannable_types?: string[] }
+export interface Plans {
+  enabled: boolean; type?: string; type_label?: string; releases: PlanSummary[]; plannable_types?: string[];
+  estimate_field?: string; hierarchy?: boolean;
+}
+
+export interface Condition { field: string; op: "in" | "contains" | "between" | "exists" | "is"; values: unknown[]; not?: boolean }
+export interface QueryState { q: string; conditions: Condition[] }
+
+export interface BulkResult {
+  dry_run: boolean; action: string; total: number; summary: Record<string, number>;
+  results: { key: string; title: string; status: "ok" | "unchanged" | "skipped"; message: string | null }[];
+}
+
+export interface BoardConfig {
+  types: string[]; q?: string | null; conditions: Condition[]; columns_by: string; swimlanes_by: string | null;
+  hidden_columns: string[]; column_order: string[]; wip: Record<string, number>; card_fields: string[];
+}
+export interface Board { id: string; name: string; shared: boolean; config: BoardConfig; owner: UserRef | null; updated_at: string; can_edit: boolean }
+
+export interface TimelineRow {
+  key: string; title: string; type_key: string; kind: "release" | "iteration" | "milestone" | "task";
+  start_date: string | null; due_date: string | null; progress: number; state: string | null; state_label: string | null;
+  state_category: string | null; color: string | null; frozen: boolean; owner: UserRef | null; parent: string | null;
+  depends_on: string[]; slack?: number; critical: boolean; baseline: { start_date: string | null; due_date: string | null } | null;
+}
+export interface Timeline {
+  enabled: boolean; rows: TimelineRow[]; conflicts: { item: string; depends_on: string; message: string }[]; today: string;
+  range: [string | null, string | null]; task_type: string | null; release_type: string; dependency_link: string | null;
+}
 
 export interface TemplateUpdates {
   template: string; available: boolean; template_version?: number; count: number;

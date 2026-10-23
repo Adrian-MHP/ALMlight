@@ -635,20 +635,36 @@ class ItemQuery:
     link_exists: bool | None = None
     updated_since: Any = None
     planned_in: str | None = None
+    conditions: list[Any] | None = None  # query.Condition — structured filter (query builder / query language)
+    user_id: uuid.UUID | None = None  # for "me" and "watched by me"
 
 
 SORTS = {
     "key": (Item.type_key, Item.seq),
     "-key": (Item.type_key.desc(), Item.seq.desc()),
-    "title": (Item.title,),
+    "title": (Item.title, Item.seq),
+    "-title": (Item.title.desc(), Item.seq),
     "updated": (Item.updated_at,),
     "-updated": (Item.updated_at.desc(),),
+    "created": (Item.created_at,),
+    "-created": (Item.created_at.desc(),),
     "state": (Item.state, Item.seq),
+    "-state": (Item.state.desc(), Item.seq),
+    "type": (Item.type_key, Item.seq),
+    "-type": (Item.type_key.desc(), Item.seq),
+    "version": (Item.version_no, Item.seq),
+    "-version": (Item.version_no.desc(), Item.seq),
+    "owner": (Item.owner_id, Item.seq),
+    "-owner": (Item.owner_id.desc(), Item.seq),
 }
 
 
-def _filtered(project: Project, query: ItemQuery) -> Select:
+def _filtered(project: Project, query: ItemQuery, db: Session | None = None) -> Select:
     stmt = select(Item).where(Item.project_id == project.id, Item.deleted_at.is_(None))
+    if query.conditions:
+        from almlight.modules.items import query as q_mod
+
+        stmt = q_mod.apply_conditions(stmt, q_mod.Context(project, query.user_id, db), query.conditions)
     if query.q:
         text_q = query.q.strip()
         if KEY_PATTERN.match(text_q.upper()):
@@ -692,9 +708,11 @@ def _filtered(project: Project, query: ItemQuery) -> Select:
 
 
 def query_items(db: Session, project: Project, query: ItemQuery, *, max_limit: int = 1000) -> tuple[list[Item], int]:
-    stmt = _filtered(project, query)
+    from almlight.modules.items.query import sort_expressions
+
+    stmt = _filtered(project, query, db)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
-    order = SORTS.get(query.sort, SORTS["key"])
+    order = sort_expressions(project, query.sort) or SORTS.get(query.sort, SORTS["key"])
     rows = db.execute(stmt.order_by(*order).limit(min(query.limit, max_limit)).offset(query.offset)).scalars().all()
     return list(rows), total
 

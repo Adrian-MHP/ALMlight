@@ -17,6 +17,7 @@ from almlight.core.config import get_settings
 from almlight.core.db import session_factory
 from almlight.core.errors import install_error_handlers
 from almlight.modules.baselines.router import router as baselines_router
+from almlight.modules.boards.router import router as boards_router
 from almlight.modules.bom.router import router as bom_router
 from almlight.modules.branches.router import router as branches_router
 from almlight.modules.collab import router as collab
@@ -128,7 +129,7 @@ def create_app() -> FastAPI:
               baselines_router, variants_router, verification_router, io_router, integrations_router, branches_router,
               reports_router, documents_router, collections_router, images_router, collab.router, live_router,
               risks_router, bom_router, planning_router, notifications_router, queries_router, files_router,
-              doctemplates_router):
+              doctemplates_router, boards_router):
         app.include_router(r, prefix=API_PREFIX)
     collab.install()
 

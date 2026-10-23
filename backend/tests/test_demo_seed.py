@@ -15,7 +15,7 @@ def test_demo_seed_is_consistent_and_idempotent(db, admin):
     cov = admin.get("/projects/DEMO/coverage?type=system_requirement")
     assert cov["total"] == 8 and cov["allocated_pct"] == 88  # the NAMUR requirement is not allocated yet
     assert admin.get("/admin/audit/verify")["ok"] is True
-    assert len(admin.get("/projects/DEMO/baselines")) == 3  # concept, document review, collection
+    assert len(admin.get("/projects/DEMO/baselines")) == 4  # concept, document review, collection, schedule
     hart = admin.get("/projects/DEMO/variants/VAR-2/resolve")
     titles = {i["title"] for i in hart["included"]}
     assert "Provide HART communication" in titles and "Provide an IO-Link interface" not in titles
@@ -62,6 +62,18 @@ def test_demo_backbone_content(db, admin, app):
     assert files["housing.step"]["revision"] == 2 and files["housing.step"]["checked_out_by"]["username"] == "alex"
     assert admin.get(f"/projects/DEMO/items/{housing}/attachments/{files['housing-drawing.png']['id']}").content[:4] \
         == b"\x89PNG"
+    tl = admin.get("/projects/DEMO/timeline")
+    rows = {r["title"]: r for r in tl["rows"]}
+    assert rows["Design freeze"]["kind"] == "milestone" and rows["EMC pre-compliance test"]["depends_on"]
+    assert [c["item"] for c in tl["conflicts"]] == [rows["Design review DR2"]["key"]]  # the slipped qualification
+    sched = next(b for b in admin.get("/projects/DEMO/baselines") if b["name"] == "Schedule baseline")
+    tlb = {r["title"]: r for r in admin.get(f"/projects/DEMO/timeline?baseline={sched['id']}")["rows"]}
+    assert tlb["Temperature qualification"]["baseline"]["due_date"] != tlb["Temperature qualification"]["due_date"]
+    top = next(r for r in admin.get("/projects/DEMO/plans")["releases"] if r["title"].startswith("Release 1.0"))
+    assert len(top["children"]) == 4 and top["capacity"] == 50 and top["estimate"] > 0
+    boards = admin.get("/projects/DEMO/boards")
+    assert {b["name"] for b in boards} == {"Requirements by status", "Sprint board"}
+    assert all({"conditions", "hidden_columns", "column_order", "wip"} <= set(b["config"]) for b in boards)
     rita = login(app, "rita", "demo1234")
     notes = rita.get("/notifications")["items"]
     assert any(n["kind"] == "mention" for n in notes)

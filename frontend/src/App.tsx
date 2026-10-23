@@ -28,12 +28,16 @@ import { ReportView } from "./pages/project/reports/ReportView";
 import { SettingsPage } from "./pages/project/SettingsPage";
 import { RisksPage } from "./pages/project/RisksPage";
 import { PlansPage } from "./pages/project/PlansPage";
+import { BoardsPage } from "./pages/project/BoardsPage";
+import { TimelinePage } from "./pages/project/TimelinePage";
 import { NotFound } from "./components/NotFound";
+import { RouteError } from "./components/RouteError";
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   {
     element: <AuthGate><LiveProvider><AppLayout /></LiveProvider></AuthGate>,
+    errorElement: <RouteError />,
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/projects", element: <ProjectsPage /> },
@@ -44,7 +48,7 @@ export const router = createBrowserRouter([
       {
         path: "/p/:projectKey",
         element: <ProjectLayout />,
-        children: [
+        children: [{ errorElement: <RouteError />, children: [
           { index: true, element: <DashboardPage /> },
           { path: "items", element: <ItemsPage /> },
           { path: "items/:itemKey", element: <ItemPage /> },
@@ -63,7 +67,9 @@ export const router = createBrowserRouter([
           { path: "settings", element: <SettingsPage /> },
           { path: "risks", element: <RisksPage /> },
           { path: "plans", element: <PlansPage /> },
-        ],
+          { path: "boards", element: <BoardsPage /> },
+          { path: "timeline", element: <TimelinePage /> },
+        ] }],
       },
       { path: "/home", element: <Navigate to="/" replace /> },
       { path: "*", element: <NotFound /> },

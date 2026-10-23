@@ -14,7 +14,7 @@ label: Systems Engineering (generic)
 description: >
   Requirements from stakeholder to module level, RFLP architecture, verification,
   closed-loop change management, variants and maturity tracking.
-version: 2
+version: 3
 revision_scheme: letters
 
 item_types:
@@ -48,6 +48,7 @@ item_types:
       - {key: priority, label: Priority, type: enum, options: [must, should, could, wont], default: should}
       - {key: source, label: Source, type: string, help: "Customer, market study, regulation, ..."}
       - {key: rationale, label: Rationale, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: system_requirement
     label: System Requirement
@@ -70,6 +71,7 @@ item_types:
         default: test
       - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
       - {key: rationale, label: Rationale, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: element_requirement
     label: Subsystem / Module Requirement
@@ -91,6 +93,7 @@ item_types:
         default: test
       - {key: safety_relevant, label: Safety relevant, type: boolean, default: false}
       - {key: rationale, label: Rationale, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: function
     label: Function
@@ -125,6 +128,7 @@ item_types:
         help: Decision per element — develop new, modify, reuse unchanged, standard part or buy.
       - {key: part_number, label: Part number, type: string}
       - {key: supplier, label: Supplier, type: string}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: interface
     label: Interface
@@ -154,6 +158,7 @@ item_types:
       - {key: test_steps, label: Test steps, type: steps, help: "Step-by-step actions with expected results; executed one by one in test runs"}
       - {key: steps, label: Steps (free text), type: text}
       - {key: expected_result, label: Expected result, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: risk
     label: Risk
@@ -192,9 +197,27 @@ item_types:
     workflow: release
     description: A planned release, milestone or iteration with a time frame; requirements, changes and test runs are planned into it.
     fields:
+      - key: kind
+        label: Kind
+        type: enum
+        options: [{key: release, label: Release}, {key: iteration, label: Iteration / sprint}, {key: milestone, label: Milestone}]
+        default: release
       - {key: start_date, label: Start, type: date}
       - {key: due_date, label: Due, type: date}
+      - {key: capacity, label: Capacity, type: number, min: 0, help: "Available effort in the unit of the estimates"}
       - {key: goal, label: Goal, type: text}
+
+  - key: task
+    label: Task
+    prefix: TSK
+    category: planning
+    workflow: task
+    description: A scheduled piece of work (work package) with dates, progress and dependencies — shown in the timeline.
+    fields:
+      - {key: start_date, label: Start, type: date}
+      - {key: due_date, label: Finish, type: date}
+      - {key: progress, label: Progress (%), type: integer, min: 0, max: 100, default: 0}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: test_run
     label: Test Run
@@ -217,6 +240,7 @@ item_types:
     fields:
       - {key: severity, label: Severity, type: enum, options: [minor, major, critical], default: major}
       - {key: found_in, label: Found in, type: string}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: change_request
     label: Change Request
@@ -233,6 +257,7 @@ item_types:
       - {key: priority, label: Priority, type: enum, options: [low, medium, high, critical], default: medium}
       - {key: impact_analysis, label: Impact analysis, type: text}
       - {key: decision, label: Decision, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: change_order
     label: Change Order
@@ -243,6 +268,7 @@ item_types:
     fields:
       - {key: planned_release, label: Planned release, type: date}
       - {key: implementation_plan, label: Implementation plan, type: text}
+      - {key: estimate, label: Estimate, type: number, min: 0, help: "Effort in hours or story points, as agreed in the project"}
 
   - key: document
     label: Document
@@ -414,8 +440,26 @@ link_types:
     description: Work planned into a release, milestone or iteration (planning does not change the item, so frozen items can be planned).
     editable_on_frozen_source: true
     sources: [stakeholder_requirement, system_requirement, element_requirement, system_element, test_case, test_run,
-              problem_report, change_request, change_order]
+              problem_report, change_request, change_order, task]
     targets: [release]
+
+  - key: part_of
+    label: part of
+    reverse_label: contains
+    description: Plan hierarchy — an iteration or milestone belongs to a release.
+    editable_on_frozen_source: true
+    acyclic: true
+    sources: [release]
+    targets: [release]
+
+  - key: depends_on
+    label: depends on
+    reverse_label: required for
+    description: Finish-to-start dependency in the timeline — the source starts when the target is finished.
+    editable_on_frozen_source: true
+    acyclic: true
+    sources: [task, release]
+    targets: [task, release]
 workflows:
   - key: requirement
     label: Requirement lifecycle
@@ -581,3 +625,16 @@ workflows:
       - {key: finish, label: Finish, from: [active], to: done, min_role: manager}
       - {key: replan, label: Back to planning, from: [active, done], to: planned, min_role: manager}
       - {key: cancel, label: Cancel, from: [planned, active], to: cancelled, min_role: manager}
+
+  - key: task
+    label: Task
+    states:
+      - {key: open, label: Open, category: open, initial: true, color: gray}
+      - {key: in_progress, label: In Progress, category: in_progress, color: blue}
+      - {key: done, label: Done, category: closed, color: green}
+      - {key: cancelled, label: Cancelled, category: obsolete, color: dark}
+    transitions:
+      - {key: start, label: Start, from: [open], to: in_progress}
+      - {key: finish, label: Finish, from: [in_progress, open], to: done}
+      - {key: reopen, label: Reopen, from: [done, cancelled], to: open, comment_required: true}
+      - {key: cancel, label: Cancel, from: [open, in_progress], to: cancelled, min_role: manager, comment_required: true}

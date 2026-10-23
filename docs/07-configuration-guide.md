@@ -100,10 +100,16 @@ semantics:                             # only needed when keys differ from the d
   mitigation_link: mitigated_by        # risk -> requirement/element/test
   release_type: release                # Plans page (fields start_date, due_date, goal)
   planned_link: planned_in             # item -> release (set editable_on_frozen_source: true)
+  subplan_link: part_of                # iteration / milestone -> release (plan hierarchy)
+  dependency_link: depends_on          # finish-to-start dependency (timeline)
+  task_type: task                      # scheduled work packages (fields start_date, due_date, progress)
+  estimate_field: estimate             # effort of planned items (load, burn-down by estimate)
+  capacity_field: capacity             # effort available in a plan
 ```
 
 Engine features appear only when their bindings exist in the model: without a `risk` type there is no Risks page,
-without `release` and `planned_in` no Plans page. BOM columns come from the attributes `quantity`, `unit`,
+without `release` and `planned_in` no Plans page, without `task`/`depends_on` the timeline shows plans only. The
+release field `kind` (`release`, `iteration`, `milestone`) controls how a plan is shown. BOM columns come from the attributes `quantity`, `unit`,
 `find_number`, `effective_from` and `effective_to` of the structural link.
 
 State categories: `draft`, `review`, `released`, `obsolete`, `open`, `in_progress`, `closed`. Flags:

@@ -298,6 +298,11 @@ class Semantics(_Strict):
     mitigation_link: str = "mitigated_by"
     release_type: str | None = "release"
     planned_link: str = "planned_in"
+    subplan_link: str = "part_of"          # iteration/milestone -> release
+    dependency_link: str = "depends_on"    # finish-to-start (timeline)
+    task_type: str | None = "task"         # scheduled work packages (timeline)
+    estimate_field: str = "estimate"       # effort of planned items
+    capacity_field: str = "capacity"       # effort available in a plan
 
 
 class ProjectTemplate(_Strict):

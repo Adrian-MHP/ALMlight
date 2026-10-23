@@ -1,8 +1,9 @@
-# 14 Beta test report (0.4 → 0.5)
+# 14 Beta test report (0.4 → 0.6)
 
 Two beta rounds were run against the complete application in Docker (`compose.test.yaml`: PostgreSQL 16, the
 production image with demo data, Playwright/Chromium), in addition to the automated suites. Round 1 finalised 0.4
-(rich text, co-editing, new UI); round 2 tested the engineering-backbone features of 0.5.
+(rich text, co-editing, new UI); round 2 tested the engineering-backbone features of 0.5; round 3 the
+work-management features of 0.6 (query builder, bulk edit, boards, plans, timeline, workflow viewer).
 
 ## 14.1 Method
 
@@ -106,7 +107,40 @@ title, version, state, date and page number, the table of contents and the docum
 | Browser E2E (Playwright) | 40 passed — incl. notifications, mentions, saved views, export, test execution with defect, risks with live RPN, plans, BOM with effectivity and export, where-used, file check-out/check-in, Word templates, SSO visibility |
 | Smoke crawl in the E2E suite | all pages and tabs, three roles, dark and phone |
 
-## 14.5 Known limitations
+## 14.5 Round 3 — work management (0.6)
+
+**Crawler**: 249 page states (incl. boards, timeline, task lists; dark theme; phone), 0 JavaScript errors.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | SQLAlchemy reports savepoint commits as commits: live events were published before the real commit and the notification buffer was lost in bulk runs | bug (latent since 0.4) | Commit hooks act only on the outermost commit; test for dry runs publishing nothing |
+| 2 | Board configs stored with fewer keys crashed the board view | bug | API returns normalised configs; the board merges defaults; route-level error boundary keeps the shell usable |
+| 3 | Timeline re-sorted rows while a bar was dragged; the moved DOM node lost the pointer and the drag ended | bug | Row order fixed during drags |
+| 4 | A live refresh during a card drag could reset the board under the pointer | robustness | Card list frozen while dragging |
+| 5 | Dropping a card on a column without transition did nothing visible | UI | Invalid columns dimmed while dragging; a drop explains why nothing happens |
+| 6 | Progress by estimate showed 100 % when unestimated items were open | logic | Estimates count only when every planned item is estimated, otherwise items |
+| 7 | Calendar-day slack hid the critical path across weekends | logic | Slack in working days |
+| 8 | Timeline opened at the earliest date, not around today | UI | Opens around today |
+| 9 | Workflow diagram too small in the side column; labels clipped | UI | Main column, natural size |
+| 10 | Dragging selected page text | UI | Cards not selectable |
+
+**Load test (1,561-item project)**
+
+| Operation | Result |
+|---|---|
+| Query: type + priority + verification gap / text + period | 8 ms / 7 ms |
+| Sort 1,500 requirements by a custom field | 6 ms |
+| Board data, 1,000 cards | 25 ms |
+| Export of a query result, 1,000 rows | 129 ms |
+| Bulk edit of 500 items: preview / apply | 1.4 s / 1.2 s |
+| Import of 200 tasks with 199 dependencies | 1.0 s |
+| Timeline with 210 rows incl. critical path | 73 ms |
+
+**Automated tests at the end of round 3**: 163 backend tests, 46 browser E2E tests (new: query builder and query
+language, columns and sorting, bulk edit with preview, board drag & drop with transitions and comment prompt,
+planning board, timeline with baseline, rescheduling and dependencies, workflow viewer).
+
+## 14.6 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
 - The user interface is in English; German is on the roadmap.
@@ -115,4 +149,5 @@ title, version, state, date and page number, the table of contents and the docum
   (discovery, JWKS, signed tokens, PKCE) — a check against the customer's mail server and Entra ID/Keycloak tenant
   belongs to the installation.
 - The demo data is created in one go, so the demo burn-up shows a single step.
+- The query language has no top-level OR across fields; schedules know finish-to-start dependencies only.
 - Out of scope by design: manufacturing BOM/bill of process, CAD-authoring integrations, multi-site replication.

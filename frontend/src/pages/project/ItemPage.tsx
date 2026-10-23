@@ -26,6 +26,7 @@ import { fmtDateTime } from "@/lib/format";
 import { CATEGORY_COLORS } from "@/lib/model";
 import { useRemember } from "@/lib/recent";
 import { ItemFormModal } from "./ItemFormModal";
+import { WorkflowViewer } from "@/components/WorkflowViewer";
 import { useProjectCtx } from "./ProjectLayout";
 import { LinksTab } from "./item/LinksTab";
 import { HistoryTab } from "./item/HistoryTab";
@@ -209,6 +210,12 @@ function Overview({ item, version, editing, setEditing }: {
             <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{item.fields[f.key] as string}</Text>
           </Card>
         ))}
+        {model.workflow(item.type_key) && !version && (
+          <Card withBorder mb="md" data-testid="workflow-card">
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600} mb={6}>Workflow · {model.workflow(item.type_key)?.label}</Text>
+            <WorkflowViewer projectKey={key} item={item} model={model} />
+          </Card>
+        )}
         {defs.filter((f) => f.type === "steps").map((f) => (
           <Card withBorder mb="md" key={f.key}>
             <Text size="xs" c="dimmed" mb={6} tt="uppercase" fw={600}>{f.label}</Text>

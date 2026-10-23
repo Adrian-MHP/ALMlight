@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,8 @@ from almlight.core.schemas import Ok, Page, UserDirectory
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.collab.router import flush_item
 from almlight.modules.identity.models import User
-from almlight.modules.items import service, storage
+from almlight.modules.items import bulk, service, storage
+from almlight.modules.items import query as item_query
 from almlight.modules.items.models import Comment, Item, ItemVersion
 from almlight.modules.items.schemas import (
     CommentIn,
@@ -57,6 +59,8 @@ def list_items(
     link_exists: bool | None = Query(default=None, description="true: has such a link; false: lacks it"),
     updated_since: str | None = Query(default=None, description="ISO date or timestamp"),
     planned_in: str | None = Query(default=None, description="Key of a release"),
+    cond: str | None = Query(default=None, description="JSON list of conditions {field, op, values, not}"),
+    ql: str | None = Query(default=None, description="Query language, e.g. type:risk NOT link.mitigated_by.out:*"),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> Page[ItemOut]:
@@ -64,11 +68,52 @@ def list_items(
     ``link_type=verifies&link_dir=in&link_exists=false`` (e.g. requirements without a verifying test)."""
     project = get_project(db, project_key, user)
     field_filters = {k[6:]: v for k, v in request.query_params.items() if k.startswith("field.")}
+    conditions = item_query.parse_conditions(cond)
+    if ql:
+        text, more = item_query.parse_query(project, ql)
+        q = " ".join(x for x in (q, text) if x) or None
+        conditions += more
     items, total = service.query_items(db, project, service.ItemQuery(
         q=q, types=type, states=state, owner_id=owner, suspect=suspect, field_filters=field_filters, keys=key,
         sort=sort, limit=limit, offset=offset, link_type=link_type, link_dir=link_dir, link_exists=link_exists,
-        updated_since=_since(updated_since), planned_in=planned_in))
+        updated_since=_since(updated_since), planned_in=planned_in, conditions=conditions or None, user_id=user.id))
     return Page[ItemOut](items=items_out(project, items, UserDirectory(db)), total=total, limit=limit, offset=offset)
+
+
+@router.post("/items/bulk", summary="Bulk edit: fields/owner, transition, plan, link, watch or delete many items")
+def bulk_edit(project_key: str, body: bulk.BulkIn, user: User = Depends(current_user),
+              db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Select items by ``keys`` or ``query`` (``q``, ``types``, ``conditions``, ``ql``); ``dry_run`` (default) only
+    reports. Each item is changed through the normal services; items that cannot be changed are skipped with the
+    reason."""
+    project = get_project(db, project_key, user)
+    return bulk.run_bulk(db, project, user, body)
+
+
+class QueryText(BaseModel):
+    text: str = Field(default="", max_length=4000)
+
+
+class QueryParts(BaseModel):
+    q: str | None = None
+    conditions: list[item_query.Condition] = Field(default_factory=list)
+
+
+@router.post("/query/parse", summary="Query language → free text and conditions")
+def parse_query(project_key: str, body: QueryText, user: User = Depends(current_user),
+                db: Session = Depends(get_db)) -> dict[str, Any]:
+    project = get_project(db, project_key, user)
+    q, conditions = item_query.parse_query(project, body.text)
+    return {"q": q, "conditions": [c.dump() for c in conditions]}
+
+
+@router.post("/query/format", summary="Free text and conditions → query language")
+def format_query(project_key: str, body: QueryParts, user: User = Depends(current_user),
+                 db: Session = Depends(get_db)) -> dict[str, Any]:
+    project = get_project(db, project_key, user)
+    for c in body.conditions:
+        item_query.field_info(project, c.field)
+    return {"text": item_query.format_query(project, body.q, body.conditions)}
 
 
 def _since(value: str | None):

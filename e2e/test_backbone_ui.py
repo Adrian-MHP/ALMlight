@@ -10,7 +10,7 @@ import zipfile
 
 from playwright.sync_api import Browser, Page, expect
 
-from conftest import BASE_URL, choose, login, shot
+from conftest import BASE_URL, add_filter, choose, login, shot
 
 DEMO_PW = "demo1234"
 
@@ -100,10 +100,11 @@ def test_saved_view_with_traceability_gap_and_export(page: Page):
                                 "&link_exists=false&limit=200").json()["items"]
     gap_keys = {i["key"] for i in expected}
     assert gap_keys and "SYS-1" not in gap_keys  # SYS-1 is verified by TC-1 in the demo
-    choose(page, "items-gap-filter", "Not verified by a test")
+    add_filter(page, "link.verifies.in", link="Has none")
+    expect(page.get_by_test_id("qchip-link.verifies.in")).to_contain_text("none")
     rows = page.get_by_test_id("items-table").locator("tbody tr")
     expect(rows).to_have_count(len(gap_keys))
-    assert set(page.get_by_test_id("items-table").locator("tbody tr td:first-child").all_inner_texts()) == gap_keys
+    assert set(page.get_by_test_id("items-table").locator("tbody tr td:nth-child(2)").all_inner_texts()) == gap_keys
 
     # Export delivers exactly this view.
     page.get_by_test_id("items-export").click()
@@ -122,12 +123,12 @@ def test_saved_view_with_traceability_gap_and_export(page: Page):
 
     # A fresh list (all items) — applying the view restores type and gap filter.
     page.goto("/p/DEMO/items")
-    expect(page.get_by_test_id("items-gap-filter")).to_have_value("")
+    expect(page.get_by_test_id("qchip-link.verifies.in")).to_have_count(0)
     page.get_by_test_id("views-menu").click()
     expect(page.get_by_test_id(f"view-{name}")).to_contain_text(str(len(gap_keys)))
     page.get_by_test_id(f"view-{name}").click()
-    expect(page).to_have_url(re.compile(r"type=system_requirement"))
-    expect(page.get_by_test_id("items-gap-filter")).to_have_value("Not verified by a test")
+    expect(page.get_by_test_id("qchip-type")).to_contain_text("System Requirement")
+    expect(page.get_by_test_id("qchip-link.verifies.in")).to_contain_text("none")
     expect(rows).to_have_count(len(gap_keys))
     shot(page, "42-saved-view")
     page.get_by_test_id("views-menu").click()
@@ -213,10 +214,11 @@ def test_release_plan_timeline_burnup_and_planning(page: Page):
     page.get_by_test_id("release-REL-1").click()
     expect(page).to_have_url(re.compile(r"release=REL-1"))
     detail = page.get_by_test_id("plan-detail")
+    detail.get_by_test_id("plan-tab-items").click()
     expect(detail.get_by_test_id("plan-items")).to_contain_text("SYS-1")
     before = detail.get_by_test_id("plan-items").locator("tbody tr").count()
     expect(page.get_by_test_id("release-REL-1")).to_contain_text(f"of {before} done")
-    page.get_by_test_id("plan-item").click()
+    page.get_by_test_id("plan-item").click()  # on the "Planned items" tab
     page.get_by_test_id("plan-item").fill(key)
     page.get_by_role("option", name=re.compile(key)).click()
     page.get_by_test_id("plan-add").click()
@@ -226,7 +228,7 @@ def test_release_plan_timeline_burnup_and_planning(page: Page):
     shot(page, "46-plans")
     # The item list filters by release.
     page.goto("/p/DEMO/items")
-    choose(page, "items-release-filter", "REL-1")
+    add_filter(page, "release", options=("REL-1",))
     expect(page.get_by_test_id("items-table")).to_contain_text(key)
 
 

@@ -10,7 +10,7 @@ import type {
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
   TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview, Report, ReportSummary, ReportTemplate,
   ReportWidget, WidgetData, DocSnapshot, DocHistory, DocStateRef, CompareResult, CommentThread, DocCollection, RecycledItem,
-  NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo,
+  NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo, Condition, Board, Timeline,
 } from "./types";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -57,6 +57,7 @@ export interface ItemFilter {
   link_dir?: "in" | "out";
   link_exists?: boolean;
   planned_in?: string;
+  conditions?: Condition[];
 }
 
 export function useItems(key: string, f: ItemFilter, enabled = true) {
@@ -64,7 +65,7 @@ export function useItems(key: string, f: ItemFilter, enabled = true) {
   const query = qs({ q: f.q, type: f.type, state: f.state, suspect: f.suspect || undefined, owner: f.owner,
     sort: f.sort, limit: f.limit ?? 50, offset: f.offset ?? 0, ...fieldParams, link_type: f.link_type,
     link_dir: f.link_type ? f.link_dir : undefined, link_exists: f.link_type ? f.link_exists : undefined,
-    planned_in: f.planned_in });
+    planned_in: f.planned_in, cond: f.conditions?.length ? JSON.stringify(f.conditions) : undefined });
   return useQuery<Page<Item>>({
     queryKey: pk(key, "items", query),
     queryFn: () => api.get(`/projects/${key}/items${query}`),
@@ -407,4 +408,13 @@ export function useMyCheckouts() {
 
 export function useDocTemplates(key: string) {
   return useQuery<DocTemplateInfo[]>({ queryKey: pk(key, "doc-templates"), queryFn: () => api.get(`/projects/${key}/doc-templates`) });
+}
+
+export function useBoards(key: string) {
+  return useQuery<Board[]>({ queryKey: pk(key, "boards"), queryFn: () => api.get(`/projects/${key}/boards`) });
+}
+
+export function useTimeline(key: string, baseline: string | null) {
+  return useQuery<Timeline>({ queryKey: pk(key, "timeline", baseline), queryFn: () => api.get(`/projects/${key}/timeline${qs({ baseline })}`),
+    placeholderData: (prev) => prev });
 }

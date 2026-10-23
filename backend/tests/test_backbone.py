@@ -43,7 +43,8 @@ def test_template_updates_are_additive(admin, project):
     assert admin.get(f"/projects/{project}/template-updates")["count"] == 0  # created from the current template
     old = json.loads(json.dumps(cfg))
     old["item_types"] = [t for t in old["item_types"] if t["key"] not in ("risk", "release")]
-    old["link_types"] = [lt for lt in old["link_types"] if lt["key"] not in ("mitigated_by", "risk_for", "planned_in")]
+    old["link_types"] = [lt for lt in old["link_types"]
+                         if lt["key"] not in ("mitigated_by", "risk_for", "planned_in", "part_of", "depends_on")]
     old["workflows"] = [w for w in old["workflows"] if w["key"] not in ("risk", "release")]
     tc = next(t for t in old["item_types"] if t["key"] == "test_case")
     tc["fields"] = [f for f in tc["fields"] if f["key"] != "test_steps"]
@@ -52,7 +53,8 @@ def test_template_updates_are_additive(admin, project):
     admin.put(f"/projects/{project}/config", {"config": old})
     diff = admin.get(f"/projects/{project}/template-updates")
     assert {t["key"] for t in diff["item_types"]} == {"risk", "release"}
-    assert {lt["key"] for lt in diff["link_types"]} == {"mitigated_by", "risk_for", "planned_in"}
+    assert {lt["key"] for lt in diff["link_types"]} == {"mitigated_by", "risk_for", "planned_in", "part_of",
+                                                        "depends_on"}
     assert {w["key"] for w in diff["workflows"]} == {"risk", "release"}
     assert {"type": "test_case", "key": "test_steps", "label": "Test steps", "field_type": "steps"} in diff["fields"]
     assert len(diff["link_attributes"]) == 4

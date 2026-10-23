@@ -1,6 +1,6 @@
 # 13 Feature catalogue — Ariadne compared with an enterprise engineering backbone
 
-This catalogue lists what Ariadne 0.5 delivers, grouped by the capability areas customers know from the enterprise
+This catalogue lists what Ariadne 0.6 delivers, grouped by the capability areas customers know from the enterprise
 suites: **Polarion ALM** for requirements, tests, documents and process, and **Teamcenter** for product structure,
 change and data management. The reference column describes the capability as users of those suites expect it; it is
 an orientation based on publicly documented functionality, not a feature-by-feature statement about a specific
@@ -10,14 +10,17 @@ release of those products.
 
 ## 13.1 Summary
 
-| Capability area | Reference | Ariadne 0.5 |
+| Capability area | Reference | Ariadne 0.6 |
 |---|---|---|
 | Requirements & live documents | Polarion | ● |
 | Traceability & impact analysis | Polarion | ● |
 | Workflow, review, e-signature, audit | Polarion / Teamcenter | ● |
 | Test management | Polarion | ● (no parametrised test runs yet) |
 | Risk management (FMEA) | Polarion (FMEA/risk templates) | ● (ASIL lookup tables ◐) |
-| Release planning | Polarion Plans | ● (no capacity planning yet) |
+| Release planning | Polarion Plans | ● releases, iterations, milestones, capacity, planning board |
+| Kanban boards | Polarion boards | ● configurable, drag & drop runs workflow transitions |
+| Schedule / timeline | Teamcenter Schedule Manager | ● Gantt, dependencies, critical path, baseline comparison |
+| Queries, bulk edit | Polarion query builder, bulk edit | ● query builder and query language, configurable table, bulk edit with preview |
 | Change management (closed loop) | Teamcenter / Polarion | ● (change-order effectivity ○) |
 | Item/revision model & maturity | Teamcenter | ● |
 | Product structure & BOM | Teamcenter | ● for the engineering BOM (MBOM/BOP —) |
@@ -25,7 +28,7 @@ release of those products.
 | Document & file management (vault) | Teamcenter | ● (CAD integrations —, 3D viewer ○) |
 | Collaboration & notifications | Polarion / Active Workspace | ● |
 | Reporting & dashboards | Polarion LiveReports / Teamcenter reporting | ● |
-| Search & saved queries | both | ● |
+| Search & saved queries | both | ● query language, saved views with columns |
 | Integration & identity | both | ● REST, webhooks, ReqIF, OIDC (OSLC, Jira ○) |
 | Localisation | both | ○ (English UI) |
 | Scale-out & multi-site | Teamcenter | — single site, one app process |
@@ -89,15 +92,19 @@ release of those products.
 | Residual-risk acceptance with e-signature | regulated processes | ● | Approval workflow |
 | HARA/ASIL determination tables | ISO 26262 templates | ◐ | Possible with computed fields; lookup-table type ○ |
 
-## 13.7 Planning
+## 13.7 Planning and work management
 
 | Capability | Reference expectation | Ariadne | Notes |
 |---|---|---|---|
-| Releases, milestones, iterations | Polarion Plans | ● | Planned items of any engineering type |
-| Timeline, progress, schedule status | Polarion Plans | ● | On track / at risk / overdue |
-| Burn-up | Polarion Plans | ● | |
-| Kanban board | Polarion boards | ● | Change board |
-| Capacity, time tracking, Gantt dependencies | Polarion / schedule managers | ○ | Effort fields can be configured today |
+| Releases, iterations, milestones as a hierarchy | Polarion Plans | ● | Sub-plan scope rolls up into the release |
+| Estimates, capacity and load | Polarion Plans | ● | Estimate field on plannable items, capacity per plan |
+| Planning board (backlog ↔ plans) | Polarion planning view | ● | Drag & drop, load per column |
+| Progress, schedule status, burn-up and burn-down | Polarion Plans | ● | By items or by estimate |
+| Configurable Kanban boards | Polarion boards | ● | Columns/swimlanes by status, owner, plan, type or field; WIP limits; drag & drop runs transitions |
+| Gantt timeline with tasks, milestones, dependencies | Teamcenter Schedule Manager | ● | Finish-to-start, drag to reschedule |
+| Critical path, slack, scheduling conflicts | Teamcenter Schedule Manager | ● | Working-day slack against successors and plan deadlines |
+| Schedule baseline comparison | Teamcenter Schedule Manager | ● | Baselined dates shown under every bar |
+| Resource levelling, time recording, other dependency types (SS/FF) | schedule managers | ○ | |
 
 ## 13.8 Change management
 
@@ -143,7 +150,12 @@ release of those products.
 | Notifications (owner, approval, mention), live and by e-mail | both | ● | Bulk changes collapse into one summary; e-mail digests |
 | User-built reports and dashboards | Polarion LiveReports | ● | KPI, chart, table, trend, coverage, matrix, maturity widgets; Excel/PDF |
 | Engineering KPIs | | ● | Reuse rate, change lead time, re-test effort, variant ratio |
-| Full-text search, saved and shared queries | both | ● | Structured filters; no query language (◐) |
+| Full-text search | both | ● | |
+| Query builder with field chips (any field, links, dates, users) | Polarion query builder | ● | *is / is not*, Any/None, periods, link gaps |
+| Query language (copy, paste, edit) | Polarion Lucene queries | ● | `field:value`, `OR` in parentheses, `NOT`, ranges, relative dates; no top-level OR (◐) |
+| Configurable table: columns, sorting, preview | Polarion work item table | ● | Custom-field columns, saved with views |
+| Bulk edit with preview | Polarion bulk edit | ● | Fields, owner, status, plan, links, watch, delete |
+| Workflow viewer | Polarion workflow viewer | ● | Current state, path taken, possible transitions |
 | Scheduled report e-mails | both | ○ | |
 
 ## 13.12 Integration, identity, operations
@@ -162,7 +174,7 @@ release of those products.
 ## 13.13 Positioning
 
 Ariadne covers the daily engineering-backbone work of an SME — requirements and documents, traceability, tests,
-risks, plans, change, BOM, variants and files — in one data model with one history, one audit trail and one user
+risks, plans, boards, schedules, change, BOM, variants and files — in one data model with one history, one audit trail and one user
 interface, delivered in two containers. It deliberately leaves out what only large OEM organisations need
 (manufacturing planning, CAD-authoring integrations, multi-site replication). Where the enterprise suites
 remain the system of record, Ariadne exchanges data through ReqIF, Word, Excel and the REST API.

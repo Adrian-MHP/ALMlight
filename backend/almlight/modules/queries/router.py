@@ -22,7 +22,7 @@ from almlight.modules.queries.models import SavedQuery
 
 router = APIRouter(prefix="/projects/{project_key}", tags=["saved queries"])
 ALLOWED = {"q", "type", "state", "owner", "suspect", "fields", "sort", "link_type", "link_dir", "link_exists",
-           "updated_since", "planned_in"}
+           "updated_since", "planned_in", "conditions", "columns"}
 
 
 class QueryIn(BaseModel):
@@ -31,14 +31,28 @@ class QueryIn(BaseModel):
     shared: bool = False
 
 
-def _clean(query: dict[str, Any]) -> dict[str, Any]:
+def _clean(query: dict[str, Any], project: Any = None) -> dict[str, Any]:
+    from almlight.modules.items.query import field_info, parse_conditions
+
     unknown = set(query) - ALLOWED
     if unknown:
         raise ValidationFailed(f"Unknown query keys {sorted(unknown)}")
+    if query.get("conditions"):
+        conds = parse_conditions(query["conditions"])
+        if project is not None:
+            for c in conds:
+                field_info(project, c.field)
+        query = {**query, "conditions": [c.dump() for c in conds]}
+    cols = query.get("columns")
+    if cols is not None and (not isinstance(cols, list) or len(cols) > 40 or not all(isinstance(c, str) for c in cols)):
+        raise ValidationFailed("columns must be a list of up to 40 column names")
     return {k: v for k, v in query.items() if v not in (None, "", [], {})}
 
 
-def to_item_query(q: dict[str, Any], limit: int = 50, offset: int = 0) -> items_svc.ItemQuery:
+def to_item_query(q: dict[str, Any], limit: int = 50, offset: int = 0,
+                  user_id: uuid.UUID | None = None) -> items_svc.ItemQuery:
+    from almlight.modules.items.query import parse_conditions
+
     owner = q.get("owner")
     since = None
     if q.get("updated_since"):
@@ -52,7 +66,8 @@ def to_item_query(q: dict[str, Any], limit: int = 50, offset: int = 0) -> items_
         field_filters=q.get("fields") or None, sort=q.get("sort") or "key", limit=limit, offset=offset,
         link_type=q.get("link_type"), link_dir=q.get("link_dir") or "out",
         link_exists=q.get("link_exists") if isinstance(q.get("link_exists"), bool) else None,
-        updated_since=since, planned_in=q.get("planned_in"))
+        updated_since=since, planned_in=q.get("planned_in"),
+        conditions=parse_conditions(q.get("conditions")) or None, user_id=user_id)
 
 
 def _out(sq: SavedQuery, users: UserDirectory, count: int | None = None, can_edit: bool = True) -> dict[str, Any]:
@@ -82,7 +97,7 @@ def list_queries(project_key: str, counts: bool = True, user: User = Depends(cur
         count = None
         if counts:
             try:
-                count = items_svc.query_items(db, project, to_item_query(r.query, limit=1))[1]
+                count = items_svc.query_items(db, project, to_item_query(r.query, limit=1, user_id=user.id))[1]
             except Exception:  # noqa: BLE001 — a query that no longer fits the model shows no count
                 count = None
         out.append(_out(r, users, count, can_edit=manager or r.owner_id == user.id))
@@ -95,7 +110,7 @@ def create_query(project_key: str, body: QueryIn, user: User = Depends(current_u
     project = get_project(db, project_key, user)
     if body.shared and not has_role(db, project, user, "contributor"):
         raise Forbidden("Sharing a query needs the contributor role")
-    sq = SavedQuery(project_id=project.id, owner_id=user.id, name=body.name.strip(), query=_clean(body.query),
+    sq = SavedQuery(project_id=project.id, owner_id=user.id, name=body.name.strip(), query=_clean(body.query, project),
                     shared=body.shared)
     db.add(sq)
     db.flush()
@@ -112,7 +127,7 @@ def update_query(project_key: str, query_id: uuid.UUID, body: QueryIn, user: Use
     sq = _get(db, project.id, query_id, user)
     if sq.owner_id != user.id and not has_role(db, project, user, "manager"):
         raise Forbidden("Only the owner or a project manager can change a shared query")
-    sq.name, sq.query, sq.shared, sq.updated_at = body.name.strip(), _clean(body.query), body.shared, utcnow()
+    sq.name, sq.query, sq.shared, sq.updated_at = body.name.strip(), _clean(body.query, project), body.shared, utcnow()
     db.commit()
     return _out(sq, UserDirectory(db))
 

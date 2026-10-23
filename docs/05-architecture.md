@@ -57,8 +57,9 @@ backend/almlight/
     audit/         hash-chained audit trail
     notifications/ watching, recipients from audit entries, per-transaction buffer, e-mail digests
     queries/       saved (shared) views over the item list
+    boards/        Kanban board definitions (items via the query engine in items/query.py)
     risks/         risk matrix and register (FMEA) over risk items
-    planning/      releases: progress, schedule status, burn-up over planned_in links
+    planning/      plan hierarchy, capacity, burn-up/down; timeline with slack, critical path, baselines
     bom/           multi-level BOM, effectivity, roll-up, exports, where-used
     files/         file check-out / check-in locks
     doctemplates/  customer Word templates (storage; rendering in io/word_template.py)

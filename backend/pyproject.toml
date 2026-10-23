@@ -1,6 +1,6 @@
 [project]
 name = "almlight"
-version = "0.5.0"
+version = "0.6.0"
 description = "Lightweight engineering backbone (ALM/PLM)"
 requires-python = ">=3.12"
 

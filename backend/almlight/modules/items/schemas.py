@@ -37,6 +37,8 @@ class ItemOut(BaseModel):
     applicability: str | None
     owner: UserRef | None
     updated_at: datetime
+    created_at: datetime | None = None
+    author: UserRef | None = None
 
 
 class Attachment(BaseModel):
@@ -147,11 +149,12 @@ def item_out(project: Project, item: Item, users: UserDirectory) -> ItemOut:
     return ItemOut(id=item.id, key=item.key, project_key=project.key, type_key=item.type_key, title=item.title,
                    lifecycle=lifecycle(project, item), revision=item.revision, iteration=item.iteration,
                    version=item.version_label, version_no=item.version_no, fields=item.fields,
-                   applicability=item.applicability, owner=users.ref(item.owner_id), updated_at=item.updated_at)
+                   applicability=item.applicability, owner=users.ref(item.owner_id), updated_at=item.updated_at,
+                   created_at=item.created_at, author=users.ref(item.created_by))
 
 
 def items_out(project: Project, items: list[Item], users: UserDirectory) -> list[ItemOut]:
-    users.preload({i.owner_id for i in items})
+    users.preload({i.owner_id for i in items} | {i.created_by for i in items})
     return [item_out(project, i, users) for i in items]
 
 
@@ -175,7 +178,7 @@ def item_detail(db: Session, project: Project, item: Item, users: UserDirectory)
         attachments.append(Attachment(**a, checked_out_by=users.ref(co.user_id) if co else None,
                                       checked_out_at=co.checked_out_at if co else None,
                                       checkout_note=co.note if co else None))
-    return ItemDetailOut(**base.model_dump(), description=item.description,
+    return ItemDetailOut(**base.model_dump(exclude={"created_at"}), description=item.description,
                          content_hash=content_hash(item.title, item.description),
                          attachments=attachments, released_version=released,
                          created_by=users.ref(item.created_by), created_at=item.created_at,

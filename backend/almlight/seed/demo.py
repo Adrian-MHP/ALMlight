@@ -6,7 +6,10 @@ nothing if the demo project exists. Demo users share the password ``demo1234``.
 
 from __future__ import annotations
 
+import io
 import logging
+import struct
+import zlib
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,6 +29,30 @@ from almlight.modules.workflow import engine
 log = logging.getLogger("almlight.seed")
 DEMO_KEY = "DEMO"
 DEMO_PASSWORD = "demo1234"
+
+
+def _drawing_png(w: int = 160, h: int = 100) -> bytes:
+    """A tiny technical-drawing-like PNG (outline with a bore), generated so the repository holds no binaries."""
+    def px(x: int, y: int) -> bytes:
+        border = x in (8, w - 9) or y in (8, h - 9)
+        bore = abs((x - w // 2) ** 2 + (y - h // 2) ** 2 - 22 ** 2) < 45
+        axis = (x == w // 2 or y == h // 2) and (x // 3) % 2 == 0 and (y // 3) % 2 == 0
+        return b"\x1f\x2d\x3d" if border or bore else b"\x0e\x6e\x76" if axis else b"\xf7\xf9\xfb"
+
+    raw = b"".join(b"\x00" + b"".join(px(x, y) for x in range(w)) for y in range(h))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def _step_model(name: str, rev: int, note: str) -> bytes:
+    return (f"ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('{name} rev {rev}: {note}'),'2;1');\n"
+            f"FILE_NAME('{name.lower()}.step','2026-10-01',('Demo'),('Demo'),'','','');\n"
+            "FILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF'));\nENDSEC;\nDATA;\nENDSEC;\n"
+            "END-ISO-10303-21;\n").encode()
 
 
 def _user(db: Session, username: str, name: str) -> User:
@@ -189,15 +216,22 @@ def seed_demo(db: Session) -> None:
     tcs = {
         "range": new("test_case", "Full-scale range test", fields={
             "test_level": "system", "method": "automated", "automation_id": "sensor.range.test_full_scale",
-            "steps": "1. Apply 0, 25, 50, 75, 100 % of range\n2. Record the output", "expected_result":
-            "Output within tolerance at all points"}),
+            "test_steps": [
+                {"step": "Mount the transmitter on the pressure calibrator", "expected": "Zero reading 4.00 mA"},
+                {"step": "Apply 0, 25, 50, 75 and 100 % of the range", "expected": "Output linear, within 0.1 %"},
+                {"step": "Release the pressure", "expected": "Output returns to 4.00 mA"}]}),
         "accuracy": new("test_case", "Accuracy at reference conditions",
-                        fields={"test_level": "system", "method": "manual"}),
+                        fields={"test_level": "system", "method": "manual", "test_steps": [
+                            {"step": "Stabilise at 23 degC for 2 h", "expected": "Temperature within 23 +/- 1 degC"},
+                            {"step": "Apply 50 % of range five times", "expected": "Deviation <= 0.1 % of span"}]}),
         "analog": new("test_case", "Current loop output test", applicability="OUT_420 or OUT_HART",
                       fields={"test_level": "system", "method": "hil", "automation_id": "sensor.output.test_loop"}),
         "hart": new("test_case", "HART communication test", applicability="OUT_HART",
                     fields={"test_level": "integration", "method": "automated"}),
-        "temp": new("test_case", "Temperature cycle test", fields={"test_level": "system", "method": "manual"}),
+        "temp": new("test_case", "Temperature cycle test", fields={"test_level": "system", "method": "manual",
+                    "test_steps": [{"step": "Cycle -40 to +85 degC, 10 cycles", "expected": "No damage"},
+                                   {"step": "Measure at +85 degC", "expected": "Deviation <= 0.25 % of span"},
+                                   {"step": "Measure at -40 degC", "expected": "Deviation <= 0.25 % of span"}]}),
         "accept": new("test_case", "Customer acceptance: pressure monitoring", fields={"test_level": "validation"}),
     }
     for key in ("range", "accuracy", "analog", "hart", "temp"):
@@ -225,11 +259,23 @@ def seed_demo(db: Session) -> None:
     engine.execute_transition(db, project, alex, run, "start")
     results = {"range": "passed", "accuracy": "passed", "analog": "passed", "temp": "failed"}
     minutes = {"range": 20, "accuracy": 45, "analog": 15, "temp": 240}
+    step_results = {
+        "range": [{"result": "passed", "actual": "4.00 mA"}, {"result": "passed", "actual": "max. 0.04 %"},
+                  {"result": "passed", "actual": "4.00 mA"}],
+        "temp": [{"result": "passed"}, {"result": "passed", "actual": "0.18 %"},
+                 {"result": "failed", "actual": "0.41 % at -40 degC"}],
+    }
+    failed_record = None
     for record, tc in verification.records_of(db, run):
         key = next(k for k, v in tcs.items() if v.id == tc.id)
         verification.set_result(db, project, alex, run, record.id, result=results[key],
-                                duration_ms=minutes[key] * 60_000,
+                                duration_ms=minutes[key] * 60_000, step_results=step_results.get(key),
                                 comment="Drift at -40 degC exceeds limit" if results[key] == "failed" else None)
+        if results[key] == "failed":
+            failed_record = record
+    if failed_record is not None:
+        verification.raise_defect(db, project, alex, run, failed_record.id, step=3,
+                                  title="Temperature drift at -40 degC exceeds 0.25 %")
     engine.execute_transition(db, project, alex, run, "complete")
 
     # --- variants ------------------------------------------------------------------------------------
@@ -307,6 +353,96 @@ def seed_demo(db: Session) -> None:
                                  "Specifications delivered with the first pilot release")
     collections.add_document(db, project, max_, release, stk_spec, None)
     collections.add_document(db, project, max_, release, sys_spec, review)
+
+    # --- product structure as a BOM: find numbers, quantities, effectivity -------------------------------
+    from datetime import date
+
+    def bom(parent: Item, child: Item, find: str, qty: float = 1, unit: str = "pcs", **extra: str) -> None:
+        link_row = next(lk for lk, it in links.children(db, parent, project.model.structural_link_types())
+                        if it.id == child.id)
+        links.update_link(db, project, alex, link_row, attributes={"quantity": qty, "unit": unit, "find_number": find,
+                                                                   **extra})
+
+    for parent, child, find in ((product, sensor, "10"), (product, proc, "20"), (product, comm, "30"),
+                                (product, housing, "40"), (sensor, cell, "11"), (proc, board, "21"), (proc, fw, "22"),
+                                (comm, hart_mod, "31"), (comm, iol_mod, "32")):
+        bom(parent, child, find)
+    seal = new("system_element", "O-ring 12x2 FKM", parent=sensor,
+               fields={"level": "component", "discipline": "mechanical", "reuse_strategy": "purchased",
+                       "part_number": "OR-1220", "supplier": "Seal Co."})
+    bom(sensor, seal, "12", 2)
+    gland_old = new("system_element", "Cable gland M16", parent=product,
+                    fields={"level": "component", "discipline": "mechanical", "reuse_strategy": "purchased",
+                            "part_number": "CG-M16"})
+    gland_new = new("system_element", "Cable gland M20 (EMC)", parent=product,
+                    fields={"level": "component", "discipline": "mechanical", "reuse_strategy": "purchased",
+                            "part_number": "CG-M20E"})
+    year = date.today().year
+    bom(product, gland_old, "50", effective_to=f"{year}-12-31")
+    bom(product, gland_new, "50", effective_from=f"{year + 1}-01-01")
+
+    # --- risk management (FMEA) -----------------------------------------------------------------------
+    def risk(title: str, mode: str, s: int, o: int, d: int, *, after: tuple[int, int, int] | None = None,
+             mitigated_by: tuple[Item, ...] = (), applies_to: tuple[Item, ...] = (), mitigate: bool = False) -> Item:
+        fields = {"failure_mode": mode, "severity": s, "occurrence": o, "detection": d}
+        if after:
+            fields.update(severity_after=after[0], occurrence_after=after[1], detection_after=after[2])
+        r = new("risk", title, fields=fields)
+        for m in mitigated_by:
+            link("mitigated_by", r, m)
+        for el in applies_to:
+            link("risk_for", r, el)
+        if mitigate:
+            engine.execute_transition(db, project, alex, r, "mitigate")
+        return r
+
+    risk("Overpressure destroys the measuring cell", "Burst of the diaphragm above 2x range", 9, 5, 5,
+         after=(9, 2, 3), mitigated_by=(mrq_cell, tcs["range"]), applies_to=(cell,), mitigate=True)
+    risk("Temperature drift exceeds the accuracy", "Uncompensated drift at low temperature", 7, 6, 4,
+         after=(7, 3, 3), mitigated_by=(mrq_comp, tcs["temp"]), applies_to=(fw, board), mitigate=True)
+    risk("Loss of HART communication", "Modem fails after ESD event", 5, 3, 4, applies_to=(hart_mod,))
+    risk("Undetected sensor failure in a SIL loop", "Frozen output value is not diagnosed", 10, 3, 7,
+         applies_to=(board,))
+
+    # --- release planning ----------------------------------------------------------------------------
+    today = date.today()
+    r10 = new("release", "Release 1.0 — pilot customers", by=max_,
+              fields={"start_date": (today.replace(day=1)).isoformat(), "due_date": f"{today.year}-12-15",
+                      "goal": "Analog and IO-Link variants for pilot customers"})
+    engine.execute_transition(db, project, max_, r10, "start")
+    r11 = new("release", "Release 1.1 — HART and SIL 2", by=max_,
+              fields={"start_date": f"{today.year + 1}-01-07", "due_date": f"{today.year + 1}-04-30",
+                      "goal": "Process variant with HART and SIL 2 certification"})
+    for it in (sysr["range"], sysr["accuracy"], sysr["analog"], sysr["temp"], sysr["iolink"], run):
+        link("planned_in", it, r10)
+    for it in (sysr["hart"], sysr["sil"], cr):
+        link("planned_in", it, r11)
+
+    # --- files: a drawing and a CAD model with two revisions, checked out by alex ---------------------
+    from almlight.modules.files import service as files
+
+    items.add_attachment(db, project, alex, housing, filename="housing-drawing.png", content_type="image/png",
+                         stream=io.BytesIO(_drawing_png()))
+    step = items.add_attachment(db, project, alex, housing, filename="housing.step", content_type="application/step",
+                                stream=io.BytesIO(_step_model("Housing", 1, "2.0 mm wall")))
+    items.revise_attachment(db, project, alex, housing, step["id"], filename="housing.step",
+                            content_type="application/step",
+                            stream=io.BytesIO(_step_model("Housing", 2, "2.5 mm wall")),
+                            comment="Wall thickness 2.5 mm for IP67")
+    files.checkout(db, project, alex, housing, step["id"], "Adding the M20 thread for the EMC cable gland")
+
+    # --- collaboration: rita watches the system specification, alex mentions her ---------------------
+    from almlight.modules.notifications import service as notifications
+    from almlight.modules.queries.models import SavedQuery
+
+    notifications.watch(db, rita, project, sys_spec, True)
+    nm107 = db.execute(select(Item).where(Item.project_id == project.id,
+                                          Item.title == "Provide NAMUR NE 107 diagnostics")).scalar_one()
+    items.add_comment(db, project, alex, nm107, "@rita could you check the status mapping against NE 107 table 1?",
+                      document=sys_spec)
+    db.add(SavedQuery(project_id=project.id, owner_id=rita.id, name="Unverified system requirements", shared=True,
+                      query={"type": ["system_requirement"], "link_type": "verifies", "link_dir": "in",
+                             "link_exists": False}))
 
     # --- shared reports ---------------------------------------------------------------------------------
     from almlight.modules.reports import service as reports

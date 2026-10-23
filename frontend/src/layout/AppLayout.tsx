@@ -1,11 +1,11 @@
 import { useState } from "react";
 import {
-  ActionIcon, AppShell, Avatar, Badge, Box, Burger, Group, Indicator, Menu, NavLink, Popover, ScrollArea, SimpleGrid,
+  ActionIcon, AppShell, Avatar, Badge, Box, Burger, Group, Menu, NavLink, Popover, ScrollArea, SimpleGrid,
   Stack, Text, TextInput, Tooltip, UnstyledButton, useComputedColorScheme, useMantineColorScheme,
 } from "@mantine/core";
 import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
-  IconActivity, IconApi, IconBell, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
+  IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
   IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
   IconLogout, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
   IconTopologyStar3, IconUser, IconUsers, type Icon,
@@ -15,6 +15,7 @@ import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router-d
 import { api } from "@/api/client";
 import { useInbox, useMe, useProjects } from "@/api/hooks";
 import { Logo, LogoMark } from "@/components/Logo";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { useLive } from "@/live/LiveProvider";
 
 interface NavEntry { to: string; label: string; icon: Icon; hint: string }
@@ -34,12 +35,14 @@ export const PROJECT_NAV: NavGroup[] = [
   { group: "Change & quality", color: "orange", items: [
     { to: "changes", label: "Changes", icon: IconGitCompare, hint: "Change requests and orders" },
     { to: "verification", label: "Verification", icon: IconTestPipe, hint: "Tests, runs and results" },
+    { to: "risks", label: "Risks", icon: IconAlertTriangle, hint: "FMEA: risk matrix, register, mitigation" },
   ] },
   { group: "Configuration", color: "violet", items: [
     { to: "variants", label: "Variants", icon: IconTopologyStar3, hint: "Features, variants, 150% model" },
     { to: "baselines", label: "Baselines", icon: IconBinaryTree, hint: "Baselines and release collections" },
   ] },
   { group: "Insights", color: "blue", items: [
+    { to: "plans", label: "Plans", icon: IconCalendarStats, hint: "Releases and milestones with progress" },
     { to: "reports", label: "Reports", icon: IconChartBar, hint: "KPIs and user-built reports" },
   ] },
   { group: "Project", color: "gray", items: [
@@ -182,13 +185,7 @@ export function AppLayout() {
             <Tooltip label={live.connected ? "Live: changes and presence are pushed" : "Live connection lost — reconnecting"}>
               <Box className={`live-dot ${live.connected ? "is-on" : ""}`} data-testid="live-indicator" />
             </Tooltip>
-            <Tooltip label="My approvals">
-              <Indicator disabled={pendingForMe === 0} label={pendingForMe} size={16} color="red" offset={4}>
-                <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" component={Link} to="/approvals" aria-label="Approvals">
-                  <IconBell size={20} />
-                </ActionIcon>
-              </Indicator>
-            </Tooltip>
+            <NotificationCenter />
             <Tooltip label={scheme === "dark" ? "Light mode" : "Dark mode"}>
               <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" visibleFrom="sm"
                 onClick={() => setColorScheme(scheme === "dark" ? "light" : "dark")} aria-label="Toggle color scheme">

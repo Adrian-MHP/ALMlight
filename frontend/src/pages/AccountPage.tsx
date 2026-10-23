@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Alert, Badge, Button, Card, Code, CopyButton, Group, PasswordInput, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Code, CopyButton, Group, PasswordInput, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title } from "@mantine/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/api/client";
-import { useMe, useProjectMutation, useTokens } from "@/api/hooks";
+import { useMe, useNotifications, useProjectMutation, useTokens } from "@/api/hooks";
 import type { ApiToken } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtDate, fmtDateTime } from "@/lib/format";
@@ -23,9 +23,19 @@ export function AccountPage() {
   const revoke = useProjectMutation(null, (id: string) => api.del(`/auth/tokens/${id}`), {
     success: "Token revoked", onSuccess: () => qc.invalidateQueries({ queryKey: ["tokens"] }),
   });
+  const notes = useNotifications().data;
+  const setEmail = useProjectMutation(null, (on: boolean) => api.put("/notifications/preferences", { email_notifications: on }),
+    { success: "Saved", onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }) });
   return (
     <>
       <PageHeader title="Account" subtitle={`${me.display_name} (${me.username})`} />
+      <Card withBorder mb="md">
+        <Title order={5} mb="xs">Notifications</Title>
+        <Text size="sm" c="dimmed" mb="sm">You are notified about items you own or watch, approvals you can give and comments that mention you (@{me.username}).</Text>
+        <Switch label={notes?.email ? `Also send an e-mail digest${me.email ? ` to ${me.email}` : " (no e-mail address on file)"}` : "E-mail digests (not configured on this server)"}
+          disabled={!notes?.email} checked={!!notes?.email_notifications && !!notes?.email}
+          onChange={(e) => setEmail.mutate(e.currentTarget.checked)} data-testid="email-notifications" />
+      </Card>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <Card withBorder>
           <Title order={5} mb="sm">Change password</Title>

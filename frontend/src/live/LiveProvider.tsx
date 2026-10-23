@@ -1,6 +1,7 @@
 // Live channel: one WebSocket per tab for change events (pages refresh themselves) and presence (who is where).
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 import { pk } from "@/api/hooks";
 import { wsBase } from "@/collab/session";
 
@@ -56,6 +57,13 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         const project = msg.project;
         if (msg.type === "presence" && project) {
           setPresence((p) => ({ ...p, [project]: msg.users ?? [] }));
+        } else if (msg.type === "notification") {
+          const n = msg as unknown as { title: string; actor: string | null; kind: string };
+          qc.invalidateQueries({ queryKey: ["notifications"] });
+          if (n.kind === "mention" || n.kind === "approval") {
+            notifications.show({ color: n.kind === "mention" ? "violet" : "orange", autoClose: 6000,
+              title: n.kind === "mention" ? `${n.actor ?? "Someone"} mentioned you` : "Approval requested", message: n.title });
+          }
         } else if (msg.type === "change" && project) {
           listeners.current.forEach((fn) => fn(msg as unknown as ChangeEvent));
           pending.current.add(project);

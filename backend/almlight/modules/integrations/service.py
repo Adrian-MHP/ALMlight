@@ -304,7 +304,11 @@ class OutboxWorker:
             self._thread.join(timeout=5)
 
     def _run(self) -> None:
+        from almlight.core.config import get_settings
+        from almlight.modules.notifications.service import send_digests
+
         last_prune = 0.0
+        last_mail = 0.0
         with httpx.Client(timeout=10.0) as client:
             while not self._stop.is_set():
                 try:
@@ -313,6 +317,9 @@ class OutboxWorker:
                         if time.monotonic() - last_prune > 3600:
                             prune(db)
                             last_prune = time.monotonic()
+                        if time.monotonic() - last_mail > get_settings().email_digest_seconds:
+                            send_digests(db)
+                            last_mail = time.monotonic()
                 except Exception:  # noqa: BLE001 — never let the worker die
                     log.exception("outbox delivery failed")
                     n = 0

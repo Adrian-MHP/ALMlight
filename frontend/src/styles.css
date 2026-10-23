@@ -123,3 +123,30 @@ a.item-key:hover { text-decoration: underline; }
   .object-header { padding: 10px; }
   .alm-main { padding-left: 10px !important; padding-right: 10px !important; }
 }
+
+/* --- notifications, risks, plans ------------------------------------------------------------------- */
+.note-row { display: block; width: 100%; padding: 10px 14px; border-bottom: 1px solid var(--mantine-color-default-border); }
+.note-row:hover { background: var(--mantine-color-default-hover); }
+.note-row.is-unread { background: color-mix(in srgb, var(--mantine-primary-color-filled) 6%, transparent); }
+.note-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mantine-primary-color-filled); margin-top: 6px; flex-shrink: 0; }
+.risk-matrix { display: grid; grid-template-columns: 18px 1fr; grid-template-rows: 1fr 18px; gap: 4px; }
+.risk-matrix table { border-collapse: separate; border-spacing: 2px; width: 100%; table-layout: fixed; }
+.risk-matrix td { height: 26px; text-align: center; font-size: 12px; border-radius: 3px; }
+.risk-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; color: #fff; font-weight: 700; font-size: 11px; }
+.risk-matrix th { font-size: 10px; color: var(--mantine-color-dimmed); font-weight: 500; width: 18px; }
+.risk-axis-y { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; color: var(--mantine-color-dimmed); text-align: center; }
+.risk-axis-x { grid-column: 2; font-size: 11px; color: var(--mantine-color-dimmed); text-align: center; }
+.plan-timeline { position: relative; }
+.plan-row { display: grid; grid-template-columns: 220px 1fr; align-items: center; gap: 8px; padding: 4px 0; }
+.plan-row:hover { background: var(--mantine-color-default-hover); }
+.plan-track { position: relative; height: 18px; }
+.plan-bar { position: absolute; top: 2px; height: 14px; border: 2px solid; border-radius: 4px; background: var(--mantine-color-default-hover); overflow: hidden; }
+.plan-fill { height: 100%; background: var(--mantine-color-teal-5); }
+.plan-today { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--mantine-color-red-5); z-index: 1; }
+.plan-axis { display: grid; grid-template-columns: 220px 1fr; gap: 8px; margin-bottom: 2px; }
+.plan-months { position: relative; height: 16px; border-bottom: 1px solid var(--mantine-color-default-border); }
+.plan-month { position: absolute; top: 0; padding-left: 3px; border-left: 1px solid var(--mantine-color-default-border); font-size: 10px; color: var(--mantine-color-dimmed); white-space: nowrap; height: 16px; }
+@media (max-width: 640px) { .plan-row, .plan-axis { grid-template-columns: 110px 1fr; } }
+/* status badges never collapse to an ellipsis inside tables and toolbars — the cell grows instead */
+.mantine-Table-td .mantine-Badge-root, .badge-keep { min-width: max-content; }
+.mention-list { position: absolute; z-index: 300; left: 8px; top: 100%; min-width: 240px; }

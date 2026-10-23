@@ -36,6 +36,38 @@ If `ALMLIGHT_ADMIN_PASSWORD` is empty, a password is generated once and printed 
 | `ALMLIGHT_SESSION_HOURS` | `12` | Session lifetime |
 | `ALMLIGHT_CORS_ORIGINS` | – | JSON list, only if another web origin calls the API |
 | `ALMLIGHT_LOG_LEVEL` | `INFO` | Log level |
+| `ALMLIGHT_PUBLIC_URL` | – | Public address, e.g. `https://alm.example.com` (links in e-mails, SSO redirect behind a proxy) |
+| `ALMLIGHT_SMTP_HOST` / `_PORT` | – / `587` | Mail server for notification digests; e-mail is off while host or sender is empty |
+| `ALMLIGHT_SMTP_USER` / `_PASSWORD` | – | SMTP login (optional) |
+| `ALMLIGHT_SMTP_FROM` | – | Sender address, e.g. `Ariadne <alm@example.com>` |
+| `ALMLIGHT_SMTP_SECURITY` | `starttls` | `starttls`, `ssl` (port 465) or `none` (internal relay) |
+| `ALMLIGHT_EMAIL_DIGEST_SECONDS` | `60` | How often the background worker sends digests; notifications younger than 30 s wait for the next round |
+| `ALMLIGHT_OIDC_ISSUER` | – | OpenID Connect issuer URL; SSO is off while issuer or client id is empty |
+| `ALMLIGHT_OIDC_CLIENT_ID` / `_CLIENT_SECRET` | – | Client registered at the identity provider (confidential client, authorization code + PKCE) |
+| `ALMLIGHT_OIDC_SCOPES` | `openid profile email` | Requested scopes (add the scope that delivers `groups` if the IdP needs one) |
+| `ALMLIGHT_OIDC_LABEL` | `Single sign-on` | Button text on the sign-in page, e.g. `Sign in with Microsoft` |
+| `ALMLIGHT_OIDC_USERNAME_CLAIM` | `preferred_username` | Claim used as user name (Entra ID: the UPN, e.g. `alex@example.com`; with `email` only the part before `@`) |
+| `ALMLIGHT_OIDC_ADMIN_GROUP` | – | Members of this group (`groups` claim) become administrators |
+| `ALMLIGHT_OIDC_ALLOW_SIGNUP` | `true` | Create users on first sign-in; `false`: only users that already exist may sign in |
+
+### Single sign-on (OIDC)
+
+1. Register an application at the identity provider (Microsoft Entra ID: *App registrations*; Keycloak: a
+   confidential client) with the redirect URI `<ALMLIGHT_PUBLIC_URL>/api/v1/auth/oidc/callback`.
+2. Set `ALMLIGHT_OIDC_ISSUER` (Entra ID: `https://login.microsoftonline.com/<tenant>/v2.0`; Keycloak:
+   `https://<host>/realms/<realm>`), client id and secret, and `ALMLIGHT_PUBLIC_URL`; restart the app.
+3. The sign-in page shows the SSO button next to the local login. New users are created on their first sign-in
+   (project roles are still assigned by project managers); members of `ALMLIGHT_OIDC_ADMIN_GROUP` become
+   administrators. Local accounts (e.g. the bootstrap admin) keep working as a fallback.
+
+The ID token is verified (issuer, audience, expiry, signature against the provider's JWKS, nonce); the login uses
+the authorization code flow with PKCE and a short-lived signed state cookie.
+
+### Notification e-mails
+
+With SMTP configured, users receive one digest e-mail with their unread notifications (watched items, own items,
+approvals, @mentions) at most every `ALMLIGHT_EMAIL_DIGEST_SECONDS`; notifications read in the app before are not
+mailed. Users switch digests off on their account page. Set `ALMLIGHT_PUBLIC_URL` so that the mails link to the items.
 
 ## 8.4 Backup and restore
 

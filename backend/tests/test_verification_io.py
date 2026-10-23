@@ -101,7 +101,7 @@ def test_csv_round_trip(team, project):
     )
     dry = c.post(f"{p}/import", files={"file": ("reqs.csv", io.BytesIO(csv_text.encode()), "text/csv")},
                  data={"dry_run": "true"})
-    assert dry["summary"] == {"created": 2} and dry["applied"] is False
+    assert dry["summary"] == {"created": 2, "links": 1} and dry["applied"] is False
     assert c.get(f"{p}/items")["total"] == 0
     real = c.post(f"{p}/import", files={"file": ("reqs.csv", io.BytesIO(csv_text.encode()), "text/csv")},
                   data={"dry_run": "false"})

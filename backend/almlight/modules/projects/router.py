@@ -99,6 +99,20 @@ def get_config(project_key: str, user: User = Depends(current_user), db: Session
     return {"version": project.config_version, "config": dump_config(project.model)}
 
 
+@router.get("/projects/{project_key}/template-updates", summary="Additions available from the shipped template")
+def get_template_updates(project_key: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    project = get_project(db, project_key, user)
+    return service.template_updates(project)
+
+
+@router.post("/projects/{project_key}/template-updates", summary="Take over the template's additions (manager)")
+def apply_template_updates(project_key: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    project = get_project(db, project_key, user, "manager")
+    applied = service.apply_template_updates(db, user, project)
+    db.commit()
+    return {"applied": applied, "version": project.config_version}
+
+
 @router.put("/projects/{project_key}/config")
 def put_config(project_key: str, body: dict[str, Any], user: User = Depends(current_user),
                db: Session = Depends(get_db)) -> dict:

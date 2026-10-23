@@ -91,11 +91,12 @@ attempts. Deliveries are logged per webhook.
 
 | Format | Direction | Endpoint |
 |---|---|---|
-| CSV / Excel | export, import (dry run, all-or-nothing, update by key, parent and link columns) | `/projects/{k}/export.csv`, `/export.xlsx`, `POST /projects/{k}/import` |
+| CSV / Excel | export (optionally filtered like the item list: `q`, `state`, `link_type`/`link_dir`/`link_exists`, `planned_in`), import (dry run, all-or-nothing, update by key, parent and link columns) | `/projects/{k}/export.csv`, `/export.xlsx`, `POST /projects/{k}/import` |
 | ReqIF 1.2 | export (project requirements or a specification sub-tree) | `/projects/{k}/reqif`, `/projects/{k}/items/{key}/reqif` |
 | Project archive (JSON) | export / import with history, links, baselines | `/projects/{k}/archive`, `POST /projects/import-archive` |
 | ReqIF 1.x | import with mapping (dry run by default, `.reqif` / `.reqifz`) | `POST /projects/{k}/import-reqif` |
-| Word / PDF | export of a document, live or from a baseline (`?baseline=<id>&fields=&links=`) | `/projects/{k}/items/{key}/export.docx`, `/export.pdf` |
+| Word / PDF | export of a document, live or from a baseline (`?baseline=<id>&fields=&links=`); Word in a customer template (`&template=<id>`) | `/projects/{k}/items/{key}/export.docx`, `/export.pdf` |
+| BOM | multi-level bill of materials as CSV/Excel (`?effective=YYYY-MM-DD`) | `/projects/{k}/items/{key}/bom.csv`, `/bom.xlsx` |
 | JUnit XML | import | `POST /projects/{k}/test-runs/import-junit` |
 
 ## 9.8 Reports and KPIs
@@ -170,3 +171,37 @@ ReqIF exports become `.reqifz` archives when they contain images (`?format=reqif
 Authentication: the session cookie (browsers) or `?token=<API token>`. Close codes: `4001` the text changed
 elsewhere (reload), `4409` the start state is outdated (reload), `4401` not authenticated / cross-site, `4404` not found.
 `content_hash` is part of every item and document node response.
+
+## 9.12 Engineering backbone (0.5)
+
+See [12-engineering-backbone](12-engineering-backbone.md) for the behaviour behind these endpoints.
+
+```bash
+# traceability gaps: system requirements without a verifying test (also: derives_from/out, satisfies/in, mitigated_by/out, planned_in/out)
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items?type=system_requirement&link_type=verifies&link_dir=in&link_exists=false"
+
+# step-wise test result and a defect from step 3
+curl -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/test-runs/TR-2/records/<record id>" \
+  -d '{"step_results": [{"result": "passed"}, {"result": "passed", "actual": "0.12 %"}, {"result": "failed", "actual": "0.6 %"}]}'
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/test-runs/TR-2/records/<record id>/defect" -d '{"step": 3}'
+
+# check out a file, check in a new revision, history
+curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' "$ALM/projects/DEMO/items/SE-10/attachments/<id>/checkout" -d '{"note": "M20 thread"}'
+curl -X POST -H "Authorization: Bearer $TOKEN" -F file=@housing.step -F comment="M20 thread" "$ALM/projects/DEMO/items/SE-10/attachments/<id>/revisions"
+curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items/SE-10/attachments/<id>/history"
+```
+
+| Area | Endpoints |
+|---|---|
+| Notifications | `GET /notifications`, `POST /notifications/read` (`{"ids": […]}` or `{"all": true}`), `PUT /notifications/preferences` (`email`) |
+| Watching | `GET /subscriptions`; `GET`/`PUT`/`DELETE /projects/{k}/items/{key}/watch` |
+| Saved views | `GET`/`POST /projects/{k}/queries`, `PUT`/`DELETE /projects/{k}/queries/{id}` (query keys as in the item list; `count` and `can_edit` in the list) |
+| Test execution | `PATCH /projects/{k}/test-runs/{run}/records/{id}` (`result` or `step_results`, `comment`), `POST …/records/{id}/defect` (`step`, `title`, `description`; one per record) |
+| Risks | `GET /projects/{k}/risks` — matrix before/after mitigation, register, summary |
+| Plans | `GET /projects/{k}/plans`, `GET /projects/{k}/plans/{release}` — progress, status, burn-up, planned items; plan with `POST /links` (`planned_in`) |
+| BOM | `GET /projects/{k}/items/{key}/bom?effective=`, `/bom.csv`, `/bom.xlsx`, `GET /projects/{k}/items/{key}/where-used`; edit quantities with `PATCH /projects/{k}/links/{id}` (`attributes`) |
+| Files | `POST`/`DELETE …/attachments/{id}/checkout`, `POST …/attachments/{id}/revisions` (multipart `file`, `comment`), `GET …/attachments/{id}/history`, `GET …/attachments/{id}?inline=true` (images, PDF), `GET /checkouts/mine` |
+| Word templates | `GET`/`POST /projects/{k}/doc-templates` (multipart `file`, `name`; manager), `GET …/doc-templates/{id}/download`, `DELETE …/doc-templates/{id}`, `GET …/doc-templates/sample.docx` |
+| Template updates | `GET`/`POST /projects/{k}/template-updates` (manager) |
+| Single sign-on | `GET /auth/oidc/config`, `GET /auth/oidc/login?next=/`, `GET /auth/oidc/callback` |
+

@@ -88,6 +88,9 @@ def record(
                        "action": action, "entity_type": entity_type, "entity_id": entry.entity_id,
                        "summary": summary, "actor": entry.actor_name, "actor_id": str(actor.id) if actor else None,
                        "related_ids": [str(r) for r in entry.related_ids], "ts": entry.ts.isoformat()})
+    from almlight.modules.notifications.service import on_audit
+
+    on_audit(db, entry, actor)
     return entry
 
 

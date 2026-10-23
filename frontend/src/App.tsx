@@ -26,6 +26,8 @@ import { ActivityPage } from "./pages/project/ActivityPage";
 import { ReportsPage } from "./pages/project/reports/ReportsPage";
 import { ReportView } from "./pages/project/reports/ReportView";
 import { SettingsPage } from "./pages/project/SettingsPage";
+import { RisksPage } from "./pages/project/RisksPage";
+import { PlansPage } from "./pages/project/PlansPage";
 import { NotFound } from "./components/NotFound";
 
 export const router = createBrowserRouter([
@@ -59,6 +61,8 @@ export const router = createBrowserRouter([
           { path: "reports/:reportId", element: <ReportView /> },
           { path: "activity", element: <ActivityPage /> },
           { path: "settings", element: <SettingsPage /> },
+          { path: "risks", element: <RisksPage /> },
+          { path: "plans", element: <PlansPage /> },
         ],
       },
       { path: "/home", element: <Navigate to="/" replace /> },

@@ -14,7 +14,7 @@ label: Systems Engineering (generic)
 description: >
   Requirements from stakeholder to module level, RFLP architecture, verification,
   closed-loop change management, variants and maturity tracking.
-version: 1
+version: 2
 revision_scheme: letters
 
 item_types:
@@ -151,8 +151,50 @@ item_types:
       - {key: method, label: Method, type: enum, options: [manual, automated, hil, analysis, inspection], default: manual}
       - {key: automation_id, label: Automation ID, type: string, help: "Test name in CI results (e.g. JUnit classname.name)"}
       - {key: preconditions, label: Preconditions, type: text}
-      - {key: steps, label: Steps, type: text}
+      - {key: test_steps, label: Test steps, type: steps, help: "Step-by-step actions with expected results; executed one by one in test runs"}
+      - {key: steps, label: Steps (free text), type: text}
       - {key: expected_result, label: Expected result, type: text}
+
+  - key: risk
+    label: Risk
+    prefix: RSK
+    category: risk
+    workflow: risk
+    description: Hazard or failure mode rated by severity, occurrence and detection (FMEA); mitigated by requirements and tests.
+    fields:
+      - {key: failure_mode, label: Failure mode / hazard, type: string}
+      - {key: effect, label: Effect, type: text}
+      - {key: cause, label: Cause, type: text}
+      - {key: severity, label: Severity (S), type: integer, min: 1, max: 10, help: "1 = no effect ... 10 = hazardous without warning"}
+      - {key: occurrence, label: Occurrence (O), type: integer, min: 1, max: 10, help: "1 = remote ... 10 = very high"}
+      - {key: detection, label: Detection (D), type: integer, min: 1, max: 10, help: "1 = certain detection ... 10 = undetectable"}
+      - {key: rpn, label: Risk priority number (RPN), type: integer, formula: "severity * occurrence * detection"}
+      - key: risk_level
+        label: Risk level
+        type: enum
+        options: [{key: low, label: Low, color: green}, {key: medium, label: Medium, color: yellow}, {key: high, label: High, color: red}]
+        classify: {field: rpn, bands: [[1, low], [80, medium], [200, high]]}
+      - {key: mitigation, label: Mitigation, type: text}
+      - {key: severity_after, label: Severity after mitigation, type: integer, min: 1, max: 10}
+      - {key: occurrence_after, label: Occurrence after mitigation, type: integer, min: 1, max: 10}
+      - {key: detection_after, label: Detection after mitigation, type: integer, min: 1, max: 10}
+      - {key: rpn_after, label: Residual RPN, type: integer, formula: "severity_after * occurrence_after * detection_after"}
+      - key: residual_level
+        label: Residual risk level
+        type: enum
+        options: [{key: low, label: Low, color: green}, {key: medium, label: Medium, color: yellow}, {key: high, label: High, color: red}]
+        classify: {field: rpn_after, bands: [[1, low], [80, medium], [200, high]]}
+
+  - key: release
+    label: Release
+    prefix: REL
+    category: planning
+    workflow: release
+    description: A planned release, milestone or iteration with a time frame; requirements, changes and test runs are planned into it.
+    fields:
+      - {key: start_date, label: Start, type: date}
+      - {key: due_date, label: Due, type: date}
+      - {key: goal, label: Goal, type: text}
 
   - key: test_run
     label: Test Run
@@ -259,7 +301,11 @@ link_types:
     targets: [heading, stakeholder_requirement, system_requirement, element_requirement, function, system_element,
               interface, test_case, document, feature]
     attributes:
-      - {key: quantity, label: Quantity, type: integer}
+      - {key: quantity, label: Quantity, type: number, min: 0}
+      - {key: unit, label: Unit, type: enum, options: [pcs, set, m, kg, l]}
+      - {key: find_number, label: Find number, type: string}
+      - {key: effective_from, label: Effective from, type: date}
+      - {key: effective_to, label: Effective until, type: date}
 
   - key: derives_from
     label: derives from
@@ -346,6 +392,30 @@ link_types:
     reverse_label: related to
     editable_on_frozen_source: true
 
+
+  - key: mitigated_by
+    label: mitigated by
+    reverse_label: mitigates
+    description: A requirement, design element or test that reduces a risk.
+    sources: [risk]
+    targets: [stakeholder_requirement, system_requirement, element_requirement, system_element, function, test_case]
+    suspect_on_target_change: true
+
+  - key: risk_for
+    label: risk for
+    reverse_label: has risk
+    description: The function, element or interface a risk applies to.
+    sources: [risk]
+    targets: [function, system_element, interface]
+
+  - key: planned_in
+    label: planned in
+    reverse_label: plans
+    description: Work planned into a release, milestone or iteration (planning does not change the item, so frozen items can be planned).
+    editable_on_frozen_source: true
+    sources: [stakeholder_requirement, system_requirement, element_requirement, system_element, test_case, test_run,
+              problem_report, change_request, change_order]
+    targets: [release]
 workflows:
   - key: requirement
     label: Requirement lifecycle
@@ -481,3 +551,33 @@ workflows:
     transitions:
       - {key: make_obsolete, label: Make obsolete, from: [active], to: obsolete, min_role: reviewer}
       - {key: reactivate, label: Reactivate, from: [obsolete], to: active, min_role: reviewer}
+
+  - key: risk
+    label: Risk lifecycle
+    states:
+      - {key: open, label: Open, category: open, initial: true, color: red}
+      - {key: mitigated, label: Mitigated, category: in_progress, color: yellow}
+      - {key: accepted, label: Accepted, category: released, frozen: true, released: true, color: green}
+      - {key: obsolete, label: Obsolete, category: obsolete, frozen: true, color: dark}
+    transitions:
+      - {key: mitigate, label: Mark mitigated, from: [open], to: mitigated}
+      - key: accept
+        label: Accept residual risk
+        from: [mitigated, open]
+        to: accepted
+        approval: {roles: [reviewer, manager], count: 1, signature: true}
+      - {key: reopen, label: Reopen, from: [accepted, mitigated], to: open, min_role: reviewer, comment_required: true}
+      - {key: obsolete, label: Make obsolete, from: [open, mitigated, accepted], to: obsolete, min_role: manager}
+
+  - key: release
+    label: Release plan
+    states:
+      - {key: planned, label: Planned, category: open, initial: true, color: gray}
+      - {key: active, label: Active, category: in_progress, color: blue}
+      - {key: done, label: Done, category: closed, color: green}
+      - {key: cancelled, label: Cancelled, category: obsolete, color: dark}
+    transitions:
+      - {key: start, label: Start, from: [planned], to: active}
+      - {key: finish, label: Finish, from: [active], to: done, min_role: manager}
+      - {key: replan, label: Back to planning, from: [active, done], to: planned, min_role: manager}
+      - {key: cancel, label: Cancel, from: [planned, active], to: cancelled, min_role: manager}

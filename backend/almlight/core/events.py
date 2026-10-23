@@ -20,7 +20,9 @@ log = logging.getLogger("almlight.events")
 
 # post-commit hooks: (session info key, callback receiving the collected values)
 _hooks: list[tuple[str, Callable[[Any], None]]] = []
-_TRACKED = ("live_events", "text_changed", "access_changed")
+_LISTS = ("live_events", "notif_buffer")
+_SETS = ("text_changed", "access_changed")
+_TRACKED = _LISTS + _SETS
 
 
 def on_commit(key: str, callback: Callable[[Any], None]) -> None:
@@ -66,7 +68,8 @@ class Bus:
 
     def _dispatch(self, events: list[dict[str, Any]]) -> None:
         for e in events:
-            for cb in list(self.subscribers.get(e.get("project_id") or "", ())):
+            channel = f"user:{e['user_id']}" if e.get("type") == "notification" else e.get("project_id") or ""
+            for cb in list(self.subscribers.get(channel, ())):
                 try:
                     cb(e)
                 except Exception:  # noqa: BLE001 — one broken subscriber must not stop the others
@@ -86,8 +89,7 @@ def _marks(session: Session) -> list[tuple[Any, dict[str, Any]]]:
 
 def _snapshot(session: Session) -> dict[str, Any]:
     info = session.info
-    return {"live_events": len(info.get("live_events", [])), "text_changed": set(info.get("text_changed", set())),
-            "access_changed": set(info.get("access_changed", set()))}
+    return {**{k: len(info.get(k, [])) for k in _LISTS}, **{k: set(info.get(k, set())) for k in _SETS}}
 
 
 @event.listens_for(Session, "after_transaction_create")
@@ -98,33 +100,50 @@ def _txn_created(session: Session, transaction: Any) -> None:
 
 @event.listens_for(Session, "after_soft_rollback")
 def _soft_rollback(session: Session, previous_transaction: Any) -> None:
-    marks = _marks(session)
-    for i in range(len(marks) - 1, -1, -1):
-        if marks[i][0] is previous_transaction:
-            snap = marks[i][1]
-            del marks[i:]
-            if "live_events" in session.info:
-                del session.info["live_events"][snap["live_events"]:]
-            session.info["text_changed"] = snap["text_changed"]
-            session.info["access_changed"] = snap["access_changed"]
-            return
+    # SQLAlchemy ends a savepoint (after_transaction_end) before reporting its rollback, so look in both places.
+    ended = session.info.get("_live_ended", [])
+    snap = None
+    for i, (t, s) in enumerate(ended):
+        if t is previous_transaction:
+            snap = s
+            del ended[i]
+            break
+    if snap is None:
+        marks = _marks(session)
+        for i in range(len(marks) - 1, -1, -1):
+            if marks[i][0] is previous_transaction:
+                snap = marks[i][1]
+                del marks[i:]
+                break
+    if snap is not None:
+        for k in _LISTS:
+            if k in session.info:
+                del session.info[k][snap[k]:]
+        for k in _SETS:
+            session.info[k] = snap[k]
+        return
     if not getattr(previous_transaction, "nested", False):
         for key in _TRACKED:
             session.info.pop(key, None)
-        marks.clear()
+        _marks(session).clear()
+        session.info.pop("_live_ended", None)
 
 
 @event.listens_for(Session, "after_transaction_end")
 def _txn_ended(session: Session, transaction: Any) -> None:
     marks = _marks(session)
     if marks and marks[-1][0] is transaction:
-        marks.pop()
+        # keep the snapshot until we know whether the savepoint was committed or rolled back
+        session.info.setdefault("_live_ended", []).append(marks.pop())
+    elif not transaction.nested:
+        session.info.pop("_live_ended", None)
 
 
 @event.listens_for(Session, "after_commit")
 def _after_commit(session: Session) -> None:
     collected = {key: session.info.pop(key, None) for key in _TRACKED}
     _marks(session).clear()
+    session.info.pop("_live_ended", None)
     if collected["live_events"]:
         bus.publish(collected["live_events"])
     for key, callback in _hooks:

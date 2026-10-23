@@ -1,10 +1,12 @@
 import { Anchor, Badge, Button, Card, Grid, Group, SimpleGrid, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { IconBell, IconClock, IconFileText, IconFolders, IconListDetails, IconUsers } from "@tabler/icons-react";
+import { IconBell, IconClock, IconFileText, IconFolders, IconListDetails, IconLock, IconUsers } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
-import { useInbox, useMe, useProjects } from "@/api/hooks";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/api/client";
+import { useInbox, useMe, useMyCheckouts, useProjects } from "@/api/hooks";
 import { TAGLINE } from "@/lib/product";
 import { useRecent } from "@/lib/recent";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { ProjectCard } from "./ProjectsPage";
 
 function greeting(): string {
@@ -35,6 +37,9 @@ export function HomePage() {
   const inbox = useInbox().data ?? [];
   const mine = inbox.filter((r) => r.can_vote);
   const [recent, clearRecent] = useRecent();
+  const watching = useQuery<{ project: string; key: string; title: string; type_key: string }[]>({
+    queryKey: ["subscriptions"], queryFn: () => api.get("/subscriptions") }).data ?? [];
+  const checkouts = useMyCheckouts().data ?? [];
   return (
     <Stack gap="md">
       <div className="ws-hero">
@@ -73,6 +78,33 @@ export function HomePage() {
                     to={r.kind === "document" ? `/p/${r.project}/documents/${r.key}` : `/p/${r.project}/items/${r.key}`}>{r.key}</Anchor>
                   <Text size="sm" truncate style={{ flex: 1 }}>{r.title}</Text>
                   <Badge size="xs" variant="outline" color="gray">{r.project}</Badge>
+                </Group>
+              ))}
+            </Stack>
+          </Card>
+          {checkouts.length > 0 && (
+            <Card withBorder mb="md" data-testid="home-checkouts">
+              <Group gap={6} mb="xs"><IconLock size={16} color="var(--mantine-color-orange-6)" /><Text fw={600}>Checked out by me</Text></Group>
+              <Stack gap={6}>
+                {checkouts.map((c) => (
+                  <Group key={`${c.project}-${c.item_key}-${c.attachment_id}`} gap="xs" wrap="nowrap">
+                    <Anchor component={Link} size="sm" className="item-key" to={`/p/${c.project}/items/${c.item_key}?tab=files`}>{c.item_key}</Anchor>
+                    <Text size="sm" truncate style={{ flex: 1 }}>{c.filename} <Text span size="xs" c="dimmed">rev {c.revision}</Text></Text>
+                    <Text size="xs" c="dimmed">{fmtRelative(c.checked_out_at)}</Text>
+                  </Group>
+                ))}
+              </Stack>
+            </Card>
+          )}
+          <Card withBorder mb="md" data-testid="home-watching">
+            <Text fw={600} mb="xs">Watching</Text>
+            <Stack gap={6}>
+              {watching.length === 0 && <Text size="sm" c="dimmed">Use “Watch” on an item or document to follow its changes.</Text>}
+              {watching.slice(0, 8).map((w) => (
+                <Group key={`${w.project}-${w.key}`} gap="xs" wrap="nowrap">
+                  <Anchor component={Link} size="sm" className="item-key" to={`/p/${w.project}/items/${w.key}`}>{w.key}</Anchor>
+                  <Text size="sm" truncate style={{ flex: 1 }}>{w.title}</Text>
+                  <Badge size="xs" variant="outline" color="gray">{w.project}</Badge>
                 </Group>
               ))}
             </Stack>

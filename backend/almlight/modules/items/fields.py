@@ -12,10 +12,11 @@ from sqlalchemy.orm import Session
 
 from almlight.core.errors import ValidationFailed
 from almlight.modules.identity.models import User
-from almlight.modules.projects.metamodel import FieldDef
+from almlight.modules.projects.metamodel import FieldDef, eval_formula
 
 MAX_STRING = 2000
 MAX_TEXT = 200_000
+MAX_STEPS = 300
 
 
 def _coerce(db: Session, f: FieldDef, value: Any) -> Any:
@@ -41,17 +42,34 @@ def _coerce(db: Session, f: FieldDef, value: Any) -> Any:
         if isinstance(value, bool):
             raise ValueError("must be an integer")
         if isinstance(value, str) and re.fullmatch(r"-?\d+", value.strip()):
-            return int(value)
+            return _bounded(f, int(value))
         if isinstance(value, int) or (isinstance(value, float) and value.is_integer()):
-            return int(value)
+            return _bounded(f, int(value))
         raise ValueError("must be an integer")
     if t == "number":
         if isinstance(value, bool):
             raise ValueError("must be a number")
         try:
-            return float(value)
+            return _bounded(f, float(value))
         except (TypeError, ValueError):
             raise ValueError("must be a number") from None
+    if t == "steps":
+        if not isinstance(value, list):
+            raise ValueError("must be a list of steps")
+        if len(value) > MAX_STEPS:
+            raise ValueError(f"may have at most {MAX_STEPS} steps")
+        steps = []
+        for s in value:
+            if isinstance(s, str):
+                s = {"step": s, "expected": ""}
+            if not isinstance(s, dict):
+                raise ValueError("steps must be objects with 'step' and 'expected'")
+            step, expected = str(s.get("step") or "").strip(), str(s.get("expected") or "").strip()
+            if len(step) > 5000 or len(expected) > 5000:
+                raise ValueError("a step text is too long")
+            if step or expected:
+                steps.append({"step": step, "expected": expected})
+        return steps
     if t == "boolean":
         if isinstance(value, bool):
             return value
@@ -90,6 +108,40 @@ def _coerce(db: Session, f: FieldDef, value: Any) -> Any:
     raise ValueError(f"unsupported field type {t}")
 
 
+def _bounded(f: FieldDef, value: float) -> float:
+    if f.min is not None and value < f.min:
+        raise ValueError(f"must be at least {f.min:g}")
+    if f.max is not None and value > f.max:
+        raise ValueError(f"must be at most {f.max:g}")
+    return value
+
+
+def apply_computed(defs: list[FieldDef], values: dict[str, Any]) -> dict[str, Any]:
+    """Recompute formula and classification fields (in definition order) from the other values."""
+    out = dict(values)
+    for f in defs:
+        if f.formula:
+            v = eval_formula(f.formula, out)
+            if v is None:
+                out.pop(f.key, None)
+            else:
+                out[f.key] = int(round(v)) if f.type == "integer" else round(float(v), 6)
+        elif f.classify:
+            base = out.get(f.classify.field)
+            if isinstance(base, (int, float)) and not isinstance(base, bool):
+                level = None
+                for threshold, option in sorted(f.classify.bands):
+                    if base >= threshold:
+                        level = option
+                if level is None:
+                    out.pop(f.key, None)
+                else:
+                    out[f.key] = level
+            else:
+                out.pop(f.key, None)
+    return out
+
+
 def _is_empty(value: Any) -> bool:
     return value is None or value == "" or value == []
 
@@ -112,6 +164,8 @@ def normalize_fields(
         if f is None:
             errors[key] = f"unknown {what}"
             continue
+        if f.computed:
+            continue  # computed from other fields; input is ignored
         if _is_empty(value):
             result.pop(key, None)
             continue
@@ -128,6 +182,8 @@ def normalize_fields(
             errors[f.key] = f"{f.label} is required"
     # Drop values of fields that no longer exist in the configuration.
     result = {k: v for k, v in result.items() if k in by_key}
+    if any(f.computed for f in defs):
+        result = apply_computed(defs, result)
     if errors:
         raise ValidationFailed(f"Invalid {what} values", {"fields": errors})
     return result

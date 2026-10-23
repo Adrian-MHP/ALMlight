@@ -166,3 +166,88 @@ def stats(db: Session, project: Project) -> dict[str, Any]:
     return {"items_by_type": by_type, "suspect_links": suspect, "pending_approvals": pending,
             "open_changes": open_changes,
             "total_items": sum(sum(v.values()) for v in by_type.values())}
+
+
+# --- template updates --------------------------------------------------------------------------------------
+
+
+def template_updates(project: Project) -> dict[str, Any]:
+    """Additive differences between the project's information model and the shipped template it came from."""
+    shipped = available_templates().get(project.template_key)
+    cfg = project.model
+    empty = {"template": project.template_key, "available": False, "count": 0, "item_types": [], "fields": [],
+             "link_types": [], "link_attributes": [], "link_endpoints": [], "workflows": [], "skipped": []}
+    if shipped is None:
+        return empty
+    out = dict(empty, available=True, template_version=shipped.version)
+    used_prefixes = {t.prefix for t in cfg.item_types}
+    for t in shipped.item_types:
+        current = cfg.item_type(t.key)
+        if current is None:
+            if t.prefix in used_prefixes:
+                out["skipped"].append(f"Item type '{t.key}': prefix {t.prefix} is already used")
+                continue
+            out["item_types"].append({"key": t.key, "label": t.label, "prefix": t.prefix})
+        else:
+            for f in t.fields:
+                if current.field(f.key) is None:
+                    out["fields"].append({"type": t.key, "key": f.key, "label": f.label, "field_type": f.type})
+    new_types = {x["key"] for x in out["item_types"]}
+    known_types = {t.key for t in cfg.item_types} | new_types
+    for lt in shipped.link_types:
+        current = cfg.link_type(lt.key)
+        if current is None:
+            out["link_types"].append({"key": lt.key, "label": lt.label})
+            continue
+        for a in lt.attributes:
+            if not any(x.key == a.key for x in current.attributes):
+                out["link_attributes"].append({"link": lt.key, "key": a.key, "label": a.label})
+        add_src = [x for x in lt.sources
+                   if x not in current.sources and "*" not in current.sources and x in known_types]
+        add_tgt = [x for x in lt.targets
+                   if x not in current.targets and "*" not in current.targets and x in known_types]
+        if add_src or add_tgt:
+            out["link_endpoints"].append({"link": lt.key, "sources": add_src, "targets": add_tgt})
+    for w in shipped.workflows:
+        if cfg.workflow(w.key) is None and any(t.workflow == w.key for t in shipped.item_types
+                                               if t.key in new_types or cfg.item_type(t.key)):
+            out["workflows"].append({"key": w.key, "label": w.label})
+    out["count"] = sum(len(out[k]) for k in ("item_types", "fields", "link_types", "link_attributes",
+                                              "link_endpoints", "workflows"))
+    return out
+
+
+def apply_template_updates(db: Session, actor: User, project: Project) -> dict[str, Any]:
+    diff = template_updates(project)
+    if not diff["count"]:
+        return diff
+    shipped = available_templates()[project.template_key]
+    cfg = dump_config(project.model)
+    by_type = {t["key"]: t for t in cfg["item_types"]}
+    by_link = {lt["key"]: lt for lt in cfg["link_types"]}
+    wf_keys = {w["key"] for w in diff["workflows"]}
+    for w in shipped.workflows:
+        if w.key in wf_keys:
+            cfg["workflows"].append(w.model_dump(mode="json", by_alias=True))
+    for t in shipped.item_types:
+        if any(x["key"] == t.key for x in diff["item_types"]):
+            cfg["item_types"].append(t.model_dump(mode="json", by_alias=True))
+        for f in t.fields:
+            if any(x["type"] == t.key and x["key"] == f.key for x in diff["fields"]):
+                by_type[t.key]["fields"].append(f.model_dump(mode="json", by_alias=True))
+    for lt in shipped.link_types:
+        if any(x["key"] == lt.key for x in diff["link_types"]):
+            cfg["link_types"].append(lt.model_dump(mode="json", by_alias=True))
+            continue
+        for a in lt.attributes:
+            if any(x["link"] == lt.key and x["key"] == a.key for x in diff["link_attributes"]):
+                by_link[lt.key]["attributes"].append(a.model_dump(mode="json", by_alias=True))
+        for ep in diff["link_endpoints"]:
+            if ep["link"] == lt.key:
+                by_link[lt.key]["sources"] += ep["sources"]
+                by_link[lt.key]["targets"] += ep["targets"]
+    update_config(db, actor, project, cfg)
+    audit.record(db, actor=actor, action="project.template_updated", entity_type="project", entity_id=project.id,
+                 project_id=project.id, summary=f"Took over {diff['count']} additions from template "
+                 f"'{project.template_key}' v{diff.get('template_version')}", details=diff)
+    return diff

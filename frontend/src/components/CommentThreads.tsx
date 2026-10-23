@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActionIcon, Avatar, Badge, Button, Card, Group, Stack, Switch, Text, Textarea, Tooltip } from "@mantine/core";
+import { ActionIcon, Avatar, Badge, Button, Card, Group, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import { IconArrowBackUp, IconCheck, IconMessageReply, IconTrash } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
@@ -7,6 +7,7 @@ import { useMe, useProjectMutation } from "@/api/hooks";
 import type { CommentThread } from "@/api/types";
 import { fmtDateTime } from "@/lib/format";
 import { Markdown } from "./Markdown";
+import { emphasizeMentions, MentionTextarea } from "./MentionTextarea";
 
 interface Props {
   projectKey: string;
@@ -69,7 +70,7 @@ export function CommentThreads({ projectKey, threads, itemKey, documentKey, canW
       {visible.length === 0 && <Text size="sm" c="dimmed">No comments.</Text>}
       {canWrite && itemKey && (
         <Card withBorder padding="sm">
-          <Textarea placeholder="Write a comment (Markdown)…" autosize minRows={2} value={body} onChange={(e) => setBody(e.currentTarget.value)} data-testid="comment-body" />
+          <MentionTextarea placeholder="Write a comment — @name notifies a colleague" autosize minRows={2} value={body} onChange={setBody} data-testid="comment-body" />
           <Group justify="flex-end" mt="xs">
             <Button size="xs" onClick={() => add.mutate({ item: itemKey, body })} disabled={!body.trim()} loading={add.isPending} data-testid="comment-add">Comment</Button>
           </Group>
@@ -90,7 +91,7 @@ function CommentBody({ c, projectKey, showItemKey }: { c: CommentThread; project
         {showItemKey && c.item_key && <Link to={`/p/${projectKey}/items/${c.item_key}?tab=comments`} className="item-key">{c.item_key}</Link>}
         <Text size="xs" c="dimmed">{fmtDateTime(c.created_at)}</Text>
       </Group>
-      <Markdown text={c.body} />
+      <Markdown text={emphasizeMentions(c.body)} />
     </div>
   );
 }
@@ -101,7 +102,7 @@ function ReplyBox({ onSend }: { onSend: (text: string) => void }) {
   if (!open) return <Button size="compact-xs" variant="subtle" mt={4} leftSection={<IconMessageReply size={12} />} onClick={() => setOpen(true)} data-testid="reply">Reply</Button>;
   return (
     <Group mt="xs" align="flex-end" wrap="nowrap">
-      <Textarea autosize minRows={1} style={{ flex: 1 }} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder="Reply…" data-testid="reply-body" />
+      <div style={{ flex: 1 }}><MentionTextarea autosize minRows={1} value={text} onChange={setText} placeholder="Reply… (@name to notify)" data-testid="reply-body" /></div>
       <Button size="xs" disabled={!text.trim()} onClick={() => { onSend(text); setText(""); setOpen(false); }} data-testid="reply-send">Send</Button>
     </Group>
   );

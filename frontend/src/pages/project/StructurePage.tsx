@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActionIcon, Badge, Card, Grid, Group, Select, Stack, Text } from "@mantine/core";
+import { ActionIcon, Badge, Card, Grid, Group, SegmentedControl, Select, Stack, Text } from "@mantine/core";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useSearchParams } from "react-router-dom";
 import { useFeatureModel, useItems, useMaturity, useTree } from "@/api/hooks";
@@ -7,6 +7,7 @@ import type { MaturityRow, TreeNode } from "@/api/types";
 import { ItemLink, MaturityDot, StateBadge } from "@/components/badges";
 import { PageHeader } from "@/components/PageHeader";
 import { useProjectCtx } from "./ProjectLayout";
+import { BomView } from "./BomView";
 import { api } from "@/api/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -21,14 +22,18 @@ export function StructurePage() {
   const root = params.get("root") ?? roots[0]?.key ?? null;
   const features = useFeatureModel(key).data;
   const [variant, setVariant] = useState<string | null>(null);
+  const view = params.get("view") ?? "tree";
+  const setView = (v: string) => { const p = new URLSearchParams(params); p.set("view", v); if (root) p.set("root", root); setParams(p); };
   return (
     <>
-      <PageHeader title="Structure" subtitle="System decomposition (product › system › subsystem › module › component) with reuse and maturity" />
+      <PageHeader title="Structure" subtitle="System decomposition (product › system › subsystem › module › component) with reuse and maturity — or as a bill of materials with quantities and effectivity" />
       <Grid>
         <Grid.Col span={{ base: 12, md: 3 }}>
           <Card withBorder>
             <Stack>
-              <Select label="Root element" value={root} onChange={(v) => v && setParams({ root: v })}
+              <SegmentedControl value={view} onChange={setView} fullWidth data-testid="structure-view"
+                data={[{ value: "tree", label: "Structure" }, { value: "bom", label: "BOM" }]} />
+              <Select label="Root element" value={root} onChange={(v) => v && setParams({ root: v, view })}
                 data={roots.map((r) => ({ value: r.key, label: `${r.key} — ${r.title}` }))} searchable data-testid="structure-root" />
               <Select label="Variant filter" placeholder="150% — all variants" clearable value={variant} onChange={setVariant}
                 data={(features?.variants ?? []).map((v) => ({ value: v.key, label: `${v.key} — ${v.title}` }))} data-testid="structure-variant" />
@@ -43,7 +48,8 @@ export function StructurePage() {
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 9 }}>
           <Card withBorder>
-            {root ? <StructureTree rootKey={root} variant={variant} /> : <Text c="dimmed">No product-level element yet. Create a system element with level “product”.</Text>}
+            {!root ? <Text c="dimmed">No product-level element yet. Create a system element with level “product”.</Text>
+              : view === "bom" ? <BomView rootKey={root} /> : <StructureTree rootKey={root} variant={variant} />}
           </Card>
         </Grid.Col>
       </Grid>

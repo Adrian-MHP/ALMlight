@@ -6,12 +6,13 @@ import {
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, downloadUrl } from "@/api/client";
-import { useDirectory, useIntegrations, useMembers, useProjectMutation, useRecycleBin } from "@/api/hooks";
+import { useDirectory, useIntegrations, useMembers, useProjectMutation, useRecycleBin, useTemplateUpdates } from "@/api/hooks";
 import type { ImportResult, Role } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
 import { CATEGORY_LABELS, stateColor } from "@/lib/model";
 import { useProjectCtx } from "./ProjectLayout";
 import { ReqifImport } from "./ReqifImport";
+import { WordTemplates } from "./WordTemplates";
 
 export function SettingsPage() {
   const { can } = useProjectCtx();
@@ -27,7 +28,7 @@ export function SettingsPage() {
           {can("manager") && <Tabs.Tab value="recycle" data-testid="tab-recycle">Recycle bin</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="members"><Members /></Tabs.Panel>
-        <Tabs.Panel value="model"><InformationModel /></Tabs.Panel>
+        <Tabs.Panel value="model"><TemplateUpdatesBanner /><InformationModel /></Tabs.Panel>
         {can("manager") && <Tabs.Panel value="integrations"><IntegrationsView /></Tabs.Panel>}
         <Tabs.Panel value="io"><ImportExport /></Tabs.Panel>
         {can("manager") && <Tabs.Panel value="recycle"><RecycleBin /></Tabs.Panel>}
@@ -264,7 +265,7 @@ function ImportExport() {
           <Anchor href={downloadUrl(`/projects/${key}/export.xlsx`)}><Group gap={6}><IconDownload size={16} />All items as Excel (.xlsx)</Group></Anchor>
           <Anchor href={downloadUrl(`/projects/${key}/export.csv`)}><Group gap={6}><IconDownload size={16} />All items as CSV</Group></Anchor>
           <Anchor href={downloadUrl(`/projects/${key}/reqif`)}><Group gap={6}><IconDownload size={16} />Requirements as ReqIF 1.2 (DOORS, Polarion, codebeamer, OEM portals)</Group></Anchor>
-          <Text size="xs" c="dimmed">Documents: Word and PDF export from the document view (live or from a baseline).</Text>
+          <Text size="xs" c="dimmed">Documents: Word and PDF export from the document view (live or from a baseline), Word also in your corporate template.</Text>
           {can("manager") && <Anchor href={downloadUrl(`/projects/${key}/archive`)}><Group gap={6}><IconDownload size={16} />Full project archive (JSON with history, links, baselines)</Group></Anchor>}
         </Stack>
       </Card>
@@ -293,6 +294,7 @@ function ImportExport() {
         </Card>
       )}
       {can("contributor") && <ReqifImport />}
+      <WordTemplates />
     </SimpleGrid>
   );
 }
@@ -320,5 +322,33 @@ function RecycleBin() {
         </Table.Tbody>
       </Table>
     </Card>
+  );
+}
+
+
+/** Additions in the shipped template (new item types, fields, links, workflows) that this project can take over. */
+function TemplateUpdatesBanner() {
+  const { key, can } = useProjectCtx();
+  const { data } = useTemplateUpdates(key);
+  const apply = useProjectMutation(key, () => api.post(`/projects/${key}/template-updates`),
+    { success: "Information model updated from the template" });
+  if (!data || !data.count) return null;
+  const parts = [
+    data.item_types.length && `${data.item_types.length} item type(s): ${data.item_types.map((t) => t.label).join(", ")}`,
+    data.fields.length && `${data.fields.length} field(s): ${data.fields.map((f) => `${f.label} (${f.type})`).join(", ")}`,
+    data.link_types.length && `${data.link_types.length} link type(s): ${data.link_types.map((l) => l.label).join(", ")}`,
+    data.link_attributes.length && `${data.link_attributes.length} link attribute(s)`,
+    data.workflows.length && `${data.workflows.length} workflow(s): ${data.workflows.map((w) => w.label).join(", ")}`,
+  ].filter(Boolean) as string[];
+  return (
+    <Alert color="blue" mb="md" title={`Template update available (${data.count} additions from “${data.template}” v${data.template_version})`}
+      data-testid="template-updates">
+      <Stack gap={4}>
+        {parts.map((p) => <Text key={p} size="sm">• {p}</Text>)}
+        {data.skipped.map((p) => <Text key={p} size="xs" c="dimmed">Skipped: {p}</Text>)}
+        <Text size="xs" c="dimmed">Additions only: nothing existing is changed or removed.</Text>
+        {can("manager") && <Group><Button size="xs" mt={4} onClick={() => apply.mutate(undefined)} loading={apply.isPending} data-testid="apply-template-updates">Take over the additions</Button></Group>}
+      </Stack>
+    </Alert>
   );
 }

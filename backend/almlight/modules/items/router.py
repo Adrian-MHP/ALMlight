@@ -52,16 +52,31 @@ def list_items(
     sort: str = "key",
     limit: int = Query(default=50, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    link_type: str | None = Query(default=None, description="Traceability filter: link type"),
+    link_dir: str = Query(default="out", pattern="^(out|in)$"),
+    link_exists: bool | None = Query(default=None, description="true: has such a link; false: lacks it"),
+    updated_since: str | None = Query(default=None, description="ISO date or timestamp"),
+    planned_in: str | None = Query(default=None, description="Key of a release"),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> Page[ItemOut]:
-    """List and search items. Filter custom fields with ``field.<key>=<value>`` query parameters."""
+    """List and search items. Filter custom fields with ``field.<key>=<value>`` query parameters; find gaps with
+    ``link_type=verifies&link_dir=in&link_exists=false`` (e.g. requirements without a verifying test)."""
     project = get_project(db, project_key, user)
     field_filters = {k[6:]: v for k, v in request.query_params.items() if k.startswith("field.")}
     items, total = service.query_items(db, project, service.ItemQuery(
         q=q, types=type, states=state, owner_id=owner, suspect=suspect, field_filters=field_filters, keys=key,
-        sort=sort, limit=limit, offset=offset))
+        sort=sort, limit=limit, offset=offset, link_type=link_type, link_dir=link_dir, link_exists=link_exists,
+        updated_since=_since(updated_since), planned_in=planned_in))
     return Page[ItemOut](items=items_out(project, items, UserDirectory(db)), total=total, limit=limit, offset=offset)
+
+
+def _since(value: str | None):
+    if not value:
+        return None
+    from almlight.modules.documents.service import parse_at
+
+    return parse_at(value if "T" in value else f"{value}T00:00:00")
 
 
 @router.post("/items", response_model=ItemDetailOut, status_code=201)
@@ -211,15 +226,24 @@ def upload(project_key: str, item_key: str, file: UploadFile = File(...), user: 
     return item_detail(db, project, item, UserDirectory(db))
 
 
+INLINE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"}
+
+
 @router.get("/items/{item_key}/attachments/{attachment_id}")
-def download(project_key: str, item_key: str, attachment_id: str, version: int | None = None,
+def download(project_key: str, item_key: str, attachment_id: str, version: int | None = None, inline: bool = False,
              user: User = Depends(current_user), db: Session = Depends(get_db)) -> FileResponse:
+    """Download a file; ``inline=true`` shows images and PDFs in the browser (other types always download)."""
     project = get_project(db, project_key, user)
     item = service.get_item(db, project, item_key)
     meta = service.find_attachment(db, item, attachment_id, version)
     path = storage.blob_path(meta["sha256"])
     if not path.exists():
         raise NotFound("File content missing in the file store")
+    ctype = meta["content_type"].split(";")[0].strip().lower()
+    if inline and ctype in INLINE_TYPES:
+        headers = {} if ctype == "application/pdf" else {"Content-Security-Policy": "default-src 'none'; sandbox"}
+        return FileResponse(path, media_type=ctype, filename=meta["filename"], content_disposition_type="inline",
+                            headers=headers)
     return FileResponse(path, media_type=meta["content_type"], filename=meta["filename"])
 
 

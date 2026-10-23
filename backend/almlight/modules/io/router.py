@@ -28,18 +28,33 @@ def _download(content: bytes, filename: str, media_type: str) -> Response:
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
-@router.get("/projects/{project_key}/export.csv")
-def export_csv(project_key: str, type: list[str] | None = Query(default=None), user: User = Depends(current_user),
+class ExportFilter:
+    """The item list's filter, so that "Export" delivers exactly the current view (all pages)."""
+
+    def __init__(self, type: list[str] | None = Query(default=None), q: str | None = None,
+                 state: list[str] | None = Query(default=None), suspect: bool | None = None,
+                 link_type: str | None = None, link_dir: str = Query(default="out", pattern="^(out|in)$"),
+                 link_exists: bool | None = None, planned_in: str | None = None) -> None:
+        self.types = type
+        self.query = None
+        if q or state or suspect or link_type or planned_in:
+            self.query = items_svc.ItemQuery(q=q, types=type, states=state, suspect=suspect or None,
+                                             link_type=link_type, link_dir=link_dir, link_exists=link_exists,
+                                             planned_in=planned_in, limit=tabular.MAX_ROWS)
+
+
+@router.get("/projects/{project_key}/export.csv", summary="Items as CSV (optionally filtered like the item list)")
+def export_csv(project_key: str, f: ExportFilter = Depends(), user: User = Depends(current_user),
                db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    return _download(tabular.export_csv(db, project, type), f"{project.key}-{date.today()}.csv", "text/csv")
+    return _download(tabular.export_csv(db, project, f.types, f.query), f"{project.key}-{date.today()}.csv", "text/csv")
 
 
-@router.get("/projects/{project_key}/export.xlsx")
-def export_xlsx(project_key: str, type: list[str] | None = Query(default=None), user: User = Depends(current_user),
+@router.get("/projects/{project_key}/export.xlsx", summary="Items as Excel (optionally filtered like the item list)")
+def export_xlsx(project_key: str, f: ExportFilter = Depends(), user: User = Depends(current_user),
                 db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
-    return _download(tabular.export_xlsx(db, project, type), f"{project.key}-{date.today()}.xlsx",
+    return _download(tabular.export_xlsx(db, project, f.types, f.query), f"{project.key}-{date.today()}.xlsx",
                      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
@@ -134,13 +149,20 @@ def _snapshot(db: Session, project, item_key: str, baseline: uuid.UUID | None, a
 def export_docx(project_key: str, item_key: str, baseline: uuid.UUID | None = None, at: str | None = None,
                 variant: str | None = None, fields: bool = True, links: bool = True, numbering: bool = True,
                 roundtrip: str | None = Query(default=None, description="edit | comments: prepare for Word round trip"),
+                template: uuid.UUID | None = Query(default=None, description="A Word template of the project"),
                 user: User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
     project = get_project(db, project_key, user)
     if roundtrip and (roundtrip not in ("edit", "comments") or baseline or at or variant):
         raise ValidationFailed("Round trip export: roundtrip=edit|comments, only for the live, unfiltered document")
+    layout = None
+    if template is not None:
+        from almlight.modules.doctemplates.router import template_bytes
+
+        layout = template_bytes(db, project.id, template)
     snap = _snapshot(db, project, item_key, baseline, at, variant, numbering)
     suffix = f"-review-{roundtrip}" if roundtrip else ""
-    return _download(render_docx(snap, include_fields=fields, include_links=links, roundtrip=roundtrip),
+    return _download(render_docx(snap, include_fields=fields, include_links=links, roundtrip=roundtrip,
+                                 template=layout, author=user.display_name),
                      f"{snap.root.key}-{snap.root.version}{suffix}.docx",
                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 

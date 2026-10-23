@@ -17,6 +17,9 @@ import { ItemPicker } from "@/components/ItemPicker";
 import { RichText } from "@/components/rich/RichText";
 import { LiveEditor, ParticipantAvatars } from "@/collab/LiveEditor";
 import { useLive, usePresenceLocation } from "@/live/LiveProvider";
+import { StepsView } from "@/components/TestSteps";
+import { WatchButton } from "@/components/WatchButton";
+import { WhereUsedTab } from "./item/WhereUsedTab";
 import { NotFound } from "@/components/NotFound";
 import { ActionPrompt } from "@/components/PasswordPrompt";
 import { fmtDateTime } from "@/lib/format";
@@ -55,6 +58,7 @@ export function ItemPage() {
   const verifiable = model.link(sem.verifies_link)?.targets.some((t) => t === "*" || t === item.type_key) ?? false;
   const isRun = sem.test_run_type === item.type_key;
   const hasStructure = model.config.link_types.some((lt) => lt.structural && lt.sources.includes(item.type_key));
+  const canBeUsed = model.structureTargets.includes(item.type_key);
   return (
     <>
       <Breadcrumbs mb="xs" separator="›">
@@ -109,11 +113,14 @@ export function ItemPage() {
           <Tabs.Tab value="links" data-testid="tab-links"><LinksTabLabel itemKey={item.key} /></Tabs.Tab>
           <Tabs.Tab value="impact" data-testid="tab-impact">Impact</Tabs.Tab>
           {hasStructure && <Tabs.Tab value="structure">Structure</Tabs.Tab>}
+          {canBeUsed && <Tabs.Tab value="where-used" data-testid="tab-where-used">Where used</Tabs.Tab>}
           {verifiable && <Tabs.Tab value="verification" data-testid="tab-verification">Verification</Tabs.Tab>}
           {isRun && <Tabs.Tab value="records" data-testid="tab-records">Test records</Tabs.Tab>}
           <Tabs.Tab value="history" data-testid="tab-history">History</Tabs.Tab>
           <Tabs.Tab value="approvals">Approvals</Tabs.Tab>
-          <Tabs.Tab value="files">Files {item.attachments.length > 0 && <Badge size="xs" ml={4} circle>{item.attachments.length}</Badge>}</Tabs.Tab>
+          <Tabs.Tab value="files" data-testid="tab-files">
+            <Group gap={4} wrap="nowrap">Files{item.attachments.length > 0 && <Badge size="xs" circle color={item.attachments.some((a) => a.checked_out_by) ? "orange" : undefined}>{item.attachments.length}</Badge>}</Group>
+          </Tabs.Tab>
           <Tabs.Tab value="comments">Comments</Tabs.Tab>
           <Tabs.Tab value="development">Development</Tabs.Tab>
         </Tabs.List>
@@ -121,6 +128,7 @@ export function ItemPage() {
         <Tabs.Panel value="links"><LinksTab item={item} /></Tabs.Panel>
         <Tabs.Panel value="impact"><ImpactTab item={item} /></Tabs.Panel>
         {hasStructure && <Tabs.Panel value="structure"><Card withBorder><StructureTree rootKey={item.key} /></Card></Tabs.Panel>}
+        {canBeUsed && <Tabs.Panel value="where-used"><WhereUsedTab item={item} /></Tabs.Panel>}
         {verifiable && <Tabs.Panel value="verification"><VerificationTab item={item} /></Tabs.Panel>}
         {isRun && <Tabs.Panel value="records"><RecordsTab item={item} /></Tabs.Panel>}
         <Tabs.Panel value="history"><HistoryTab item={item} /></Tabs.Panel>
@@ -201,6 +209,12 @@ function Overview({ item, version, editing, setEditing }: {
             <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{item.fields[f.key] as string}</Text>
           </Card>
         ))}
+        {defs.filter((f) => f.type === "steps").map((f) => (
+          <Card withBorder mb="md" key={f.key}>
+            <Text size="xs" c="dimmed" mb={6} tt="uppercase" fw={600}>{f.label}</Text>
+            <StepsView steps={(item.fields[f.key] as { step: string; expected: string }[]) ?? []} />
+          </Card>
+        ))}
       </Grid.Col>
       <Grid.Col span={{ base: 12, lg: 4 }}>
         <Card withBorder>
@@ -256,6 +270,7 @@ function WorkflowBar({ item }: { item: ItemDetail }) {
 
   return (
     <Group gap="xs" wrap="wrap" data-testid="workflow-bar">
+      <WatchButton projectKey={key} itemKey={item.key} document={!!typeDef?.document} />
       {transitions.map((t) => {
         const tip = t.blocked_by.length ? t.blocked_by.join(" · ") : t.approval
           ? `Needs ${t.approval.count} approval(s) by ${t.approval.roles.join("/")}${t.approval.signature ? " with e-signature" : ""}`

@@ -47,6 +47,11 @@ class Attachment(BaseModel):
     sha256: str
     uploaded_by: str | None = None
     uploaded_at: str | None = None
+    revision: int = Field(default=1, description="File revision: increases with every check-in of new content")
+    comment: str | None = None
+    checked_out_by: UserRef | None = None
+    checked_out_at: datetime | None = None
+    checkout_note: str | None = None
 
 
 class ItemDetailOut(ItemOut):
@@ -161,10 +166,18 @@ def item_detail(db: Session, project: Project, item: Item, users: UserDirectory)
     if head and head.change_order_id:
         co_key = db.execute(select(Item.key).where(Item.id == head.change_order_id)).scalar()
     from almlight.core.richtext import content_hash
+    from almlight.modules.files.service import for_items
 
+    checkouts = for_items(db, [item.id]) if item.attachments else {}
+    attachments = []
+    for a in item.attachments:
+        co = checkouts.get((item.id, a["id"]))
+        attachments.append(Attachment(**a, checked_out_by=users.ref(co.user_id) if co else None,
+                                      checked_out_at=co.checked_out_at if co else None,
+                                      checkout_note=co.note if co else None))
     return ItemDetailOut(**base.model_dump(), description=item.description,
                          content_hash=content_hash(item.title, item.description),
-                         attachments=[Attachment(**a) for a in item.attachments], released_version=released,
+                         attachments=attachments, released_version=released,
                          created_by=users.ref(item.created_by), created_at=item.created_at,
                          updated_by=users.ref(item.updated_by), change_order=co_key)
 

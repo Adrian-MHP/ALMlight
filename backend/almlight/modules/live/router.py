@@ -7,7 +7,8 @@
 
 Client messages: ``{"type": "subscribe", "project": "KEY"}``, ``{"type": "presence", "project": "KEY", "doc":
 "SPEC-1" | null, "item": "SYS-1" | null, "editing": "SYS-2" | null}``, ``{"type": "ping"}``.
-Server messages: ``change`` (an audit event), ``presence`` (``project`` and ``users``), ``pong``, ``error``.
+Server messages: ``change`` (an audit event), ``presence`` (``project`` and ``users``), ``notification`` (for this
+user), ``pong``, ``error``.
 """
 
 from __future__ import annotations
@@ -59,6 +60,9 @@ class LiveConn:
         key = self.projects.get(event.get("project_id") or "")
         if key:
             self.push({**event, "project": key})
+
+    def on_notification(self, event: dict[str, Any]) -> None:
+        self.push(event)
 
 
 class Hub:
@@ -138,6 +142,7 @@ async def live_socket(ws: WebSocket, token: str | None = None) -> None:
         return
     hub.bind()
     conn = LiveConn(ws, who[0], who[1])
+    bus.subscribe(f"user:{conn.user_id}", conn.on_notification)
     by_key: dict[str, str] = {}
     try:
         while True:
@@ -167,4 +172,5 @@ async def live_socket(ws: WebSocket, token: str | None = None) -> None:
     except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
+        bus.unsubscribe(f"user:{conn.user_id}", conn.on_notification)
         hub.leave(conn)

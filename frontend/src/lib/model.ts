@@ -9,6 +9,8 @@ export const CATEGORY_LABELS: Record<string, string> = {
   change: "Change",
   document: "Documents",
   variability: "Variants",
+  risk: "Risks",
+  planning: "Planning",
   other: "Other",
 };
 
@@ -19,6 +21,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
   change: "orange",
   document: "blue",
   variability: "pink",
+  risk: "red",
+  planning: "cyan",
   other: "gray",
 };
 
@@ -56,6 +60,23 @@ export class Model {
 
   get structuralLinks(): string[] {
     return this.config.link_types.filter((l) => l.structural).map((l) => l.key);
+  }
+
+  /** The risk item type if the information model has one (risk management). */
+  get riskType(): ItemTypeDef | undefined {
+    const k = this.config.semantics.risk_type;
+    return k ? this.type(k) : undefined;
+  }
+
+  /** The release/milestone type if the information model supports planning. */
+  get releaseType(): ItemTypeDef | undefined {
+    const k = this.config.semantics.release_type;
+    return k && this.link(this.config.semantics.planned_link) ? this.type(k) : undefined;
+  }
+
+  /** Item types that can be placed in a structure (BOM children). */
+  get structureTargets(): string[] {
+    return Array.from(new Set(this.config.link_types.filter((l) => l.structural).flatMap((l) => l.targets)));
   }
 
   get documentTypes(): ItemTypeDef[] {

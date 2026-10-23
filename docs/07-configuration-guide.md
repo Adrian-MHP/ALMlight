@@ -35,7 +35,15 @@ item_types:
       - {key: asil, label: ASIL, type: enum, options: [QM, A, B, C, D]}
       - {key: rationale, label: Rationale, type: text}
       - {key: drawing_no, label: Drawing no., type: string, pattern: "^D-[0-9]{6}$"}
-      # types: string, text, integer, number, boolean, date, enum, multienum, tags, user, url
+      - {key: weight_g, label: Weight [g], type: number, min: 0, max: 50000}     # bounds checked by the API
+      - {key: effort_total, label: Effort, type: number, formula: "effort_design + effort_test"}  # computed
+      - key: criticality                                                       # computed enum from bands
+        label: Criticality
+        type: enum
+        options: [{key: low, label: Low}, {key: high, label: High}]
+        classify: {field: effort_total, bands: [[0, low], [40, high]]}
+      # types: string, text, integer, number, boolean, date, enum, multienum, tags, user, url, steps
+      # steps = ordered list of {step, expected} (test steps); formula: + - * / // % ( ), min, max, abs, round
 
 link_types:
   - key: verifies
@@ -86,7 +94,17 @@ semantics:                             # only needed when keys differ from the d
   test_run_type: test_run
   stakeholder_types: [stakeholder_requirement]
   element_types: [system_element]
+  test_steps_field: test_steps         # steps field of test cases (step-wise execution)
+  defect_type: problem_report          # created by "Defect" in a test execution
+  risk_type: risk                      # Risks page (fields severity, occurrence, detection, rpn, risk_level, …_after)
+  mitigation_link: mitigated_by        # risk -> requirement/element/test
+  release_type: release                # Plans page (fields start_date, due_date, goal)
+  planned_link: planned_in             # item -> release (set editable_on_frozen_source: true)
 ```
+
+Engine features appear only when their bindings exist in the model: without a `risk` type there is no Risks page,
+without `release` and `planned_in` no Plans page. BOM columns come from the attributes `quantity`, `unit`,
+`find_number`, `effective_from` and `effective_to` of the structural link.
 
 State categories: `draft`, `review`, `released`, `obsolete`, `open`, `in_progress`, `closed`. Flags:
 `frozen` locks content and owned links; `released` marks the released version and enables *Revise*;
@@ -122,3 +140,8 @@ The server checks compatibility before accepting a new configuration:
 - removed fields disappear from the UI; old values remain in the version history.
 
 Each accepted change increments the project's configuration version and is audited.
+
+**Template updates.** When the shipped template gains new item types, fields, link types, link attributes or
+workflows, *Settings → Information model* lists them for existing projects; a manager takes them over in one step.
+Only additions are applied — the project's own changes are never overwritten — and the result passes the same
+compatibility check as any model change (API: `GET`/`POST /projects/{k}/template-updates`).

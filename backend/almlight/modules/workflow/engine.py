@@ -100,6 +100,19 @@ def _guard_failures(db: Session, project: Project, item: Item, guard: str) -> li
     return [f"Unknown guard '{guard}'"]
 
 
+def _checkout_blockers(db: Session, project: Project, item: Item, t: TransitionDef) -> list[str]:
+    """Checked-out files keep an item (and the items a change order releases) from being frozen."""
+    target = _workflow(project, item).state(t.to)
+    items = [item] if target and target.frozen else []
+    if "release_affected_items" in t.effects:
+        items += [it for _, it in _affected(db, project, item)]
+    if not items:
+        return []
+    from almlight.modules.files.service import release_blockers
+
+    return release_blockers(db, items)
+
+
 def _head_change_order(db: Session, it: Item) -> uuid.UUID | None:
     return db.execute(select(ItemVersion.change_order_id).where(ItemVersion.id == it.head_version_id)).scalar()
 
@@ -123,6 +136,7 @@ def available_transitions(db: Session, project: Project, item: Item, user: User)
             blocked.append(f"Needs role '{t.min_role}'")
         for g in t.guards:
             blocked += _guard_failures(db, project, item, g)
+        blocked += _checkout_blockers(db, project, item, t)
         target = wf.state(t.to)
         options.append(
             TransitionOption(
@@ -166,6 +180,7 @@ def execute_transition(
     if t.comment_required and not (comment or "").strip():
         raise ValidationFailed(f"Transition '{t.label}' requires a comment")
     failures = [f for g in t.guards for f in _guard_failures(db, project, item, g)]
+    failures += _checkout_blockers(db, project, item, t)
     if failures:
         raise Conflict(f"'{t.label}' is blocked", {"blocked_by": failures})
 
@@ -367,6 +382,7 @@ def vote(
     ).scalars().all()
     if len(approvals) >= req.required_count:
         failures = [f for g in t.guards for f in _guard_failures(db, project, item, g)]
+        failures += _checkout_blockers(db, project, item, t)
         if failures:
             raise Conflict(f"'{t.label}' is blocked", {"blocked_by": failures})
         req.status = "approved"

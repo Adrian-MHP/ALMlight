@@ -4,6 +4,7 @@ import { IconAlertCircle, IconCheck } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
+import { useOidcConfig } from "@/api/hooks";
 import { Logo } from "@/components/Logo";
 import { PRODUCT } from "@/lib/product";
 
@@ -15,6 +16,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const qc = useQueryClient();
+  const sso = useOidcConfig().data;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,6 +61,12 @@ export function LoginPage() {
                 <PasswordInput label="Password" value={password} onChange={(e) => setPassword(e.currentTarget.value)}
                   autoComplete="current-password" required data-testid="login-password" />
                 <Button type="submit" loading={busy} fullWidth data-testid="login-submit">Sign in</Button>
+                {sso?.enabled && (
+                  <Button variant="default" fullWidth component="a" data-testid="login-sso"
+                    href={`/api/v1/auth/oidc/login?next=${encodeURIComponent(params.get("next") ?? "/")}`}>
+                    Sign in with {sso.label}
+                  </Button>
+                )}
               </Stack>
             </form>
           </Paper>

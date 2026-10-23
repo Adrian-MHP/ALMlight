@@ -83,3 +83,16 @@ def test_template_validation_errors():
     with pytest.raises(ValueError):
         ProjectTemplate.model_validate(_minimal(item_types=[
             {"key": "req", "label": "Req", "prefix": "R", "fields": [{"key": "e", "label": "E", "type": "enum"}]}]))
+
+
+@pytest.mark.parametrize("body,expected", [
+    ("@rita please check", ["rita"]),
+    ("cc @Rita.M and @max-2, thanks @rita.", ["rita.m", "max-2", "rita"]),
+    ("ask @alex@example.com.", ["alex@example.com"]),
+    ("mail me at alex@example.com", []),
+    ("@x is too short", []),
+])
+def test_mentions(body, expected):
+    from almlight.modules.notifications.service import mentions
+
+    assert mentions(body) == expected

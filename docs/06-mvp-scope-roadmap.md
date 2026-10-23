@@ -1,6 +1,6 @@
 # 6 MVP scope and roadmap
 
-## 6.1 Implemented (v0.1 MVP, 0.2 – 0.4 increments)
+## 6.1 Implemented (v0.1 MVP, 0.2 – 0.5 increments)
 
 **Core engine**
 - Projects from process templates (*Systems Engineering*, *Lean Requirements & Test*); information model editable
@@ -67,7 +67,18 @@ live refresh and change notifications, sessions saved as versions with co-author
 drafts), rich text in Word/PDF/ReqIF (`.reqifz` with images)/Excel/archives, product name Ariadne with an industrial
 design language (app launcher, workspace home, object headers). See [11-rich-text-and-co-editing](11-rich-text-and-co-editing.md).
 
-**Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check
+**Engineering backbone (0.5)**: notifications (watch items and documents, owner, approval, @mentions; live toasts;
+bulk changes collapse; e-mail digests), saved and shared views with traceability-gap filters and export of the current
+view, computed fields (formulas, classification bands, bounds), test steps with step-wise execution and defects from
+failed steps, risk management (FMEA, risk matrix before/after mitigation, mitigation links, acceptance with
+e-signature), release planning (timeline, progress, schedule status, burn-up), multi-level BOM (quantities, units,
+find numbers, date effectivity, roll-up, Excel/CSV) and where-used, file check-out/check-in with file revisions,
+history and preview, Word export in customer templates, single sign-on via OIDC, additive template updates for
+existing projects. See [12-engineering-backbone](12-engineering-backbone.md), the
+[feature catalogue](13-feature-catalogue.md) and the [beta test report](14-beta-test-report.md).
+
+**Operations**: two containers, automatic migrations, bootstrap admin, demo data switch, health check, SMTP and OIDC
+configuration
 
 ## 6.2 Prepared but not built (extension points)
 
@@ -78,24 +89,24 @@ design language (app launcher, workspace home, object headers). See [11-rich-tex
 | New inbound integrations | `integrations/service.py` handler + router endpoint; `ExternalRef` model |
 | Outbound consumers | Outbox events (`item.*`, `link.*`, `approval.requested`, `baseline.created`) |
 | File storage backends | `items/storage.py` (store / blob_path / exists) |
-| Authentication | `core/deps.py` (add OIDC provider resolving to `User`) |
+| Authentication | `identity/oidc.py` (further claims → roles mapping) |
 
 ## 6.3 Roadmap
 
-**Next increment (0.5) — enterprise readiness for SMEs**
-- SSO via OIDC (Microsoft Entra ID, Keycloak), groups → roles
+**Next increment (0.6) — scale and comfort**
 - Live sessions across several app processes (shared bus), comments anchored to text ranges
-- E-mail notifications (assignments, approvals), saved queries, scheduled report e-mails
-- Effectivity on change orders (date / serial number)
-- Visual template editor; template versioning and migration helpers
-- S3-compatible file storage; scheduled backups
+- German user interface (i18n of the whole UI), visual template editor, template versioning
+- Effectivity on change orders (date / serial number), BOM substitutes and alternates
+- Parametrised test runs and test run templates; capacity and effort planning
+- Lookup-table computed fields (e.g. ISO 26262 ASIL determination); group → project role mapping for SSO
+- Scheduled report e-mails; S3-compatible file storage; scheduled backups; PDF export in customer templates
 
-**0.6 — digital thread**
+**0.7 — digital thread**
 - SysML v2 API connector (link items to model elements, e.g. SysON)
 - GitLab and Jira connectors; PDM/CAD connector (metadata sync of released documents)
 - OSLC provider for requirements and change requests
 - SBOM import (CycloneDX/SPDX) as document items for CRA evidence
 
-**0.7 — assisted engineering (governed AI)**
+**0.8 — assisted engineering (governed AI)**
 - Requirement quality checks (INCOSE rules), duplicate detection, test case suggestions
 - Change impact summaries — always as proposals through the API, with audit entries and normal approvals

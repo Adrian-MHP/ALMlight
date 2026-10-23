@@ -331,5 +331,5 @@ def test_reqif_import_wizard(page: Page, tmp_path):
     shot(page, "20-reqif")
     page.get_by_test_id("reqif-apply").click()
     expect(page.get_by_text("Imported", exact=True)).to_be_visible()
-    found = page.request.get("/api/v1/projects/DEMO/items?q=overpressure").json()
+    found = page.request.get("/api/v1/projects/DEMO/items?q=overpressure&type=stakeholder_requirement").json()
     assert found["total"] == 1 and found["items"][0]["type_key"] == "stakeholder_requirement"

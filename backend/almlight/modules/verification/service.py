@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from almlight.core.db import utcnow
-from almlight.core.errors import NotFound, ValidationFailed
+from almlight.core.errors import Conflict, NotFound, ValidationFailed
 from almlight.modules.audit import service as audit
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
@@ -65,18 +65,61 @@ def add_test_cases(db: Session, project: Project, actor: User, run: Item, test_c
     return added
 
 
+def steps_of(db: Session, project: Project, record: TestRecord, tc: Item) -> list[dict[str, str]]:
+    """Steps of the executed test case version (or of the current version before the first execution)."""
+    key = project.model.semantics.test_steps_field
+    if record.executed_at is None:
+        return list(tc.fields.get(key) or [])
+    from almlight.modules.items.models import ItemVersion
+
+    fields = db.execute(select(ItemVersion.fields).where(
+        ItemVersion.item_id == tc.id, ItemVersion.version_no == record.test_case_version_no)).scalar()
+    return list((fields or {}).get(key) or [])
+
+
+def derive_result(step_results: list[dict[str, Any]]) -> str:
+    results = [s.get("result", "not_run") for s in step_results]
+    if any(r == "failed" for r in results):
+        return "failed"
+    if any(r == "blocked" for r in results):
+        return "blocked"
+    if results and all(r in ("passed", "skipped") for r in results) and "passed" in results:
+        return "passed"
+    if results and all(r == "skipped" for r in results):
+        return "skipped"
+    return "not_run"
+
+
+def _clean_steps(step_results: list[dict[str, Any]], count: int) -> list[dict[str, Any]]:
+    out = []
+    for i in range(count):
+        s = step_results[i] if i < len(step_results) and isinstance(step_results[i], dict) else {}
+        r = s.get("result") or "not_run"
+        if r not in RESULTS:
+            raise ValidationFailed(f"step {i + 1}: result must be one of {RESULTS}")
+        out.append({"result": r, "actual": str(s.get("actual") or "")[:5000],
+                    "comment": str(s.get("comment") or "")[:2000]})
+    return out
+
+
 def set_result(
-    db: Session, project: Project, actor: User | None, run: Item, record_id: uuid.UUID, *, result: str,
+    db: Session, project: Project, actor: User | None, run: Item, record_id: uuid.UUID, *, result: str | None,
     comment: str | None = None, duration_ms: int | None = None, defect: Item | None = None,
+    step_results: list[dict[str, Any]] | None = None,
 ) -> TestRecord:
     ensure_editable(project, run)
-    if result not in RESULTS:
-        raise ValidationFailed(f"result must be one of {RESULTS}")
     record = db.get(TestRecord, record_id)
     if record is None or record.run_id != run.id:
         raise NotFound("Test record not found")
     tc = db.get(Item, record.test_case_id)
     assert tc is not None
+    if step_results is not None:
+        current_steps = list(tc.fields.get(project.model.semantics.test_steps_field) or [])
+        record.step_results = _clean_steps(step_results, len(current_steps))
+        if not result or result == "auto":
+            result = derive_result(record.step_results)
+    if result not in RESULTS:
+        raise ValidationFailed(f"result must be one of {RESULTS}")
     record.result = result
     record.comment = comment
     record.duration_ms = duration_ms
@@ -87,8 +130,47 @@ def set_result(
     record.executed_at = utcnow() if result != "not_run" else None
     audit.record(db, actor=actor, action="testrun.result", entity_type="item", entity_id=run.id,
                  project_id=project.id, summary=f"{run.key}: {tc.key} {tc.version_label} -> {result}",
-                 details={"comment": comment}, related_ids=[run.id, tc.id])
+                 details={"comment": comment, "steps": record.step_results}, related_ids=[run.id, tc.id])
     return record
+
+
+def raise_defect(db: Session, project: Project, actor: User, run: Item, record_id: uuid.UUID, *,
+                 title: str | None = None, description: str | None = None, step: int | None = None) -> Item:
+    """Create a problem report for a failed test record and link it (Polarion/Teamcenter "create defect")."""
+    record = db.get(TestRecord, record_id)
+    if record is None or record.run_id != run.id:
+        raise NotFound("Test record not found")
+    tc = db.get(Item, record.test_case_id)
+    if record.defect_id is not None:
+        existing = db.get(Item, record.defect_id)
+        if existing is not None and existing.deleted_at is None:
+            raise Conflict(f"{tc.key} in {run.key} already has defect {existing.key}", {"defect": existing.key})
+    defect_type = project.model.semantics.defect_type
+    if not defect_type or project.model.item_type(defect_type) is None:
+        raise ValidationFailed("The information model has no defect (problem report) type")
+    steps = steps_of(db, project, record, tc)
+    lines = [f"Found in test run {run.key} executing {tc.key} {tc.version_label}: {tc.title}."]
+    if step is not None and 0 < step <= len(steps):
+        st = steps[step - 1]
+        actual = ((record.step_results or [{}] * step)[step - 1] or {}).get("actual", "")
+        lines += [f"Step {step}: {st.get('step', '')}", f"Expected: {st.get('expected', '')}",
+                  f"Actual: {actual or '—'}"]
+    if description:
+        lines.append(description)
+    t = project.model.item_type(defect_type)
+    fields = {}
+    if t.field("found_in"):
+        fields["found_in"] = run.key
+    defect = items_svc.create_item(db, project, actor, type_key=defect_type,
+                                   title=title or f"{tc.key} failed in {run.key}" + (f" (step {step})" if step else ""),
+                                   description="\n\n".join(lines), fields=fields)
+    from almlight.modules.links import service as links_svc
+
+    for lt in ("relates_to",):
+        if project.model.link_type(lt) and project.model.link_type(lt).allows(defect.type_key, tc.type_key):
+            links_svc.create_link(db, project, actor, type_key=lt, source=defect, target=tc)
+    record.defect_id = defect.id
+    return defect
 
 
 # --- CI import ------------------------------------------------------------------------------

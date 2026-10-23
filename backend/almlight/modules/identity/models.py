@@ -22,6 +22,9 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = created_at_col()
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False,
+                                                      server_default="true")
+    auth_provider: Mapped[str] = mapped_column(String(32), default="local", nullable=False, server_default="local")
 
 
 class ApiToken(Base):

@@ -33,12 +33,20 @@ BASE_COLUMNS = ["key", "type", "title", "state", "version", "owner", "descriptio
 MAX_ROWS = 20_000
 
 
-def _rows_for_export(db: Session, project: Project, types: list[str] | None) -> tuple[list[str], list[list[Any]]]:
+def _rows_for_export(db: Session, project: Project, types: list[str] | None,
+                     query: Any = None) -> tuple[list[str], list[list[Any]]]:
     model = project.model
-    selected = [t for t in model.item_types if not types or t.key in types]
-    stmt = select(Item).where(Item.project_id == project.id, Item.deleted_at.is_(None),
-                              Item.type_key.in_([t.key for t in selected])).order_by(Item.type_key, Item.seq)
-    items = db.execute(stmt).scalars().all()
+    if query is not None:  # the item list's filter (search, states, traceability gap, release)
+        from almlight.modules.items.service import query_items
+
+        items = query_items(db, project, query, max_limit=MAX_ROWS)[0]
+        present = {i.type_key for i in items}
+        selected = [t for t in model.item_types if t.key in present]
+    else:
+        selected = [t for t in model.item_types if not types or t.key in types]
+        stmt = select(Item).where(Item.project_id == project.id, Item.deleted_at.is_(None),
+                                  Item.type_key.in_([t.key for t in selected])).order_by(Item.type_key, Item.seq)
+        items = db.execute(stmt).scalars().all()
     field_keys: list[str] = []
     for t in selected:
         for f in t.fields:
@@ -77,8 +85,8 @@ def _rows_for_export(db: Session, project: Project, types: list[str] | None) -> 
     return header, out
 
 
-def export_csv(db: Session, project: Project, types: list[str] | None = None) -> bytes:
-    header, rows = _rows_for_export(db, project, types)
+def export_csv(db: Session, project: Project, types: list[str] | None = None, query: Any = None) -> bytes:
+    header, rows = _rows_for_export(db, project, types, query)
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(header)
@@ -86,8 +94,8 @@ def export_csv(db: Session, project: Project, types: list[str] | None = None) ->
     return ("﻿" + buf.getvalue()).encode("utf-8")  # BOM so Excel detects UTF-8
 
 
-def export_xlsx(db: Session, project: Project, types: list[str] | None = None) -> bytes:
-    header, rows = _rows_for_export(db, project, types)
+def export_xlsx(db: Session, project: Project, types: list[str] | None = None, query: Any = None) -> bytes:
+    header, rows = _rows_for_export(db, project, types, query)
     wb = Workbook()
     ws = wb.active
     ws.title = "Items"
@@ -140,6 +148,17 @@ def import_table(
     created: dict[str, Item] = {}
     pending_links: list[tuple[int, Item, str, list[str]]] = []
     pending_parents: list[tuple[int, Item, str]] = []
+    by_row: dict[int, dict[str, Any]] = {}
+    links_created = 0
+
+    def linked(idx: int) -> None:
+        """A row whose only change is a new link still counts as updated."""
+        nonlocal links_created
+        links_created += 1
+        r = by_row.get(idx)
+        if r is not None and r["action"] == "unchanged":
+            r["action"] = "updated"
+
     savepoint = db.begin_nested()
     try:
         for idx, raw in enumerate(rows, start=2):  # row 1 is the header
@@ -193,6 +212,7 @@ def import_table(
                     if row.get(lk):
                         pending_links.append((idx, item, lk, [k.strip().upper() for k in row[lk].split(",") if k]))
                 results.append({"row": idx, "action": action, "key": item.key})
+                by_row[idx] = results[-1]
             except DomainError as exc:
                 errors += 1
                 results.append({"row": idx, "action": "error", "error": exc.message, "details": exc.details})
@@ -215,6 +235,7 @@ def import_table(
                                                            Link.deleted_at.is_(None))).scalar()
                 if not already:
                     links_svc.create_link(db, project, actor, type_key=structural, source=parent, target=item)
+                    linked(idx)
             except DomainError as exc:
                 errors += 1
                 results.append({"row": idx, "action": "error", "error": exc.message})
@@ -229,6 +250,7 @@ def import_table(
                                                                Link.deleted_at.is_(None))).scalar()
                     if not already:
                         links_svc.create_link(db, project, actor, type_key=lk, source=item, target=target)
+                        linked(idx)
                 except DomainError as exc:
                     errors += 1
                     results.append({"row": idx, "action": "error", "error": exc.message})
@@ -242,5 +264,7 @@ def import_table(
     summary: dict[str, int] = {}
     for r in results:
         summary[r["action"]] = summary.get(r["action"], 0) + 1
+    if links_created:
+        summary["links"] = links_created
     return {"dry_run": dry_run, "applied": not dry_run and errors == 0, "rows": len(rows), "summary": summary,
             "results": results}

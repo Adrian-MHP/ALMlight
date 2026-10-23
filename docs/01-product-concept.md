@@ -76,19 +76,20 @@ Product consequences:
 |---|---|---|
 | Projects, configurable item types & fields | ✔ templates, JSON/YAML, compatibility checks | Visual template editor |
 | Requirements & specifications | ✔ levels, live documents, ordering, headings, rich text with tables and images, Word/PDF export (live or from a baseline) | Text-anchored comments |
-| Collaboration | ✔ real-time co-editing with live cursors, presence, live refresh, threaded comments, approvals inbox | Notifications by e-mail |
-| Documents & files | ✔ controlled documents, versioned attachments (SHA-256 store) | S3 storage, viewer for CAD/PDF |
+| Collaboration | ✔ real-time co-editing with live cursors, presence, live refresh, threaded comments, @mentions, watching, notifications (live and e-mail digests), approvals inbox | Text-anchored comments |
+| Documents & files | ✔ controlled documents, versioned attachments (SHA-256 store), check-out/check-in with file revisions and history, image/PDF preview, Word export in customer templates | S3 storage, 3D viewer |
 | Relations & traceability | ✔ typed links, rules, cycles, suspect links, matrix, impact analysis | Graph visualisation |
 | Versioning & history | ✔ revisions/iterations, diff, restore, timeline; open any item version or any document state (time travel) | — |
 | Baselines | ✔ project or document, latest/released rule, compare, open, export; collections of document baselines | Collection hierarchies |
 | Branching & merging | ✔ revisions under change orders; document branches with field-level 3-way merge (both directions) | Structural move/delete merge |
 | Status, workflows, approvals | ✔ configurable workflows, guards, effects, approvals, four-eyes, e-signature | Parallel approval steps, delegation |
-| Configuration & change management | ✔ PR → CR → CO, change-controlled revisions, release via CO | Effectivity (date/serial) |
-| Variants | ✔ feature model, constraints, variants, applicability (150% model) | Variant-specific baselines, BOM export |
-| Verification | ✔ test cases/runs, JUnit import, re-test detection, coverage, maturity | Test automation plugins |
-| Search & navigation | ✔ full-text, filters, global search, dashboards | Saved queries, query language |
+| Configuration & change management | ✔ PR → CR → CO, change-controlled revisions, release via CO (blocked by checked-out files) | Effectivity on change orders (date/serial) |
+| Variants & product structure | ✔ feature model, constraints, variants, applicability (150% model); multi-level BOM with quantities, find numbers, date effectivity, roll-up, Excel/CSV, where-used | Variant-specific baselines, substitutes |
+| Verification | ✔ test cases with steps, test runs, step-wise execution, defects from failed steps, JUnit import, re-test detection, coverage, maturity | Parametrised test runs |
+| Search & navigation | ✔ full-text, filters, global search, dashboards, saved and shared views, traceability-gap filters, export of the current view | Query language |
+| Risks & planning | ✔ FMEA risks with computed RPN and level, risk matrix before/after mitigation, mitigation traceability; releases with timeline, progress, schedule status and burn-up | Capacity planning, ASIL tables |
 | Reports & KPIs | ✔ user-built reports (KPI, chart, table, trend, coverage, matrix, maturity), KPIs reuse rate, change lead time, re-test effort, module/variant ratio, Excel export, templates | Scheduled report mails |
-| Users & roles | ✔ local users, project roles, API tokens | SSO (OIDC/Entra ID), groups |
+| Users & roles | ✔ local users, project roles, API tokens, single sign-on (OIDC: Entra ID, Keycloak), admin group | Groups → project roles |
 | Audit & compliance | ✔ hash-chained audit trail, signatures, status accounting | Compliance report templates |
 | Import / export | ✔ CSV/Excel (dry run), ReqIF round trip (mapping, partner identifiers kept), Word round trip (edits + comments), Word/PDF, project archive | OSLC |
 | Integrations | ✔ GitHub & Azure DevOps hooks, external refs, outbound webhooks, CI | GitLab, SysML v2 API, PDM/CAD, AI assistant |

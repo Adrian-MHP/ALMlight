@@ -10,6 +10,7 @@ import type {
   Member, Page, Project, ProjectConfig, Resolved, Stats, SuspectLink, TemplateInfo, TestRecord, TransitionOption,
   TreeNode, UserRef, VerificationInfo, Version, BranchInfo, MergePreview, Report, ReportSummary, ReportTemplate,
   ReportWidget, WidgetData, DocSnapshot, DocHistory, DocStateRef, CompareResult, CommentThread, DocCollection, RecycledItem,
+  NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo,
 } from "./types";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -52,12 +53,18 @@ export interface ItemFilter {
   limit?: number;
   offset?: number;
   fields?: Record<string, string>;
+  link_type?: string;
+  link_dir?: "in" | "out";
+  link_exists?: boolean;
+  planned_in?: string;
 }
 
 export function useItems(key: string, f: ItemFilter, enabled = true) {
   const fieldParams = Object.fromEntries(Object.entries(f.fields ?? {}).map(([k, v]) => [`field.${k}`, v]));
   const query = qs({ q: f.q, type: f.type, state: f.state, suspect: f.suspect || undefined, owner: f.owner,
-    sort: f.sort, limit: f.limit ?? 50, offset: f.offset ?? 0, ...fieldParams });
+    sort: f.sort, limit: f.limit ?? 50, offset: f.offset ?? 0, ...fieldParams, link_type: f.link_type,
+    link_dir: f.link_type ? f.link_dir : undefined, link_exists: f.link_type ? f.link_exists : undefined,
+    planned_in: f.planned_in });
   return useQuery<Page<Item>>({
     queryKey: pk(key, "items", query),
     queryFn: () => api.get(`/projects/${key}/items${query}`),
@@ -335,4 +342,69 @@ export function useVersion(key: string, itemKey: string, versionNo: number | nul
     queryFn: () => api.get(`/projects/${key}/items/${itemKey}/versions/${versionNo}`),
     enabled: versionNo !== null,
   });
+}
+
+// --- engineering backbone --------------------------------------------------------------------------------
+
+export function useNotifications(enabled = true) {
+  return useQuery<NotificationList>({ queryKey: ["notifications"], queryFn: () => api.get("/notifications?limit=40"),
+    enabled, refetchInterval: 120_000 });
+}
+
+export function useWatch(key: string, itemKey: string, enabled = true) {
+  return useQuery<{ watching: boolean; watchers: number }>({ queryKey: pk(key, "item", itemKey, "watch"),
+    queryFn: () => api.get(`/projects/${key}/items/${itemKey}/watch`), enabled: enabled && !!itemKey });
+}
+
+export function useSavedQueries(key: string, enabled = true) {
+  return useQuery<SavedQuery[]>({ queryKey: pk(key, "queries"), queryFn: () => api.get(`/projects/${key}/queries`), enabled });
+}
+
+export function useRisks(key: string) {
+  return useQuery<RiskOverview>({ queryKey: pk(key, "risks"), queryFn: () => api.get(`/projects/${key}/risks`) });
+}
+
+export function useBom(key: string, rootKey: string | null, effective: string | null) {
+  return useQuery<Bom>({ queryKey: pk(key, "bom", rootKey, effective), enabled: !!rootKey,
+    queryFn: () => api.get(`/projects/${key}/items/${rootKey}/bom${qs({ effective })}`) });
+}
+
+export function useWhereUsed(key: string, itemKey: string, enabled = true) {
+  return useQuery<WhereUsed>({ queryKey: pk(key, "item", itemKey, "where-used"), enabled,
+    queryFn: () => api.get(`/projects/${key}/items/${itemKey}/where-used`) });
+}
+
+export function usePlans(key: string) {
+  return useQuery<Plans>({ queryKey: pk(key, "plans"), queryFn: () => api.get(`/projects/${key}/plans`) });
+}
+
+export function usePlan(key: string, releaseKey: string | null) {
+  return useQuery<PlanDetail>({ queryKey: pk(key, "plans", releaseKey), enabled: !!releaseKey,
+    queryFn: () => api.get(`/projects/${key}/plans/${releaseKey}`) });
+}
+
+export function useTemplateUpdates(key: string, enabled = true) {
+  return useQuery<TemplateUpdates>({ queryKey: pk(key, "template-updates"), enabled,
+    queryFn: () => api.get(`/projects/${key}/template-updates`) });
+}
+
+export function useOidcConfig() {
+  return useQuery<{ enabled: boolean; label: string }>({ queryKey: ["oidc"], queryFn: () => api.get("/auth/oidc/config"),
+    staleTime: 300_000, retry: false });
+}
+
+export function useFileHistory(key: string, itemKey: string, attachmentId: string | null) {
+  return useQuery<FileRevision[]>({
+    queryKey: pk(key, "item", itemKey, "file-history", attachmentId),
+    queryFn: () => api.get(`/projects/${key}/items/${itemKey}/attachments/${attachmentId}/history`),
+    enabled: !!attachmentId,
+  });
+}
+
+export function useMyCheckouts() {
+  return useQuery<MyCheckout[]>({ queryKey: ["checkouts"], queryFn: () => api.get("/checkouts/mine") });
+}
+
+export function useDocTemplates(key: string) {
+  return useQuery<DocTemplateInfo[]>({ queryKey: pk(key, "doc-templates"), queryFn: () => api.get(`/projects/${key}/doc-templates`) });
 }

@@ -17,10 +17,14 @@ from almlight.core.config import get_settings
 from almlight.core.db import session_factory
 from almlight.core.errors import install_error_handlers
 from almlight.modules.baselines.router import router as baselines_router
+from almlight.modules.bom.router import router as bom_router
 from almlight.modules.branches.router import router as branches_router
 from almlight.modules.collab import router as collab
 from almlight.modules.doc_collections.router import router as collections_router
+from almlight.modules.doctemplates.router import router as doctemplates_router
 from almlight.modules.documents.router import router as documents_router
+from almlight.modules.files.router import router as files_router
+from almlight.modules.identity.oidc import router as oidc_router
 from almlight.modules.identity.router import router as identity_router
 from almlight.modules.identity.service import ensure_bootstrap_admin
 from almlight.modules.images.router import router as images_router
@@ -30,8 +34,12 @@ from almlight.modules.io.router import router as io_router
 from almlight.modules.items.router import router as items_router
 from almlight.modules.links.router import router as links_router
 from almlight.modules.live.router import router as live_router
+from almlight.modules.notifications.router import router as notifications_router
+from almlight.modules.planning.router import router as planning_router
 from almlight.modules.projects.router import router as projects_router
+from almlight.modules.queries.router import router as queries_router
 from almlight.modules.reports.router import router as reports_router
+from almlight.modules.risks.router import router as risks_router
 from almlight.modules.variants.router import router as variants_router
 from almlight.modules.verification.router import router as verification_router
 from almlight.modules.workflow.router import router as workflow_router
@@ -116,9 +124,11 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
-    for r in (identity_router, projects_router, items_router, links_router, workflow_router, baselines_router,
-              variants_router, verification_router, io_router, integrations_router, branches_router,
-              reports_router, documents_router, collections_router, images_router, collab.router, live_router):
+    for r in (identity_router, oidc_router, projects_router, items_router, links_router, workflow_router,
+              baselines_router, variants_router, verification_router, io_router, integrations_router, branches_router,
+              reports_router, documents_router, collections_router, images_router, collab.router, live_router,
+              risks_router, bom_router, planning_router, notifications_router, queries_router, files_router,
+              doctemplates_router):
         app.include_router(r, prefix=API_PREFIX)
     collab.install()
 

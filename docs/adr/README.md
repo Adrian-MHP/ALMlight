@@ -11,7 +11,7 @@
 | [0007](0007-cmii-light-change.md) | CMII-light change management; release via change order | accepted |
 | [0008](0008-variants-150-model.md) | Variants: features as items, applicability expressions | accepted |
 | [0009](0009-single-image-delivery.md) | One container image, SPA served by the API, Docker-only toolchain | accepted |
-| [0010](0010-authentication.md) | Local accounts, cookie sessions, API tokens; OIDC later | accepted |
+| [0010](0010-authentication.md) | Local accounts, cookie sessions, API tokens; OIDC later | accepted (OIDC: 0024) |
 | [0011](0011-branching-strategy.md) | Branching: change-scoped revisions plus document branches with 3-way merge | accepted |
 | [0012](0012-integration-strategy.md) | Integration via webhooks, external references and an outbox | accepted |
 | [0013](0013-hash-chained-audit.md) | Hash-chained, append-only audit trail | accepted |
@@ -22,5 +22,10 @@
 | [0018](0018-rich-text-canonical-html.md) | Rich text as canonical HTML with one content model | accepted |
 | [0019](0019-live-co-editing.md) | Live co-editing with a server-held Yjs document per item | accepted |
 | [0020](0020-product-name-and-design-language.md) | Product name "Ariadne" and an industrial design language | accepted |
+| [0021](0021-notifications.md) | Notifications from the audit stream, buffered per transaction | accepted |
+| [0022](0022-computed-fields-and-template-updates.md) | Computed fields as validated expressions; additive template updates | accepted |
+| [0023](0023-backbone-features-on-the-generic-model.md) | Tests, risks, plans and BOM as views on the generic item/link model | accepted |
+| [0024](0024-single-sign-on-oidc.md) | Single sign-on with OpenID Connect | accepted |
+| [0025](0025-file-check-out-and-word-templates.md) | File check-out beside the version; Word templates with placeholders | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

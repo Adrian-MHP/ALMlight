@@ -457,11 +457,78 @@ def add_attachment(
     return meta
 
 
+def revise_attachment(
+    db: Session, project: Project, actor: User | None, item: Item, attachment_id: str, *, filename: str | None,
+    content_type: str | None, stream: BinaryIO, comment: str | None = None,
+) -> dict[str, Any]:
+    """Check in a new revision of an attached file (same file, new content): a new item iteration; the holder's
+    check-out is released. A file checked out by someone else cannot be replaced."""
+    from almlight.modules.files import service as files
+
+    ensure_editable(project, item)
+    old = files.attachment(item, attachment_id)
+    own = files.ensure_not_locked_by_other(db, item, attachment_id, actor)
+    sha, size = storage.store(stream)
+    if sha == old["sha256"]:
+        if own is None:
+            raise ValidationFailed("The uploaded file is identical to the current revision")
+        db.delete(own)  # checking in an unchanged file just ends the check-out
+        db.flush()
+        return old
+    db.execute(
+        pg_insert(Blob)
+        .values(sha256=sha, size=size, content_type=content_type or old["content_type"])
+        .on_conflict_do_nothing(index_elements=["sha256"])
+    )
+    name = (filename or old["filename"]).replace("/", "_").replace("\\", "_")[:255]
+    meta = {**old, "filename": name, "content_type": content_type or old["content_type"], "size": size,
+            "sha256": sha, "revision": int(old.get("revision") or 1) + 1,
+            "uploaded_by": str(actor.id) if actor else None, "uploaded_at": utcnow().isoformat(),
+            "comment": (comment or "").strip()[:500] or None}
+    item.attachments = [meta if a["id"] == attachment_id else a for a in item.attachments]
+    _new_iteration(db, project, actor, item, kind="edit",
+                   change_note=f"Checked in {name} (file revision {meta['revision']})")
+    if own is not None:
+        db.delete(own)
+    suspects = links.mark_suspects(db, project, item, f"{item.key} changed to {item.version_label}")
+    audit.record(db, actor=actor, action="item.attachment_revised", entity_type="item", entity_id=item.id,
+                 project_id=project.id,
+                 summary=f"Checked in {name} revision {meta['revision']} on {item.key} ({item.version_label})",
+                 details={"attachment": meta, "previous_sha256": old["sha256"], "suspect_links": suspects},
+                 related_ids=[item.id])
+    emit(db, "item.updated", project.id, {**_payload(project, item), "changed": ["attachments"]})
+    return meta
+
+
+def attachment_history(db: Session, item: Item, attachment_id: str) -> list[dict[str, Any]]:
+    """Every revision of one attached file, newest first, with the item version that introduced it."""
+    versions = db.execute(select(ItemVersion).where(ItemVersion.item_id == item.id)
+                          .order_by(ItemVersion.version_no)).scalars().all()
+    out: list[dict[str, Any]] = []
+    last = None
+    for v in versions:
+        a = next((x for x in v.attachments if x["id"] == attachment_id), None)
+        if a is not None and a["sha256"] != last:
+            out.append({**a, "revision": a.get("revision") or 1, "version_no": v.version_no,
+                        "item_version": v.version_label})
+            last = a["sha256"]
+        elif a is None:
+            last = None
+    if not out:
+        raise NotFound("Attachment not found")
+    return list(reversed(out))
+
+
 def remove_attachment(db: Session, project: Project, actor: User | None, item: Item, attachment_id: str) -> None:
+    from almlight.modules.files import service as files
+
     ensure_editable(project, item)
     remaining = [a for a in item.attachments if a["id"] != attachment_id]
     if len(remaining) == len(item.attachments):
         raise NotFound("Attachment not found")
+    own = files.ensure_not_locked_by_other(db, item, attachment_id, actor)
+    if own is not None:
+        db.delete(own)
     removed = next(a for a in item.attachments if a["id"] == attachment_id)
     item.attachments = remaining
     _new_iteration(db, project, actor, item, kind="edit", change_note=f"Removed {removed['filename']}")
@@ -500,8 +567,11 @@ def add_comment(db: Session, project: Project, actor: User, item: Item, body: st
     db.flush()
     if parent and parent.resolved_at:  # replying reopens a resolved thread
         parent.resolved_at, parent.resolved_by = None, None
+    from almlight.modules.notifications.service import mentions
+
     audit.record(db, actor=actor, action="comment.added", entity_type="comment", entity_id=comment.id,
                  project_id=project.id, summary=f"{'Replied to a comment' if parent else 'Commented'} on {item.key}",
+                 details={"mentions": mentions(body), "excerpt": body[:300]},
                  related_ids=[item.id] + ([document.id] if document else []))
     emit(db, "comment.added", project.id, {"project": project.key, "item": item.key, "comment_id": comment.id})
     return comment
@@ -559,6 +629,12 @@ class ItemQuery:
     sort: str = "key"
     limit: int = 50
     offset: int = 0
+    # traceability filter: items that have (or lack) a link of this type in this direction
+    link_type: str | None = None
+    link_dir: str = "out"  # out | in
+    link_exists: bool | None = None
+    updated_since: Any = None
+    planned_in: str | None = None
 
 
 SORTS = {
@@ -601,14 +677,25 @@ def _filtered(project: Project, query: ItemQuery) -> Select:
         stmt = stmt.where(
             Item.id.in_(select(Link.source_id).where(Link.suspect.is_(True), Link.deleted_at.is_(None)))
         )
+    if query.link_type and query.link_exists is not None:
+        own = Link.source_id if query.link_dir != "in" else Link.target_id
+        linked = select(own).where(Link.type_key == query.link_type, Link.deleted_at.is_(None))
+        stmt = stmt.where(Item.id.in_(linked) if query.link_exists else Item.id.not_in(linked))
+    if query.updated_since is not None:
+        stmt = stmt.where(Item.updated_at >= query.updated_since)
+    if query.planned_in:
+        release = select(Item.id).where(Item.project_id == project.id, Item.key == query.planned_in.upper())
+        stmt = stmt.where(Item.id.in_(select(Link.source_id).where(
+            Link.type_key == project.model.semantics.planned_link, Link.target_id.in_(release),
+            Link.deleted_at.is_(None))))
     return stmt
 
 
-def query_items(db: Session, project: Project, query: ItemQuery) -> tuple[list[Item], int]:
+def query_items(db: Session, project: Project, query: ItemQuery, *, max_limit: int = 1000) -> tuple[list[Item], int]:
     stmt = _filtered(project, query)
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     order = SORTS.get(query.sort, SORTS["key"])
-    rows = db.execute(stmt.order_by(*order).limit(min(query.limit, 1000)).offset(query.offset)).scalars().all()
+    rows = db.execute(stmt.order_by(*order).limit(min(query.limit, max_limit)).offset(query.offset)).scalars().all()
     return list(rows), total
 
 

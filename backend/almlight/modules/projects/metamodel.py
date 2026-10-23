@@ -8,6 +8,7 @@ working even when the shipped template evolves.
 
 from __future__ import annotations
 
+import ast
 import re
 from functools import cached_property
 from pathlib import Path
@@ -20,9 +21,11 @@ Role = Literal["viewer", "contributor", "reviewer", "manager"]
 ROLE_RANK: dict[str, int] = {"viewer": 0, "contributor": 1, "reviewer": 2, "manager": 3}
 
 FieldType = Literal[
-    "string", "text", "integer", "number", "boolean", "date", "enum", "multienum", "tags", "user", "url"
+    "string", "text", "integer", "number", "boolean", "date", "enum", "multienum", "tags", "user", "url", "steps"
 ]
-ItemCategory = Literal["requirement", "architecture", "verification", "change", "document", "variability", "other"]
+ItemCategory = Literal["requirement", "architecture", "verification", "change", "document", "variability", "risk",
+                       "planning", "other"]
+FORMULA_FUNCTIONS = {"min": min, "max": max, "abs": abs, "round": round}
 StateCategory = Literal["draft", "review", "released", "obsolete", "open", "in_progress", "closed"]
 
 KEY_RE = r"^[a-z][a-z0-9_]{0,48}$"
@@ -39,6 +42,65 @@ class EnumOption(_Strict):
     color: str | None = None
 
 
+def formula_names(expr: str) -> set[str]:
+    """Validate a computed-field formula (arithmetic over other fields) and return the field keys it reads."""
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError as exc:
+        raise ValueError(f"invalid formula '{expr}': {exc.msg}") from None
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id not in FORMULA_FUNCTIONS or node.keywords:
+                raise ValueError(f"formula '{expr}': only {sorted(FORMULA_FUNCTIONS)} may be called")
+        elif isinstance(node, ast.Name):
+            if node.id not in FORMULA_FUNCTIONS:
+                names.add(node.id)
+        elif not isinstance(node, (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant, ast.Add, ast.Sub, ast.Mult,
+                                   ast.Div, ast.FloorDiv, ast.Mod, ast.USub, ast.UAdd, ast.Load)):
+            raise ValueError(f"formula '{expr}': {type(node).__name__} is not allowed")
+        if isinstance(node, ast.Constant) and not isinstance(node.value, (int, float)):
+            raise ValueError(f"formula '{expr}': only numbers are allowed")
+    return names
+
+
+def eval_formula(expr: str, values: dict[str, Any]) -> float | None:
+    """Evaluate a validated formula; ``None`` if an input is missing or not a number."""
+    def ev(node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Name):
+            v = values.get(node.id)
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                raise LookupError(node.id)
+            return v
+        if isinstance(node, ast.UnaryOp):
+            v = ev(node.operand)
+            return -v if isinstance(node.op, ast.USub) else v
+        if isinstance(node, ast.BinOp):
+            a, b = ev(node.left), ev(node.right)
+            ops = {ast.Add: lambda: a + b, ast.Sub: lambda: a - b, ast.Mult: lambda: a * b,
+                   ast.Div: lambda: a / b, ast.FloorDiv: lambda: a // b, ast.Mod: lambda: a % b}
+            return ops[type(node.op)]()
+        if isinstance(node, ast.Call):
+            return FORMULA_FUNCTIONS[node.func.id](*[ev(x) for x in node.args])  # type: ignore[union-attr]
+        raise ValueError("unsupported")
+
+    try:
+        return ev(ast.parse(expr, mode="eval"))
+    except (LookupError, ZeroDivisionError, TypeError, ValueError):
+        return None
+
+
+class ClassifyDef(_Strict):
+    """Derive an enum value from a number: the last band whose threshold is <= the value."""
+
+    field: str
+    bands: list[tuple[float, str]]
+
+
 class FieldDef(_Strict):
     key: str = Field(pattern=KEY_RE)
     label: str
@@ -48,6 +110,14 @@ class FieldDef(_Strict):
     default: Any = None
     pattern: str | None = None
     help: str | None = None
+    min: float | None = None
+    max: float | None = None
+    formula: str | None = Field(default=None, description="Computed: arithmetic over other fields")
+    classify: ClassifyDef | None = Field(default=None, description="Computed: enum value from a number's bands")
+
+    @property
+    def computed(self) -> bool:
+        return bool(self.formula or self.classify)
 
     @field_validator("options", mode="before")
     @classmethod
@@ -63,6 +133,16 @@ class FieldDef(_Strict):
             raise ValueError(f"field '{self.key}' of type {self.type} needs options")
         if self.pattern:
             re.compile(self.pattern)
+        if self.formula:
+            if self.type not in ("integer", "number"):
+                raise ValueError(f"computed field '{self.key}' must be of type integer or number")
+            formula_names(self.formula)
+        if self.classify:
+            if self.type != "enum":
+                raise ValueError(f"classified field '{self.key}' must be an enum")
+            unknown = {v for _, v in self.classify.bands} - self.option_keys()
+            if unknown:
+                raise ValueError(f"field '{self.key}': classify bands use unknown options {sorted(unknown)}")
         return self
 
     def option_keys(self) -> set[str]:
@@ -163,6 +243,11 @@ class ItemTypeDef(_Strict):
         keys = [f.key for f in self.fields]
         if len(keys) != len(set(keys)):
             raise ValueError(f"item type '{self.key}' has duplicate fields")
+        for f in self.fields:
+            refs = formula_names(f.formula) if f.formula else ({f.classify.field} if f.classify else set())
+            missing = refs - set(keys)
+            if missing:
+                raise ValueError(f"item type '{self.key}': field '{f.key}' refers to unknown fields {sorted(missing)}")
         return self
 
     def field(self, key: str) -> FieldDef | None:
@@ -207,6 +292,12 @@ class Semantics(_Strict):
     test_run_type: str | None = "test_run"
     stakeholder_types: list[str] = Field(default_factory=lambda: ["stakeholder_requirement"])
     element_types: list[str] = Field(default_factory=lambda: ["system_element"])
+    test_steps_field: str = "test_steps"
+    defect_type: str | None = "problem_report"
+    risk_type: str | None = "risk"
+    mitigation_link: str = "mitigated_by"
+    release_type: str | None = "release"
+    planned_link: str = "planned_in"
 
 
 class ProjectTemplate(_Strict):

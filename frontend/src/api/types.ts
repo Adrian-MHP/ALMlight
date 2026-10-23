@@ -45,7 +45,7 @@ export interface TemplateInfo {
 // --- information model ---------------------------------------------------------------------
 
 export type FieldType =
-  | "string" | "text" | "integer" | "number" | "boolean" | "date" | "enum" | "multienum" | "tags" | "user" | "url";
+  | "string" | "text" | "integer" | "number" | "boolean" | "date" | "enum" | "multienum" | "tags" | "user" | "url" | "steps";
 
 export interface EnumOption {
   key: string;
@@ -62,7 +62,13 @@ export interface FieldDef {
   default: unknown;
   pattern?: string | null;
   help?: string | null;
+  min?: number | null;
+  max?: number | null;
+  formula?: string | null;
+  classify?: { field: string; bands: [number, string][] } | null;
 }
+
+export interface TestStep { step: string; expected: string }
 
 export interface StateDef {
   key: string;
@@ -103,7 +109,8 @@ export interface WorkflowDef {
   transitions: TransitionDef[];
 }
 
-export type ItemCategory = "requirement" | "architecture" | "verification" | "change" | "document" | "variability" | "other";
+export type ItemCategory = "requirement" | "architecture" | "verification" | "change" | "document" | "variability" | "risk"
+  | "planning" | "other";
 
 export interface ItemTypeDef {
   key: string;
@@ -146,6 +153,12 @@ export interface Semantics {
   test_run_type: string | null;
   stakeholder_types: string[];
   element_types: string[];
+  test_steps_field: string;
+  defect_type: string | null;
+  risk_type: string | null;
+  mitigation_link: string;
+  release_type: string | null;
+  planned_link: string;
 }
 
 export interface ProjectConfig {
@@ -196,6 +209,22 @@ export interface Attachment {
   sha256: string;
   uploaded_by?: string | null;
   uploaded_at?: string | null;
+  revision: number;
+  comment?: string | null;
+  checked_out_by?: UserRef | null;
+  checked_out_at?: string | null;
+  checkout_note?: string | null;
+}
+
+export interface FileRevision extends Omit<Attachment, "uploaded_by"> {
+  uploaded_by: UserRef | null;
+  version_no: number;
+  item_version: string;
+}
+
+export interface MyCheckout {
+  project: string; item_key: string; item_title: string; attachment_id: string; filename: string;
+  revision: number; note: string | null; checked_out_at: string;
 }
 
 export interface ItemDetail extends Item {
@@ -425,6 +454,9 @@ export interface TestRecord {
   duration_ms: number | null;
   executed_by: UserRef | null;
   executed_at: string | null;
+  steps: TestStep[];
+  step_results: { result: string; actual: string; comment: string }[];
+  defect: string | null;
 }
 
 export interface FeatureNode {
@@ -771,4 +803,71 @@ export interface RecycledItem {
   version: string;
   deleted_at: string;
   deleted_by: string | null;
+}
+
+// --- engineering backbone ---------------------------------------------------------------------------------
+
+export interface AppNotification {
+  id: string; kind: "watch" | "owner" | "approval" | "mention" | "digest"; title: string; body: string | null;
+  item_key: string | null; project: string | null; actor: string | null; created_at: string; read: boolean;
+}
+export interface NotificationList { unread: number; items: AppNotification[]; email: boolean; email_notifications: boolean }
+
+export interface SavedQuery {
+  id: string; name: string; shared: boolean; owner: UserRef | null; updated_at: string; count: number | null; can_edit: boolean;
+  query: Record<string, unknown>;
+}
+
+export interface RiskRow {
+  key: string; title: string; state: string | null; state_label: string | null; state_category: string | null;
+  state_color: string | null; severity: number | null; occurrence: number | null; detection: number | null;
+  rpn: number | null; level: string | null; severity_after: number | null; occurrence_after: number | null;
+  detection_after: number | null; rpn_after: number | null; residual_level: string | null; failure_mode: string | null;
+  mitigations: number;
+}
+export interface RiskOverview {
+  enabled: boolean; type?: string; type_label?: string; scale?: number; matrix?: number[][]; residual_matrix?: number[][];
+  risks?: RiskRow[];
+  summary?: { total: number; high: number; medium: number; low: number; unrated: number; high_unmitigated: number;
+    residual_high: number; accepted: number };
+}
+
+export interface BomRow {
+  level: number; path: string; key: string; project: string; type: string; type_label: string; title: string;
+  revision: string; version: string; state: string | null; state_category: string | null; quantity: number | null;
+  unit: string | null; find_number: string | null; effective_from: string | null; effective_to: string | null;
+  total_quantity: number; link_id: string; part_number: string | null; supplier: string | null; has_children: boolean;
+}
+export interface Bom { root: { key: string; title: string; version: string }; effective: string | null; rows: BomRow[];
+  leaf_totals: { key: string; total_quantity: number }[] }
+export interface WhereUsed { item: string; used_in: number; direct_parents: string[];
+  paths: { key: string; title: string; project: string; version: string; quantity: number | null; find_number: string | null }[][] }
+
+export interface PlanSummary {
+  key: string; title: string; state: string | null; state_label: string | null; state_color: string | null;
+  start_date: string | null; due_date: string | null; goal: string | null; total: number; done: number;
+  progress: number; expected: number | null; status: "on_track" | "at_risk" | "overdue" | "done";
+  by_category: Record<string, number>;
+}
+export interface PlanDetail extends PlanSummary {
+  items: { key: string; title: string; type_key: string; type_label: string; state: string | null; state_category: string | null;
+    state_color: string | null; version: string; owner: UserRef | null; done: boolean }[];
+  burnup: { date: string; done: number; scope: number; future: boolean }[];
+}
+export interface Plans { enabled: boolean; type?: string; type_label?: string; releases: PlanSummary[]; plannable_types?: string[] }
+
+export interface TemplateUpdates {
+  template: string; available: boolean; template_version?: number; count: number;
+  item_types: { key: string; label: string; prefix: string }[];
+  fields: { type: string; key: string; label: string; field_type: string }[];
+  link_types: { key: string; label: string }[];
+  link_attributes: { link: string; key: string; label: string }[];
+  link_endpoints: { link: string; sources: string[]; targets: string[] }[];
+  workflows: { key: string; label: string }[];
+  skipped: string[];
+}
+
+export interface DocTemplateInfo {
+  id: string; name: string; filename: string; size: number; placeholders: string[]; unknown: string[];
+  has_content: boolean; has_toc: boolean; created_by: UserRef | null; created_at: string;
 }

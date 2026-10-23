@@ -42,8 +42,29 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(default_factory=list)
     log_level: str = "INFO"
 
-    # Outbound webhooks are delivered by an in-process worker; tests switch it off.
+    # Outbound webhooks and notification e-mails are delivered by an in-process worker; tests switch it off.
     outbox_worker: bool = True
+
+    # Public base URL (links in e-mails, single sign-on redirects), e.g. https://alm.example.com
+    public_url: str | None = None
+    # Notification e-mails (digest); disabled unless smtp_host and smtp_from are set
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_security: str = "starttls"  # starttls | ssl | none
+    email_digest_seconds: float = 60.0
+
+    # Single sign-on (OpenID Connect, e.g. Microsoft Entra ID, Keycloak, Okta); local accounts keep working
+    oidc_issuer: str | None = None
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    oidc_scopes: str = "openid profile email"
+    oidc_label: str = "Single sign-on"
+    oidc_username_claim: str = "preferred_username"
+    oidc_admin_group: str | None = None  # members of this group (``groups`` claim) become administrators
+    oidc_allow_signup: bool = True
 
     @property
     def files_dir(self) -> Path:

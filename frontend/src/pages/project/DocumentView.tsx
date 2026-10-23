@@ -20,6 +20,7 @@ import { useLive, usePresenceLocation, type PresenceUser } from "@/live/LiveProv
 import { NotFound } from "@/components/NotFound";
 import { fmtDateTime } from "@/lib/format";
 import { useRemember } from "@/lib/recent";
+import { WatchButton } from "@/components/WatchButton";
 import { stateColor } from "@/lib/model";
 import { BranchBar } from "./BranchMerge";
 import { DocumentExportMenu } from "./DocumentExport";
@@ -148,6 +149,7 @@ export function DocumentView() {
         </Stack>
         <Group gap="xs">
           <PresenceBar people={here} meId={me?.id} />
+          {!historical && <WatchButton projectKey={key} itemKey={docKey} document />}
           <Button variant="default" leftSection={<IconHistory size={16} />} onClick={() => setHistoryOpen(true)} data-testid="doc-history">History</Button>
           <Button variant="default" leftSection={<IconGitCompare size={16} />} onClick={() => setCompareOpen(true)} data-testid="doc-compare">Compare</Button>
           {!historical && <DocBaselineButton docKey={docKey} />}

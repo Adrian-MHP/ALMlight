@@ -25,6 +25,9 @@ class Project(Base):
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_col()
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Role every signed-in user has in this project besides explicit membership (viewer, contributor, reviewer);
+    # None = members only. For example projects and company-wide read access.
+    open_role: Mapped[str | None] = mapped_column(String(16))
 
     @property
     def model(self) -> ProjectTemplate:

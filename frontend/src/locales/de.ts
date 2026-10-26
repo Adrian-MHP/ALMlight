@@ -1571,4 +1571,8 @@ export const de: Record<string, string> = {
   "Show in Code": "Im Code-Bereich zeigen",
   "Manage on the Code page": "Auf der Code-Seite verwalten",
   "Repositories are connected on the Code page and fetched regularly; the webhooks below make a push appear at once.": "Repositories werden auf der Code-Seite verbunden und regelmäßig abgerufen; die Webhooks darunter lassen einen Push sofort erscheinen.",
+  "Everyone who signs in": "Alle angemeldeten Benutzer",
+  "Users who are not members hold this role in the project — for example projects and company-wide read access. Members keep the higher of both roles.": "Benutzer, die keine Mitglieder sind, haben diese Rolle im Projekt — für Beispielprojekte und unternehmensweiten Lesezugriff. Mitglieder behalten die höhere der beiden Rollen.",
+  "Members only": "Nur Mitglieder",
+  "Access for all users updated": "Zugriff für alle Benutzer aktualisiert",
 };

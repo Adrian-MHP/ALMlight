@@ -11,7 +11,7 @@ import secrets
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     admin_password: str | None = None
     demo_data: bool = False
+    # The demo dataset on a server that others can reach: with ``demo_sign_in`` off the demo users get random
+    # passwords nobody knows (they stay as colleagues in the data); ``demo_open_role`` (viewer, contributor or
+    # reviewer) lets every signed-in user open the demo project with that role.
+    demo_sign_in: bool = True
+    demo_open_role: str | None = None
 
     max_upload_mb: int = 100
     max_image_mb: int = 15
@@ -77,6 +82,16 @@ class Settings(BaseSettings):
     oidc_username_claim: str = "preferred_username"
     oidc_admin_group: str | None = None  # members of this group (``groups`` claim) become administrators
     oidc_allow_signup: bool = True
+
+    @field_validator("demo_open_role", mode="before")
+    @classmethod
+    def _demo_open_role(cls, value: object) -> object:
+        value = (value or "").strip().lower() if isinstance(value, str) or value is None else value
+        if value in ("", "none", "off"):
+            return None
+        if value not in ("viewer", "contributor", "reviewer"):
+            raise ValueError("ALMLIGHT_DEMO_OPEN_ROLE must be viewer, contributor or reviewer")
+        return value
 
     @property
     def files_dir(self) -> Path:

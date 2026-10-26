@@ -32,6 +32,7 @@ export interface Project {
   description: string | null;
   template_key: string;
   config_version: number;
+  open_role: string | null;
   role: Role | null;
   created_at: string;
 }

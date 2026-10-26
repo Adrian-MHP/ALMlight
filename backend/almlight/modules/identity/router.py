@@ -16,6 +16,7 @@ from almlight.core.schemas import Ok
 from almlight.core.security import SESSION_COOKIE, create_session_token
 from almlight.modules.identity import service
 from almlight.modules.identity.models import ApiToken, User
+from almlight.modules.projects.access import best_role
 from almlight.modules.projects.models import Project, ProjectMember
 
 router = APIRouter(tags=["identity"])
@@ -99,6 +100,8 @@ def _me(db: Session, user: User) -> MeOut:
             select(Project.key, ProjectMember.role).join(ProjectMember, ProjectMember.project_id == Project.id)
             .where(ProjectMember.user_id == user.id)
         ).all())
+        for key, open_role in db.execute(select(Project.key, Project.open_role).where(Project.open_role.is_not(None))):
+            projects[key] = best_role(projects.get(key), open_role)  # type: ignore[assignment]
     return MeOut(id=user.id, username=user.username, display_name=user.display_name, email=user.email,
                  is_admin=user.is_admin, projects=projects, locale=user.locale)
 

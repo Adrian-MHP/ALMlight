@@ -82,8 +82,10 @@ async def lifespan(app: FastAPI):
         ensure_bootstrap_admin(db)
         if settings.demo_data:
             from almlight.seed.demo import seed_demo
+            from almlight.seed.demo_repo import ensure_firmware_repository
 
             seed_demo(db)
+            ensure_firmware_repository(db)  # the repository below /data may be gone after a restart
     recovered = recover_drafts()
     if recovered:
         log.warning("Saved %d live editing session(s) interrupted by the last shutdown", recovered)

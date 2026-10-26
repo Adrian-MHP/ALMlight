@@ -42,14 +42,26 @@ def create_project(db: Session, actor: User, *, key: str, name: str, template_ke
     return project
 
 
+UNSET: Any = object()
+
+
 def update_project(db: Session, actor: User, project: Project, *, name: str | None = None,
-                   description: str | None = None) -> Project:
+                   description: str | None = None, open_role: Any = UNSET) -> Project:
     if name is not None:
         if not name.strip():
             raise ValidationFailed("Project name is required")
         project.name = name.strip()[:200]
     if description is not None:
         project.description = description
+    if open_role is not UNSET and open_role != project.open_role:
+        if open_role is not None and open_role not in ("viewer", "contributor", "reviewer"):
+            raise ValidationFailed("The role for all users must be viewer, contributor or reviewer")
+        project.open_role = open_role
+        db.info.pop("role_cache", None)
+        audit.record(db, actor=actor, action="project.open_role", entity_type="project", entity_id=project.id,
+                     project_id=project.id, details={"open_role": open_role},
+                     summary=(f"Every signed-in user now has the role {open_role} in {project.key}" if open_role
+                              else f"{project.key} is open to members only"))
     audit.record(db, actor=actor, action="project.updated", entity_type="project", entity_id=project.id,
                  project_id=project.id, summary=f"Updated project {project.key}")
     return project

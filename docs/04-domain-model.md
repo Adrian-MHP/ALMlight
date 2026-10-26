@@ -190,3 +190,12 @@ and reports the first broken entry.
 - **External identities**: imported elements of other tools are external references of the item (system `ea`,
   `medini`, `sysml`, kind `element`, the source id, a hash of the imported content and the item version after the
   import) — the basis for updates, conflict detection and round trips.
+
+## 4.17 Access: roles and open projects
+
+Access to a project comes from **membership** with one of the roles viewer < contributor < reviewer < manager
+(`project_members`); administrators act as managers everywhere; non-members get "not found". A project can in
+addition carry an **open role** (`projects.open_role`: viewer, contributor, reviewer or none): every signed-in user
+holds it without being a member, and where both apply the higher role counts. It serves example projects and
+company-wide read access; members only is the default. Resource planning and notifications still use explicit
+members. The change is a manager action and is recorded in the audit trail.

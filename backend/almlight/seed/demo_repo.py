@@ -11,6 +11,7 @@ import os
 import shutil
 import subprocess
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -109,23 +110,22 @@ def test_full_scale_100_bar():
 """
 
 
-def seed_firmware_repository(db: Session, project: Project, actor: User, keys: dict[str, str]) -> None:
-    from almlight.modules.vcs import service as vcs
+def _repository_path(project_key: str) -> Path:
+    return get_settings().local_repos_dir / f"{project_key.lower()}-sensor-firmware"
 
-    if shutil.which("git") is None:
-        log.warning("git is not installed: the demo firmware repository is skipped")
-        return
+
+def _build_repository(path: Path, keys: dict[str, str], anchor: datetime) -> None:
+    """Write the repository with dates relative to ``anchor``. The same inputs give the same commit hashes, so a
+    repository written again later matches the commits that are already indexed."""
     settings = get_settings()
-    path = settings.local_repos_dir / f"{project.key.lower()}-sensor-firmware"
     shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True)
-    now = datetime.now(UTC).replace(microsecond=0)
     base_env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(settings.data_dir),
                 "GIT_CONFIG_NOSYSTEM": "1", "LC_ALL": "C.UTF-8"}
 
     def git(*args: str, who: str = "alex", days_ago: float = 0) -> None:
         name, mail = PEOPLE[who]
-        when = (now - timedelta(days=days_ago)).isoformat()
+        when = (anchor - timedelta(days=days_ago)).isoformat()
         env = {**base_env, "GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": mail, "GIT_AUTHOR_DATE": when,
                "GIT_COMMITTER_NAME": name, "GIT_COMMITTER_EMAIL": mail, "GIT_COMMITTER_DATE": when}
         subprocess.run(["git", *args], cwd=path, env=env, check=True, capture_output=True, timeout=60)
@@ -166,5 +166,41 @@ def seed_firmware_repository(db: Session, project: Project, actor: User, keys: d
     commit(f"HART command 48 with NE 107 diagnostics ({keys['hart']})",
            {"src/hart.c": HART_C, "src/hart.h": "int hart_cmd48(unsigned char *buf, int len);\n"}, days_ago=1)
     git("checkout", "-q", "main")
+
+
+def seed_firmware_repository(db: Session, project: Project, actor: User, keys: dict[str, str]) -> None:
+    from almlight.modules.vcs import service as vcs
+
+    if shutil.which("git") is None:
+        log.warning("git is not installed: the demo firmware repository is skipped")
+        return
+    anchor = datetime.now(UTC).replace(microsecond=0)
+    path = _repository_path(project.key)
+    _build_repository(path, keys, anchor)
     repo = vcs.add_repository(db, project, actor, name="sensor-firmware", url=str(path))
+    # what is needed to write the same repository again after a restart (see ensure_firmware_repository)
+    repo.meta = {**(repo.meta or {}), "demo_seed": {"keys": keys, "anchor": anchor.isoformat()}}
     vcs.sync(db, repo)
+
+
+def ensure_firmware_repository(db: Session) -> None:
+    """Write the demo repository again when it is gone. It lives below the data directory, which a container
+    platform may reset on every restart (Azure Container Apps keeps only the attachment share); without it the
+    connected repository would report a fetch error."""
+    from sqlalchemy import select
+
+    from almlight.modules.vcs import service as vcs
+    from almlight.modules.vcs.models import Repository
+
+    if shutil.which("git") is None:
+        return
+    for repo in db.execute(select(Repository).where(Repository.name == "sensor-firmware")).scalars().all():
+        seed = (repo.meta or {}).get("demo_seed")
+        project = db.get(Project, repo.project_id)
+        if not seed or project is None or (_repository_path(project.key) / "HEAD").exists() \
+                or (_repository_path(project.key) / ".git").exists():
+            continue
+        _build_repository(_repository_path(project.key), seed["keys"], datetime.fromisoformat(seed["anchor"]))
+        vcs.sync(db, repo)
+        db.commit()
+        log.warning("Demo repository of %s written again", project.key)

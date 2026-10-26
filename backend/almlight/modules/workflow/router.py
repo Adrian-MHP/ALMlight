@@ -16,8 +16,8 @@ from almlight.modules.collab.router import flush_item
 from almlight.modules.identity.models import User
 from almlight.modules.items import service as items_svc
 from almlight.modules.items.models import Item
-from almlight.modules.projects.access import get_project, project_role
-from almlight.modules.projects.models import Project, ProjectMember
+from almlight.modules.projects.access import get_project, project_role, readable
+from almlight.modules.projects.models import Project
 from almlight.modules.workflow import engine
 from almlight.modules.workflow.models import ApprovalRequest, ApprovalVote
 
@@ -103,8 +103,7 @@ def inbox(status: str = "pending", mine: bool = True, user: User = Depends(curre
     stmt = select(ApprovalRequest, Item, Project).join(Item, Item.id == ApprovalRequest.item_id) \
         .join(Project, Project.id == ApprovalRequest.project_id).where(ApprovalRequest.status == status)
     if not user.is_admin:
-        stmt = stmt.join(ProjectMember, (ProjectMember.project_id == Project.id)
-                         & (ProjectMember.user_id == user.id))
+        stmt = stmt.where(readable(user))
     users = UserDirectory(db)
     out = []
     for req, item, project in db.execute(stmt.order_by(ApprovalRequest.created_at.desc()).limit(200)).all():

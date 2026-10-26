@@ -29,6 +29,9 @@ If `ALMLIGHT_ADMIN_PASSWORD` is empty, a password is generated once and printed 
 | `ALMLIGHT_SECRET_KEY` | generated, stored in `/data/secret_key` | Session signing key |
 | `ALMLIGHT_ADMIN_USERNAME` / `ALMLIGHT_ADMIN_PASSWORD` | `admin` / generated | First administrator (empty installation only) |
 | `ALMLIGHT_DEMO_DATA` | `false` | Load the demo project and demo users |
+| `ALMLIGHT_DEMO_SIGN_IN` | `true` | `false` on a server others can reach: the demo users get passwords nobody knows (the default password `demo1234` would be public) |
+| `ALMLIGHT_DEMO_OPEN_ROLE` | empty | `viewer`, `contributor` or `reviewer`: every signed-in user can open the demo project with this role |
+| `ALMLIGHT_LOGIN_MAX_FAILURES` / `ALMLIGHT_LOGIN_WINDOW_SECONDS` | `10` / `900` | Failed sign-ins per user name within the window before further attempts are refused (three times as many per client address); `0` switches it off |
 | `ALMLIGHT_COOKIE_SECURE` | `false` | `true` behind HTTPS |
 | `ALMLIGHT_MAX_UPLOAD_MB` | `100` | Upload limit per file |
 | `ALMLIGHT_MAX_IMAGE_MB` | `15` | Size limit of images in rich text |

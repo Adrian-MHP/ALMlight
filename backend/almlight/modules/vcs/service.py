@@ -185,6 +185,7 @@ def sync(db: Session, repo: Repository, wait: bool = True) -> dict[str, Any]:
     One sync per repository at a time (row lock until the caller commits): a request waits for a running sync and
     then indexes only what is still new; the background worker (``wait=False``) skips a repository that is busy.
     """
+    db.flush()  # changes the caller made are written first: the reload below must not discard them
     locked = db.execute(select(Repository.id).where(Repository.id == repo.id)
                         .with_for_update(skip_locked=not wait)).scalar_one_or_none()
     if locked is None:

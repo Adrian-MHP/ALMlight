@@ -195,6 +195,7 @@ curl -H "Authorization: Bearer $TOKEN" "$ALM/projects/DEMO/items/SE-10/attachmen
 |---|---|
 | Notifications | `GET /notifications`, `POST /notifications/read` (`{"ids": […]}` or `{"all": true}`), `PUT /notifications/preferences` (`email`) |
 | Watching | `GET /subscriptions`; `GET`/`PUT`/`DELETE /projects/{k}/items/{key}/watch` |
+| Open project | `PATCH /projects/{k}` with `open_role` (`viewer`, `contributor`, `reviewer` or `null`; manager): every signed-in user holds that role besides membership — the higher of both counts. `GET /projects` and `/auth/me` include such projects |
 | Saved views | `GET`/`POST /projects/{k}/queries`, `PUT`/`DELETE /projects/{k}/queries/{id}` (query keys as in the item list; `count` and `can_edit` in the list) |
 | Test execution | `PATCH /projects/{k}/test-runs/{run}/records/{id}` (`result` or `step_results`, `comment`), `POST …/records/{id}/defect` (`step`, `title`, `description`; one per record) |
 | Risks | `GET /projects/{k}/risks` — matrix before/after mitigation, register, summary |

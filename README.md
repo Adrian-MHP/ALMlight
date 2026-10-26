@@ -167,15 +167,15 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 190 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 195 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 52 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 53 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.8 (0.8.1 hardens sign-in and runs on Azure Container Apps, [guide](docs/18-azure-container-apps.md)): Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
+Version 0.8 (0.8.1/0.8.2: sign-in protection, projects open to every signed-in user, running on Azure Container Apps — [guide](docs/18-azure-container-apps.md)): Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
 analyze and SysML v2 servers ([guide](docs/17-code-and-connectors.md), sample files in `samples/`) — on top of 0.7
 (boolean queries, dependency types and auto-scheduling, time recording, resources and levelling, German user
 interface), 0.6 (query builder and

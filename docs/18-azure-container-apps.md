@@ -1,4 +1,4 @@
-# 18 Running Ariadne on Azure Container Apps (0.8.1)
+# 18 Running Ariadne on Azure Container Apps (0.8.2)
 
 How to run Ariadne in an Azure resource group so that colleagues can reach it with their company account. It was
 written from the first deployment (a team of MHP colleagues in one Entra tenant); steps marked † describe the
@@ -60,7 +60,7 @@ az extension add --name containerapp --upgrade
 
 ```bash
 az acr create -g $RG -n $ACR -l $LOC --sku Basic --admin-enabled true
-az acr build -r $ACR -t ariadne:0.8.1 https://github.com/Adrian-MHP/ALMlight.git#main
+az acr build -r $ACR -t ariadne:0.8.2 https://github.com/Adrian-MHP/ALMlight.git#main
 az acr repository show-tags -n $ACR --repository ariadne -o tsv
 ```
 
@@ -112,7 +112,7 @@ SECKEY=$(openssl rand -base64 48)
 read -rs -p 'Admin password (at least 8 characters): ' ADMINPW; echo
 for v in RG ACR PG PGPW FQDN TENANT APPID OIDCSECRET SECKEY ADMINPW; do [ -n "${!v}" ] && echo "$v ok" || echo "$v MISSING"; done
 az containerapp create -g $RG -n ariadne --environment ariadne-env \
-  --image $ACR.azurecr.io/ariadne:0.8.1 --registry-server $ACR.azurecr.io \
+  --image $ACR.azurecr.io/ariadne:0.8.2 --registry-server $ACR.azurecr.io \
   --registry-username "$(az acr credential show -n $ACR --query username -o tsv)" \
   --registry-password "$(az acr credential show -n $ACR --query 'passwords[0].value' -o tsv)" \
   --target-port 8000 --ingress external --min-replicas 1 --max-replicas 1 --cpu 0.5 --memory 1.0Gi \
@@ -124,7 +124,7 @@ az containerapp create -g $RG -n ariadne --environment ariadne-env \
     ALMLIGHT_OIDC_ISSUER=https://login.microsoftonline.com/$TENANT/v2.0 ALMLIGHT_OIDC_CLIENT_ID=$APPID \
     ALMLIGHT_OIDC_CLIENT_SECRET=secretref:oidc "ALMLIGHT_OIDC_LABEL=Sign in with your company account" \
   --query properties.configuration.ingress.fqdn -o tsv
-curl -s https://$FQDN/api/v1/health            # {"status":"ok","version":"0.8.1"}
+curl -s https://$FQDN/api/v1/health            # {"status":"ok","version":"0.8.2"}
 ```
 
 The first start applies the database migrations (a minute). The password of the database must not contain
@@ -155,6 +155,28 @@ the user name `<name>@<domain>` (lower case) and sees nothing until a project ma
 *Project → Settings → Members*. To make a single-sign-on user an administrator, use the *Administration* page as
 `admin`, or set `ALMLIGHT_OIDC_ADMIN_GROUP` to the object ID of an Entra group (the token must carry the
 `groups` claim).
+
+**9. Example project for everyone.** The application starts empty. To load the example project (*Smart Sensor
+Platform*: requirements, architecture, variants, tests, risks, plans, a firmware repository) and let every colleague
+who signs in open it, set three variables; the new revision loads it on start (about half a minute):
+
+```bash
+az containerapp update -g $RG -n ariadne --set-env-vars \
+  ALMLIGHT_DEMO_DATA=true ALMLIGHT_DEMO_SIGN_IN=false ALMLIGHT_DEMO_OPEN_ROLE=contributor
+```
+
+- `ALMLIGHT_DEMO_SIGN_IN=false` is essential on an address others can reach: the demo users (`alex`, `rita`, `max`)
+  then exist as colleagues in the data but get random passwords. Without it the published password `demo1234`
+  would let anyone sign in as the demo manager.
+- `ALMLIGHT_DEMO_OPEN_ROLE=contributor`: every signed-in colleague can open the project, read everything and try
+  creating and editing items; approvals and configuration need a reviewer or manager. Use `viewer` for read-only.
+  A project manager changes it later under *Project → Settings → Members → Everyone who signs in*. To give a
+  colleague more (e.g. manager), add them as a member there; the higher role counts.
+- The project is loaded once (when no project `DEMO` exists). Changes colleagues make stay; starting over is a
+  database operation. The demo firmware repository below `/data` is written again after a restart (same commits).
+- Single-sign-on users cannot give **electronic signatures** yet: a signature checks the user's own password, and
+  single-sign-on users have none. They can read and edit; approvals that require a signature need a local account
+  (see the open points in [14](14-beta-test-report.md)).
 
 ## 18.4 Operating
 

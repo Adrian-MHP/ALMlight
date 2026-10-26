@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ from almlight.modules.audit.service import verify_chain
 from almlight.modules.identity.models import User
 from almlight.modules.identity.service import get_user
 from almlight.modules.projects import service
-from almlight.modules.projects.access import get_project, project_role
+from almlight.modules.projects.access import get_project, project_role, readable
 from almlight.modules.projects.metamodel import available_templates, dump_config
 from almlight.modules.projects.models import Project, ProjectMember
 
@@ -35,6 +35,8 @@ class ProjectIn(BaseModel):
 class ProjectPatch(BaseModel):
     name: str | None = None
     description: str | None = None
+    open_role: Literal["viewer", "contributor", "reviewer"] | None = Field(
+        default=None, description="Role of every signed-in user in this project; null = members only")
 
 
 class ProjectOut(BaseModel):
@@ -45,6 +47,7 @@ class ProjectOut(BaseModel):
     template_key: str
     config_version: int
     role: str | None
+    open_role: str | None = None
     created_at: datetime
 
 
@@ -56,7 +59,8 @@ class MemberIn(BaseModel):
 
 def _out(db: Session, p: Project, user: User) -> ProjectOut:
     return ProjectOut(id=p.id, key=p.key, name=p.name, description=p.description, template_key=p.template_key,
-                      config_version=p.config_version, role=project_role(db, p, user), created_at=p.created_at)
+                      config_version=p.config_version, role=project_role(db, p, user), open_role=p.open_role,
+                      created_at=p.created_at)
 
 
 @router.get("/templates")
@@ -69,7 +73,7 @@ def templates(_: User = Depends(current_user)) -> list[dict[str, Any]]:
 def list_projects(user: User = Depends(current_user), db: Session = Depends(get_db)) -> list[ProjectOut]:
     stmt = select(Project).where(Project.archived_at.is_(None)).order_by(Project.key)
     if not user.is_admin:
-        stmt = stmt.join(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == user.id))
+        stmt = stmt.where(readable(user))
     return [_out(db, p, user) for p in db.execute(stmt).scalars()]
 
 
@@ -90,7 +94,8 @@ def get_one(project_key: str, user: User = Depends(current_user), db: Session = 
 def update(project_key: str, body: ProjectPatch, user: User = Depends(current_user),
            db: Session = Depends(get_db)) -> ProjectOut:
     project = get_project(db, project_key, user, "manager")
-    service.update_project(db, user, project, name=body.name, description=body.description)
+    service.update_project(db, user, project, name=body.name, description=body.description,
+                           open_role=body.open_role if "open_role" in body.model_fields_set else service.UNSET)
     db.commit()
     return _out(db, project, user)
 
@@ -185,7 +190,7 @@ def search(q: str, limit: int = Query(default=30, ge=1, le=200), user: User = De
 
     stmt = select(Project).where(Project.archived_at.is_(None))
     if not user.is_admin:
-        stmt = stmt.join(ProjectMember, (ProjectMember.project_id == Project.id) & (ProjectMember.user_id == user.id))
+        stmt = stmt.where(readable(user))
     users = UserDirectory(db)
     out: list[dict] = []
     for project in db.execute(stmt).scalars():

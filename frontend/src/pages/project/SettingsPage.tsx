@@ -48,16 +48,31 @@ const ROLES: { value: Role; label: string }[] = [
 ];
 
 function Members() {
-  const { key, can } = useProjectCtx();
+  const { key, can, project } = useProjectCtx();
   const members = useMembers(key).data ?? [];
   const users = useDirectory().data ?? [];
   const [user, setUser] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>("contributor");
   const set = useProjectMutation(key, (v: { user_id: string; role: string; hours_per_day?: number }) => api.put(`/projects/${key}/members`, v), { success: tx("Membership updated") });
   const remove = useProjectMutation(key, (id: string) => api.del(`/projects/${key}/members/${id}`), { success: tx("Member removed") });
+  const openRole = useProjectMutation(key, (role: string | null) => api.patch(`/projects/${key}`, { open_role: role }), { success: tx("Access for all users updated") });
   const manager = can("manager");
+  const everyone = project.open_role ?? "none";
   return (
     <Stack>
+      <Card withBorder padding="sm" data-testid="open-role-card">
+        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+          <div style={{ maxWidth: 620 }}>
+            <Text size="sm" fw={600}>{tx("Everyone who signs in")}</Text>
+            <Text size="xs" c="dimmed">{tx("Users who are not members hold this role in the project — for example projects and company-wide read access. Members keep the higher of both roles.")}</Text>
+          </div>
+          {manager ? (
+            <Select w={300} value={everyone} allowDeselect={false} data-testid="open-role" aria-label={tx("Everyone who signs in")}
+              data={[{ value: "none", label: tx("Members only") }, ...ROLES.filter((r) => r.value !== "manager")]}
+              onChange={(v) => v && openRole.mutate(v === "none" ? null : v)} />
+          ) : <Badge variant="light" color={everyone === "none" ? "gray" : "teal"}>{everyone === "none" ? tx("Members only") : everyone}</Badge>}
+        </Group>
+      </Card>
       {manager && (
         <Card withBorder padding="sm">
           <Group align="flex-end">

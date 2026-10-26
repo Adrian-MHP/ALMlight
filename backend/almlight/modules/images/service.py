@@ -19,7 +19,8 @@ from almlight.modules.identity.models import User
 from almlight.modules.images.models import InlineImage
 from almlight.modules.items import storage
 from almlight.modules.items.models import Blob
-from almlight.modules.projects.models import Project, ProjectMember
+from almlight.modules.projects.access import readable
+from almlight.modules.projects.models import Project
 
 # SVG is deliberately not accepted: it can carry scripts.
 FORMATS = {"PNG": "image/png", "JPEG": "image/jpeg", "GIF": "image/gif", "WEBP": "image/webp"}
@@ -101,8 +102,8 @@ def can_read(db: Session, user: User, sha256: str) -> bool:
     if user.is_admin:
         return db.execute(select(InlineImage.id).where(InlineImage.sha256 == sha256).limit(1)).scalar() is not None
     return db.execute(
-        select(InlineImage.id).join(ProjectMember, ProjectMember.project_id == InlineImage.project_id)
-        .where(InlineImage.sha256 == sha256, ProjectMember.user_id == user.id).limit(1)
+        select(InlineImage.id).join(Project, Project.id == InlineImage.project_id)
+        .where(InlineImage.sha256 == sha256, readable(user)).limit(1)
     ).scalar() is not None
 
 

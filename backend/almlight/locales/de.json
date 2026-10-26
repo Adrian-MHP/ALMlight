@@ -369,7 +369,10 @@
   "Sign-in for {} blocked after repeated failures": "Anmeldung für {1} nach wiederholten Fehlversuchen gesperrt",
   "The data was changed at the same time by someone else — reload and try again": "Die Daten wurden gleichzeitig von jemand anderem geändert — bitte neu laden und erneut versuchen",
   "Internal server error": "Interner Serverfehler",
-  "Item '{}' not found": "Objekt „{1}“ nicht gefunden"
+  "Item '{}' not found": "Objekt „{1}“ nicht gefunden",
+  "Every signed-in user now has the role {} in {}": "Alle angemeldeten Benutzer haben jetzt die Rolle {1} im Projekt {2}",
+  "{} is open to members only": "{1} ist nur für Mitglieder zugänglich",
+  "The role for all users must be viewer, contributor or reviewer": "Die Rolle für alle Benutzer muss viewer, contributor oder reviewer sein"
  },
  "texts": {
   "Applies to: {expr}": "Gilt für: {expr}",

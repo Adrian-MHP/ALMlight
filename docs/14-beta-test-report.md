@@ -245,7 +245,7 @@ trip, write-back, hostile model files, medini HARA and FMEA, SysML v2, preview d
 tests (new: Code page with commit, diff and linked items, linked revisions and branch of an item, EA import wizard,
 medini HARA import).
 
-## 14.8 Round 6 — hardening for the first public deployment (0.8.1)
+## 14.8 Round 6 — hardening for the first public deployment (0.8.1, 0.8.2)
 
 **Method**: review of the sign-in, session, WebSocket, upload and concurrency paths before the application was put
 on an internet-facing address (Azure Container Apps, [18](18-azure-container-apps.md)); every fix with a backend test;
@@ -261,15 +261,20 @@ saves of one item); the 81 hostile-input checks of round 5 repeated; the browser
 | 5 | Two people saving the same version of an item at once: the second got a database error (500) | bug | The item's row lock is taken first, so the version check sees the other change (409); attachments and revisions likewise; database conflicts (unique, foreign key, deadlock) answer 409 in any case |
 | 6 | Unexpected faults answered as plain text | quality | JSON error body like every other error |
 | 7 | The connected Git repository was not visible under *Settings → Integrations* and only as one line of text on *Connectors* | UI | Repository list with state (in sync, error, not fetched, disabled) in both places |
+| 8 | The demo dataset on a reachable server would have created users with the published password `demo1234`, and no colleague could open the example project without being added one by one | security / usability | `ALMLIGHT_DEMO_SIGN_IN=false` gives the demo users random passwords (their approvals are signed with it during the load); a project can carry an **open role** that every signed-in user holds (`ALMLIGHT_DEMO_OPEN_ROLE`, or *Settings → Members → Everyone who signs in*) |
+| 9 | The demo firmware repository lives below the data directory; after a container restart it would report a fetch error | bug | Written again at start with the same commit hashes (dates are anchored at the first load) |
+| 10 | Found by the test of finding 9: the fetch lock reloaded the repository object and discarded changes not yet written | bug | Changes are written before the reload |
 
 **Live checks**: after ten wrong guesses the eleventh attempt is refused whatever `X-Forwarded-For` says (the per-user
 limit does not depend on the address); another user can sign in; five failures followed by the right password sign
 in; 16 parallel saves in eight rounds ended with exactly one 200 and one 409 each, never a 5xx. Without the row lock the
 test of finding 5 fails with the unique-constraint error of the old code.
 
-**Automated tests at the end of round 6**: 190 backend tests (new: sign-in limit and audit, address limit and reset, the
+**Automated tests at the end of round 6**: 195 backend tests (new: sign-in limit and audit, address limit and reset, the
 current-password limit, the window and its memory bound, single-sign-on user names, the concurrent save, conflict and
-fault answers), 52 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message).
+fault answers, open projects for every role and path, the demo for a reachable server, the repository written again),
+53 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message, a manager opening
+a project to everyone).
 
 ## 14.9 Known limitations
 
@@ -282,6 +287,8 @@ fault answers), 52 browser E2E tests (new: repositories under Integrations and C
 - The demo data is created in one go, so the demo burn-up shows a single step.
 - Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
+- Single-sign-on users cannot give electronic signatures (they check the user's own password): approvals with a
+  signature need a local account until signing through the identity provider or a signing password is added.
 - Sign-in limits are kept in memory of the one application process (a restart clears them); behind a proxy the client
   address is only as reliable as `X-Forwarded-For`, so the per-user-name limit is the dependable one.
 - Git over HTTPS only (no SSH); pull requests are read from GitHub (GitLab/Bitbucket/Azure Repos: commits, branches

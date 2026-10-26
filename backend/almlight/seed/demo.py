@@ -1,19 +1,23 @@
 """Demo dataset: a generic smart pressure sensor product platform.
 
-Loaded on startup when ``ALMLIGHT_DEMO_DATA=true`` (never in production). Idempotent: does
-nothing if the demo project exists. Demo users share the password ``demo1234``.
+Loaded on startup when ``ALMLIGHT_DEMO_DATA=true``. Idempotent: does nothing if the demo project exists. The
+demo users share the password ``demo1234`` — on a server others can reach, set ``ALMLIGHT_DEMO_SIGN_IN=false``
+(random passwords nobody knows) and ``ALMLIGHT_DEMO_OPEN_ROLE=contributor`` (everyone who signs in can open the
+project) instead.
 """
 
 from __future__ import annotations
 
 import io
 import logging
+import secrets
 import struct
 import zlib
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from almlight.core.config import get_settings
 from almlight.modules.baselines import service as baselines
 from almlight.modules.identity.models import User
 from almlight.modules.identity.service import create_user
@@ -55,9 +59,9 @@ def _step_model(name: str, rev: int, note: str) -> bytes:
             "END-ISO-10303-21;\n").encode()
 
 
-def _user(db: Session, username: str, name: str) -> User:
+def _user(db: Session, username: str, name: str, password: str) -> User:
     user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
-    return user or create_user(db, None, username=username, display_name=name, password=DEMO_PASSWORD)
+    return user or create_user(db, None, username=username, display_name=name, password=password)
 
 
 def _backdate(db: Session, item: Item, *, created: int, events: dict[str, int]) -> None:
@@ -77,16 +81,21 @@ def _backdate(db: Session, item: Item, *, created: int, events: dict[str, int]) 
 def seed_demo(db: Session) -> None:
     if db.execute(select(Project.id).where(Project.key == DEMO_KEY)).scalar():
         return
+    settings = get_settings()
+    # the password is also used for the electronic signatures of the approvals below
+    password = DEMO_PASSWORD if settings.demo_sign_in else secrets.token_urlsafe(24)
     admin = db.execute(select(User).where(User.is_admin.is_(True)).order_by(User.created_at)).scalars().first()
-    alex = _user(db, "alex", "Alex Engineer")
-    rita = _user(db, "rita", "Rita Reviewer")
-    max_ = _user(db, "max", "Max Manager")
+    alex = _user(db, "alex", "Alex Engineer", password)
+    rita = _user(db, "rita", "Rita Reviewer", password)
+    max_ = _user(db, "max", "Max Manager", password)
     project = projects.create_project(db, admin, key=DEMO_KEY, name="Smart Sensor Platform (demo)",
                                       template_key="systems_engineering",
                                       description="Demo product family: modular pressure transmitters with "
                                                   "variants, verification and closed-loop change.")
     for user, role in ((alex, "contributor"), (rita, "reviewer"), (max_, "manager")):
         projects.set_member(db, admin, project, user, role)
+    if settings.demo_open_role:  # everyone who signs in can open the project
+        projects.update_project(db, admin, project, open_role=settings.demo_open_role)
 
     def new(type_key: str, title: str, *, parent: Item | None = None, by: User = alex, **kw) -> Item:
         return items.create_item(db, project, by, type_key=type_key, title=title, parent=parent, **kw)
@@ -248,7 +257,7 @@ def seed_demo(db: Session) -> None:
         if req is None:
             engine.execute_transition(db, project, alex, item, transition)
             req = engine.pending_request(db, item)
-        engine.vote(db, project, rita, req, decision="approve", password=DEMO_PASSWORD)
+        engine.vote(db, project, rita, req, decision="approve", password=password)
 
     for item in (*stk.values(), sysr["range"], sysr["accuracy"], sysr["analog"], sysr["temp"]):
         approve(item)
@@ -320,7 +329,7 @@ def seed_demo(db: Session) -> None:
     link("affects", cr2, cell)
     engine.execute_transition(db, project, max_, cr2, "analyse")
     engine.execute_transition(db, project, alex, cr2, "approve")
-    engine.vote(db, project, max_, engine.pending_request(db, cr2), decision="approve", password=DEMO_PASSWORD)
+    engine.vote(db, project, max_, engine.pending_request(db, cr2), decision="approve", password=password)
     co1 = new("change_order", "Introduce measuring cell from supplier B", by=max_)
     link("implements", co1, cr2)
     link("affects", co1, cell, attributes={"action": "revise"})
@@ -331,7 +340,7 @@ def seed_demo(db: Session) -> None:
                       change_note="Supplier B part")
     engine.execute_transition(db, project, alex, co1, "submit")
     engine.execute_transition(db, project, alex, co1, "release")
-    engine.vote(db, project, max_, engine.pending_request(db, co1), decision="approve", password=DEMO_PASSWORD)
+    engine.vote(db, project, max_, engine.pending_request(db, co1), decision="approve", password=password)
     _backdate(db, cr2, created=45, events={"in_analysis": 41, "approved": 33})
     _backdate(db, co1, created=31, events={"in_work": 29, "in_approval": 16, "released": 14})
     _backdate(db, cr, created=9, events={"in_analysis": 8})
@@ -558,4 +567,8 @@ def seed_demo(db: Session) -> None:
     reports.create_report(db, project, rita, ReportIn(title="Requirements status", template="requirements_status",
                                                       description="Lifecycle, coverage and progress"))
     db.commit()
-    log.warning("Demo project %s loaded (users alex/rita/max, password '%s')", DEMO_KEY, DEMO_PASSWORD)
+    if settings.demo_sign_in:
+        log.warning("Demo project %s loaded (users alex/rita/max, password '%s')", DEMO_KEY, DEMO_PASSWORD)
+    else:
+        log.warning("Demo project %s loaded (the demo users cannot sign in%s)", DEMO_KEY,
+                    f"; every signed-in user is {settings.demo_open_role}" if settings.demo_open_role else "")

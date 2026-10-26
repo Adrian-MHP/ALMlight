@@ -34,7 +34,7 @@ single-page frontend; a PostgreSQL container stores all data. Files live in a co
 ```
 
 Start-up: wait for the database → `alembic upgrade head` → bootstrap the first administrator → (optional demo data)
-→ start the outbox worker.
+→ start the outbox worker and the Git sync worker.
 
 ## 5.3 Building blocks (modular monolith)
 
@@ -93,7 +93,7 @@ See the [ADRs](adr/). In short:
 | Change | CMII-light, release via change order ([ADR-0007](adr/0007-cmii-light-change.md)) |
 | Variants | Features as items + applicability expressions ([ADR-0008](adr/0008-variants-150-model.md)) |
 | Delivery | One image, SPA served by the API, Docker-only toolchain ([ADR-0009](adr/0009-single-image-delivery.md)) |
-| Security | Local users, cookie sessions, API tokens; OIDC later ([ADR-0010](adr/0010-authentication.md)) |
+| Security | Local users, cookie sessions, API tokens, OIDC single sign-on ([ADR-0010](adr/0010-authentication.md), [ADR-0024](adr/0024-single-sign-on-oidc.md)) |
 | Branching | Change-scoped revisions now; document branches later ([ADR-0011](adr/0011-branching-strategy.md)) |
 | Integration | Webhooks in/out, external refs, outbox ([ADR-0012](adr/0012-integration-strategy.md)) |
 | Audit | Hash-chained audit trail ([ADR-0013](adr/0013-hash-chained-audit.md)) |
@@ -102,7 +102,8 @@ See the [ADRs](adr/). In short:
 
 ## 5.5 Security
 
-- Passwords hashed with Argon2; minimum length; same error for unknown user and wrong password.
+- Passwords hashed with Argon2; minimum length; same error and same effort for unknown user and wrong password;
+  failed sign-ins are limited per user name and client address, recorded in the audit trail and answered with 429.
 - Browser sessions: signed JWT in an httpOnly, SameSite=Lax cookie (`Secure` behind HTTPS); API: personal access
   tokens (`Bearer alm_…`), stored as SHA-256 hashes, revocable, expiring.
 - Authorisation: project membership with roles viewer < contributor < reviewer < manager; administrators act as
@@ -121,7 +122,7 @@ See the [ADRs](adr/). In short:
 
 ## 5.6 Quality and testing
 
-- Backend: 150+ pytest tests against a real PostgreSQL (migrations applied by Alembic), covering API flows and
+- Backend: 190+ pytest tests against a real PostgreSQL (migrations applied by Alembic), covering API flows and
   negative cases (permissions, frozen states, validation, conflicts, signature failures, tampering detection).
 - Frontend: strict TypeScript; Playwright browser tests (login, item lifecycle, approvals with e-signature,
   traceability, documents, structure, variants, baselines, permissions) run against a fresh stack with demo data.

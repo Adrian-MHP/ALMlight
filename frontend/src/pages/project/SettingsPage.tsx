@@ -5,10 +5,12 @@ import {
 } from "@mantine/core";
 import { IconDownload, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { api, downloadUrl } from "@/api/client";
 import { useDirectory, useIntegrations, useMembers, useProjectMutation, useRecycleBin, useTemplateUpdates } from "@/api/hooks";
 import type { ImportResult, Role } from "@/api/types";
 import { PageHeader } from "@/components/PageHeader";
+import { RepoList } from "@/components/RepoList";
 import { CATEGORY_LABELS, stateColor } from "@/lib/model";
 import { useProjectCtx } from "./ProjectLayout";
 import { ReqifImport } from "./ReqifImport";
@@ -199,6 +201,14 @@ function IntegrationsView() {
   const inbound = (system: string) => data?.inbound.find((i) => i.system === system);
   return (
     <Stack>
+      <Card withBorder data-testid="integration-repos">
+        <Group justify="space-between" mb={4}>
+          <Title order={5}>{tx("Git repositories")}</Title>
+          <Button component={Link} to={`/p/${key}/code`} size="xs" variant="light">{tx("Manage on the Code page")}</Button>
+        </Group>
+        <Text size="xs" c="dimmed" mb="sm">{tx("Repositories are connected on the Code page and fetched regularly; the webhooks below make a push appear at once.")}</Text>
+        <RepoList projectKey={key} />
+      </Card>
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         {[{ system: "github", label: tx("GitHub"), help: tx("Repository → Settings → Webhooks: payload URL = endpoint, content type application/json, secret = shared secret, events: push, pull requests, workflow runs.") },
           { system: "azure_devops", label: tx("Azure DevOps"), help: tx("Project settings → Service hooks → Web Hooks: URL = endpoint, basic authentication with any user name and the shared secret as password. Events: code pushed, pull request, work item created/updated.") }]

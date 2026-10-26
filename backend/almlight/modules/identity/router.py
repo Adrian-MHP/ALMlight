@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -109,8 +109,9 @@ def _user_out(u: User) -> UserOut:
 
 
 @router.post("/auth/login", response_model=MeOut)
-def login(body: LoginIn, response: Response, db: Session = Depends(get_db)) -> MeOut:
-    user = service.authenticate(db, body.username, body.password)
+def login(body: LoginIn, request: Request, response: Response, db: Session = Depends(get_db)) -> MeOut:
+    client_ip = request.client.host if request.client else None
+    user = service.authenticate(db, body.username, body.password, client_ip=client_ip)
     db.commit()
     settings = get_settings()
     response.set_cookie(SESSION_COOKIE, create_session_token(str(user.id)), httponly=True, samesite="lax",

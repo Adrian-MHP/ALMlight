@@ -245,7 +245,33 @@ trip, write-back, hostile model files, medini HARA and FMEA, SysML v2, preview d
 tests (new: Code page with commit, diff and linked items, linked revisions and branch of an item, EA import wizard,
 medini HARA import).
 
-## 14.8 Known limitations
+## 14.8 Round 6 — hardening for the first public deployment (0.8.1)
+
+**Method**: review of the sign-in, session, WebSocket, upload and concurrency paths before the application was put
+on an internet-facing address (Azure Container Apps, [18](18-azure-container-apps.md)); every fix with a backend test;
+live checks against the running test stack (sign-in limit, forged `X-Forwarded-For`, eight rounds of two parallel
+saves of one item); the 81 hostile-input checks of round 5 repeated; the browser tests on a fresh stack.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | Nothing limited password guessing (sign-in and "current password" when changing it) | security | Failed attempts are counted per user name and per client address in a sliding window; further attempts get 429 with `Retry-After` — also with the right password, also for guessed names; a success clears the counter. `ALMLIGHT_LOGIN_MAX_FAILURES`, `ALMLIGHT_LOGIN_WINDOW_SECONDS` |
+| 2 | Unknown user names were answered faster than wrong passwords (no Argon2 work), which reveals which names exist | security | Unknown and inactive users cost the same effort |
+| 3 | Failed sign-ins left no trace | audit | Failures of existing users and the block are in the audit trail (guessed names only in the server log, so they cannot fill the trail) |
+| 4 | Entra ID sends the user principal name in any case; single-sign-on users were matched case-sensitively and could be created twice | bug | User names are lower case, existing mixed-case accounts are still found |
+| 5 | Two people saving the same version of an item at once: the second got a database error (500) | bug | The item's row lock is taken first, so the version check sees the other change (409); attachments and revisions likewise; database conflicts (unique, foreign key, deadlock) answer 409 in any case |
+| 6 | Unexpected faults answered as plain text | quality | JSON error body like every other error |
+| 7 | The connected Git repository was not visible under *Settings → Integrations* and only as one line of text on *Connectors* | UI | Repository list with state (in sync, error, not fetched, disabled) in both places |
+
+**Live checks**: after ten wrong guesses the eleventh attempt is refused whatever `X-Forwarded-For` says (the per-user
+limit does not depend on the address); another user can sign in; five failures followed by the right password sign
+in; 16 parallel saves in eight rounds ended with exactly one 200 and one 409 each, never a 5xx. Without the row lock the
+test of finding 5 fails with the unique-constraint error of the old code.
+
+**Automated tests at the end of round 6**: 190 backend tests (new: sign-in limit and audit, address limit and reset, the
+current-password limit, the window and its memory bound, single-sign-on user names, the concurrent save, conflict and
+fault answers), 52 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message).
+
+## 14.9 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
 - Two interface languages (English, German); request-validation details from the API framework stay English.
@@ -256,6 +282,8 @@ medini HARA import).
 - The demo data is created in one go, so the demo burn-up shows a single step.
 - Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
+- Sign-in limits are kept in memory of the one application process (a restart clears them); behind a proxy the client
+  address is only as reliable as `X-Forwarded-For`, so the per-user-name limit is the dependable one.
 - Git over HTTPS only (no SSH); pull requests are read from GitHub (GitLab/Bitbucket/Azure Repos: commits, branches
   and links, no merge requests yet).
 - The EA write-back was checked against the EA 16 database layout in tests, not yet by opening the result in an EA

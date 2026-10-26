@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import secrets
 import uuid
@@ -11,8 +12,16 @@ from sqlalchemy.orm import Session
 
 from almlight.core.config import get_settings
 from almlight.core.db import utcnow
-from almlight.core.errors import Conflict, NotFound, Unauthorized, ValidationFailed
-from almlight.core.security import MIN_PASSWORD_LENGTH, hash_api_token, hash_password, new_api_token, verify_password
+from almlight.core.errors import Conflict, NotFound, TooManyRequests, Unauthorized, ValidationFailed
+from almlight.core.ratelimit import login_failures
+from almlight.core.security import (
+    MIN_PASSWORD_LENGTH,
+    burn_password_check,
+    hash_api_token,
+    hash_password,
+    new_api_token,
+    verify_password,
+)
 from almlight.modules.audit import service as audit
 from almlight.modules.identity.models import ApiToken, User
 
@@ -42,11 +51,57 @@ def create_user(db: Session, actor: User | None, *, username: str, display_name:
     return user
 
 
-def authenticate(db: Session, username: str, password: str) -> User:
-    user = db.execute(select(User).where(User.username == (username or "").strip().lower())).scalar_one_or_none()
-    if user is None or not user.is_active or not verify_password(user.password_hash, password or ""):
+def _limits() -> tuple[int, int]:
+    settings = get_settings()
+    return settings.login_max_failures, settings.login_window_seconds
+
+
+def _refuse_while_blocked(*checks: tuple[str, int]) -> None:
+    """Refuse an attempt while one of the (key, limit) counters is full; the answer says when to try again."""
+    _, window = _limits()
+    wait = max((login_failures.retry_after(key, limit, window) for key, limit in checks), default=0)
+    if wait:
+        raise TooManyRequests(f"Too many failed sign-in attempts. Try again in {math.ceil(wait / 60)} minute(s).",
+                              headers={"Retry-After": str(wait)})
+
+
+def _login_failed(db: Session, user: User | None, name: str, client_ip: str | None) -> None:
+    """Count a failed sign-in and record it (only for existing users: guessed names must not fill the audit trail)."""
+    limit, window = _limits()
+    count = login_failures.record(f"user:{name}", window)
+    if client_ip:
+        login_failures.record(f"ip:{client_ip}", window)
+    if user is None:
+        log.warning("Failed sign-in for unknown user %r from %r", name, client_ip)
+        return
+    audit.record(db, actor=None, actor_name=user.username, action="user.login_failed", entity_type="user",
+                 entity_id=user.id, summary=f"Failed sign-in for {user.username}", details={"from": client_ip})
+    if limit > 0 and count == limit:
+        audit.record(db, actor=None, actor_name=user.username, action="user.login_blocked", entity_type="user",
+                     entity_id=user.id, summary=f"Sign-in for {user.username} blocked after repeated failures",
+                     details={"failures": count, "minutes": math.ceil(window / 60)})
+    db.commit()  # the request fails, but the record must stay
+
+
+def authenticate(db: Session, username: str, password: str, client_ip: str | None = None) -> User:
+    name = (username or "").strip().lower()[:64]
+    limit, _ = _limits()
+    checks = [(f"user:{name}", limit)]
+    if client_ip:
+        checks.append((f"ip:{client_ip}", limit * 3))
+    _refuse_while_blocked(*checks)
+    user = db.execute(select(User).where(User.username == name)).scalar_one_or_none()
+    if user is None or not user.is_active:
+        burn_password_check(password or "")  # unknown users take as long as wrong passwords
+        ok = False
+    else:
+        ok = verify_password(user.password_hash, password or "")
+    if not ok:
+        _login_failed(db, user, name, client_ip)
         # Same message for unknown user and wrong password.
         raise Unauthorized("Invalid username or password")
+    assert user is not None
+    login_failures.clear(f"user:{name}")
     user.last_login_at = utcnow()
     audit.record(db, actor=user, action="user.login", entity_type="user", entity_id=user.id,
                  summary=f"{user.username} signed in")
@@ -54,8 +109,13 @@ def authenticate(db: Session, username: str, password: str) -> User:
 
 
 def change_password(db: Session, user: User, current: str, new: str) -> None:
+    key = f"password:{user.id}"
+    limit, window = _limits()
+    _refuse_while_blocked((key, limit))  # a stolen session must not be able to guess the current password
     if not verify_password(user.password_hash, current or ""):
+        login_failures.record(key, window)
         raise Unauthorized("Current password is incorrect")
+    login_failures.clear(key)
     _check_password(new)
     user.password_hash = hash_password(new)
     audit.record(db, actor=user, action="user.password_changed", entity_type="user", entity_id=user.id,

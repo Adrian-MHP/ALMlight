@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     session_hours: int = 12
     cookie_secure: bool = False
 
+    # Sign-in protection: this many failed attempts per user name within the window block further attempts for that
+    # user name (three times as many per client address) until the oldest failure has aged out. 0 = off.
+    login_max_failures: int = 10
+    login_window_seconds: int = 900
+
     admin_username: str = "admin"
     admin_password: str | None = None
     demo_data: bool = False

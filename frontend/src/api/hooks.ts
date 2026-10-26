@@ -12,6 +12,7 @@ import type {
   ReportWidget, WidgetData, DocSnapshot, DocHistory, DocStateRef, CompareResult, CommentThread, DocCollection, RecycledItem,
   NotificationList, SavedQuery, RiskOverview, Bom, WhereUsed, Plans, PlanDetail, TemplateUpdates, FileRevision, MyCheckout, DocTemplateInfo, QNode, Board, ItemWork, Timesheet, Resources, Timeline,
 } from "./types";
+import type { Repo } from "./types";
 import { tx } from "@/lib/i18n";
 
 export const pk = (projectKey: string, ...rest: unknown[]) => ["p", projectKey, ...rest];
@@ -38,6 +39,10 @@ export function useConfig(key: string) {
     queryFn: () => api.get(`/projects/${key}/config`),
     staleTime: 60_000,
   });
+}
+
+export function useRepos(key: string) {
+  return useQuery<Repo[]>({ queryKey: pk(key, "repos"), queryFn: () => api.get(`/projects/${key}/repositories`) });
 }
 
 export function useStats(key: string) {

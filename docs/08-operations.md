@@ -5,6 +5,7 @@
 - Docker Engine 24+ with Compose v2 (Linux server, Windows/macOS with Docker Desktop)
 - 2 vCPU, 2–4 GB RAM, disk for database and files (typical SME: < 20 GB)
 - A reverse proxy with TLS for production (Traefik, nginx, Caddy, IIS/ARR, Azure App Gateway)
+- On Azure, the managed alternative to Docker Compose: [18 Azure Container Apps](18-azure-container-apps.md)
 
 ## 8.2 Install
 

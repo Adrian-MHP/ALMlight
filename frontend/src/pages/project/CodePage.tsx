@@ -5,7 +5,7 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import {
-  IconArrowLeft, IconBrandAzure, IconBrandBitbucket, IconBrandGithub, IconBrandGitlab, IconDownload, IconExternalLink, IconFile,
+  IconArrowLeft, IconDownload, IconExternalLink, IconFile,
   IconFolder, IconGitBranch, IconGitCommit, IconPlus, IconRefresh, IconSearch, IconSettings, IconTag, IconTrash,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,18 +14,11 @@ import { api, downloadUrl } from "@/api/client";
 import { pk, useProjectMutation } from "@/api/hooks";
 import type { BranchInfo, Commit, CommitDetail, FileView, Repo, TreeView } from "@/api/types";
 import { ItemPicker } from "@/components/ItemPicker";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { tx } from "@/lib/i18n";
 import { useProjectCtx } from "./ProjectLayout";
-
-export function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number }) {
-  if (provider === "github") return <IconBrandGithub size={size} />;
-  if (provider === "gitlab") return <IconBrandGitlab size={size} />;
-  if (provider === "bitbucket") return <IconBrandBitbucket size={size} />;
-  if (provider === "azure") return <IconBrandAzure size={size} />;
-  return <IconGitBranch size={size} />;
-}
 
 /** Git repositories of the project (Polarion repository browser): commits, diffs, files, branches. */
 export function CodePage() {

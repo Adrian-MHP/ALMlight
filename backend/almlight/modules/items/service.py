@@ -11,6 +11,7 @@ from typing import Any, BinaryIO
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import Session
 
 from almlight.core import richtext
@@ -55,6 +56,16 @@ def get_item(db: Session, project: Project, key_or_id: str, *, include_deleted: 
     if item is None or (item.deleted_at is not None and not include_deleted):
         raise NotFound(f"Item '{key_or_id}' not found in project {project.key}")
     return item
+
+
+def lock_item(db: Session, item: Item) -> None:
+    """Take the item's row lock and reload it. Changes of one item then run one after the other: the check of the
+    expected version sees what a concurrent change just committed (a clean conflict instead of a database error)."""
+    db.flush()
+    try:
+        db.refresh(item, with_for_update=True)
+    except InvalidRequestError:
+        raise NotFound(f"Item '{item.key}' not found") from None
 
 
 def get_version(db: Session, item: Item, version_no: int) -> ItemVersion:
@@ -209,6 +220,7 @@ def update_item(
     change_note: str | None = None,
     owner_id: Any = _UNSET,
 ) -> Item:
+    lock_item(db, item)
     if expected_version is not None and expected_version != item.version_no:
         raise Conflict(
             f"{item.key} was changed by someone else (now version {item.version_label})",
@@ -295,6 +307,7 @@ def revise_item(
     change_note: str | None = None,
 ) -> Item:
     """Start a new revision (A -> B) of a released item. Change-controlled types need a change order."""
+    lock_item(db, item)
     t = item_type(project, item.type_key)
     wf = project.model.workflow(t.workflow)
     current = state_def(project, item)
@@ -430,6 +443,7 @@ def add_attachment(
     db: Session, project: Project, actor: User | None, item: Item, *, filename: str, content_type: str,
     stream: BinaryIO,
 ) -> dict[str, Any]:
+    lock_item(db, item)
     ensure_editable(project, item)
     filename = (filename or "file").replace("/", "_").replace("\\", "_")[:255]
     sha, size = storage.store(stream)
@@ -465,6 +479,7 @@ def revise_attachment(
     check-out is released. A file checked out by someone else cannot be replaced."""
     from almlight.modules.files import service as files
 
+    lock_item(db, item)
     ensure_editable(project, item)
     old = files.attachment(item, attachment_id)
     own = files.ensure_not_locked_by_other(db, item, attachment_id, actor)
@@ -522,6 +537,7 @@ def attachment_history(db: Session, item: Item, attachment_id: str) -> list[dict
 def remove_attachment(db: Session, project: Project, actor: User | None, item: Item, attachment_id: str) -> None:
     from almlight.modules.files import service as files
 
+    lock_item(db, item)
     ensure_editable(project, item)
     remaining = [a for a in item.attachments if a["id"] != attachment_id]
     if len(remaining) == len(item.attachments):

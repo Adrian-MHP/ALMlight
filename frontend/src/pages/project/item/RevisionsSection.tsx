@@ -8,7 +8,7 @@ import { pk, useProjectMutation } from "@/api/hooks";
 import type { ItemDetail, ItemRevisions } from "@/api/types";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { tx } from "@/lib/i18n";
-import { ProviderIcon } from "../CodePage";
+import { ProviderIcon } from "@/components/ProviderIcon";
 import { useProjectCtx } from "../ProjectLayout";
 
 /** Polarion "linked revisions": commits of the connected repositories that belong to this item, its branches and

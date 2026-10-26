@@ -16,7 +16,7 @@ from almlight.core.config import get_settings
 
 ROOT = pathlib.Path(i18n.__file__).resolve().parents[2]
 DE = {"Accept-Language": "de-DE,de;q=0.9,en;q=0.8"}
-EXC = {"ValidationFailed", "Conflict", "Forbidden", "NotFound", "Locked", "Unauthorized", "DomainError"}
+EXC = {"ValidationFailed", "Conflict", "Forbidden", "NotFound", "Locked", "Unauthorized", "DomainError", "TooManyRequests"}
 
 
 def _template(node):

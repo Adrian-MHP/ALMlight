@@ -11,9 +11,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, ApiError, downloadUrl } from "@/api/client";
 import { pk, useProjectMutation } from "@/api/hooks";
-import type { ConnectorResult, ConnectorInfo, Repo, SysmlSettings } from "@/api/types";
+import type { ConnectorResult, ConnectorInfo, SysmlSettings } from "@/api/types";
 import { ItemPicker } from "@/components/ItemPicker";
 import { PageHeader } from "@/components/PageHeader";
+import { RepoList } from "@/components/RepoList";
 import { locale, tm, tx } from "@/lib/i18n";
 import { useProjectCtx } from "./ProjectLayout";
 
@@ -23,7 +24,6 @@ type Wizard = { system: "ea" | "medini" | "sysml"; kind?: "hara" | "fmea"; title
 export function ConnectorsPage() {
   const { key, can } = useProjectCtx();
   const catalogue = useQuery<ConnectorInfo[]>({ queryKey: ["connectors"], queryFn: () => api.get("/connectors") }).data ?? [];
-  const repos = useQuery<Repo[]>({ queryKey: pk(key, "repos"), queryFn: () => api.get(`/projects/${key}/repositories`) }).data ?? [];
   const [wizard, setWizard] = useState<Wizard | null>(null);
   const [writeback, setWriteback] = useState(false);
   const info = (k: string) => catalogue.find((c) => c.key === k);
@@ -34,7 +34,7 @@ export function ConnectorsPage() {
       <SimpleGrid cols={{ base: 1, md: 2 }}>
         <ToolCard icon={<IconGitBranch size={22} />} name={tx("Git repositories")} vendor="GitHub · GitLab · Bitbucket · Azure Repos" info={info("git")}
           description={tx("Commits that mention an item key become linked revisions; browse code, diffs and branches.")}>
-          <Text size="sm">{repos.length ? tx("{n} repository(ies) connected: {names}", { n: repos.length, names: repos.map((r) => r.name).join(", ") }) : tx("No repository connected yet.")}</Text>
+          <RepoList projectKey={key} compact />
           <Button component={Link} to={`/p/${key}/code`} variant="light" size="xs" data-testid="conn-git">{tx("Open Code page")}</Button>
         </ToolCard>
         <ToolCard icon={<IconCube size={22} />} name="Enterprise Architect" vendor="Sparx Systems" info={info("ea")}

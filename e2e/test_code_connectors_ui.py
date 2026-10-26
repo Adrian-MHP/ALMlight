@@ -84,3 +84,30 @@ def test_connectors_ea_import_and_medini_hara(page: Page):
     expect(page.get_by_text(re.compile(r"Imported: 4 created"))).to_be_visible()
     hazards = page.request.get(f"{API}/items?type=hazard").json()["items"]
     assert len(hazards) == 3
+
+
+def test_repositories_are_listed_under_integrations_and_connectors(page: Page):
+    """The connected repository is visible where people look for it, with its state, and opens on the Code page."""
+    login(page, "max", DEMO_PW)
+    page.goto("/p/DEMO/settings?tab=integrations")
+    card = page.get_by_test_id("integration-repos")
+    expect(card).to_contain_text("Git repositories")
+    expect(card.get_by_test_id("repo-row-sensor-firmware")).to_contain_text("sensor-firmware")
+    expect(card.get_by_test_id("repo-state-sensor-firmware")).to_have_text("In sync")
+    shot(page, "73-integrations-repositories")
+    card.get_by_test_id("repo-row-sensor-firmware").get_by_role("link", name="sensor-firmware").click()
+    expect(page.get_by_test_id("repo-status")).to_contain_text("commits")
+    page.goto("/p/DEMO/connectors")
+    expect(page.get_by_test_id("tool-git").get_by_test_id("repo-row-sensor-firmware")).to_be_visible()
+
+
+def test_too_many_failed_sign_ins_are_blocked_with_a_message(page: Page):
+    for _ in range(10):  # the limit per user name; a name nobody uses keeps the other tests unaffected
+        r = page.request.post("/api/v1/auth/login", data={"username": "nobody", "password": "wrong-guess"})
+        assert r.status == 401
+    page.goto("/login")
+    page.get_by_test_id("login-username").fill("nobody")
+    page.get_by_test_id("login-password").fill("wrong-guess")
+    page.get_by_test_id("login-submit").click()
+    expect(page.get_by_text("Too many failed sign-in attempts")).to_be_visible()
+    assert page.request.post("/api/v1/auth/login", data={"username": "nobody", "password": "x"}).status == 429

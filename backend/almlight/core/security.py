@@ -29,6 +29,18 @@ def verify_password(password_hash: str, password: str) -> bool:
         return False
 
 
+_dummy_hash: str | None = None
+
+
+def burn_password_check(password: str) -> None:
+    """Spend the time of a real password check (for unknown or inactive users), so that the response time does
+    not reveal which user names exist."""
+    global _dummy_hash
+    if _dummy_hash is None:
+        _dummy_hash = _hasher.hash("almlight-dummy-password")
+    verify_password(_dummy_hash, password)
+
+
 def create_session_token(user_id: str) -> str:
     settings = get_settings()
     now = datetime.now(UTC)

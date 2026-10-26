@@ -52,9 +52,11 @@ def app():
 @pytest.fixture(autouse=True)
 def clean_db(app) -> Iterator[None]:
     from almlight.core.db import get_engine, session_factory
+    from almlight.core.ratelimit import login_failures
     from almlight.models import Base
     from almlight.modules.identity.service import ensure_bootstrap_admin
 
+    login_failures.reset()  # failed sign-ins of one test must not block the next
     tables = ", ".join(t.name for t in Base.metadata.sorted_tables)
     with get_engine().begin() as conn:
         conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))

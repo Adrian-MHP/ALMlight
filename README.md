@@ -147,7 +147,10 @@ API documentation: <http://localhost:48080/api/v1/docs>
 | [Work management](docs/15-work-management.md) | Query builder and language, bulk edit, boards, plans, timeline, workflow viewer |
 | [Feature catalogue](docs/13-feature-catalogue.md) | Ariadne compared with Polarion/Teamcenter capability areas |
 | [Beta test report](docs/14-beta-test-report.md) | Method, findings and fixes, permission matrix, load test |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0027 |
+| [Languages](docs/16-languages.md) | German and English interface, translated models, server texts |
+| [Code and connectors](docs/17-code-and-connectors.md) | Git repositories, linked revisions, Enterprise Architect, medini analyze, SysML v2 |
+| [Azure Container Apps](docs/18-azure-container-apps.md) | Running Ariadne in an Azure resource group with company sign-in |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0032 |
 
 ## Technology
 
@@ -164,15 +167,15 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 183 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 190 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 50 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 52 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.8: Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
+Version 0.8 (0.8.1 hardens sign-in and runs on Azure Container Apps, [guide](docs/18-azure-container-apps.md)): Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
 analyze and SysML v2 servers ([guide](docs/17-code-and-connectors.md), sample files in `samples/`) — on top of 0.7
 (boolean queries, dependency types and auto-scheduling, time recording, resources and levelling, German user
 interface), 0.6 (query builder and

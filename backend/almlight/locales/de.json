@@ -363,7 +363,13 @@
   "{} {}: {} -> {} via {}": "{1} {2}: {3} -> {4} über {5}",
   "{}: ASIL in the file is {}, S{}/E{}/C{} gives {} (ISO 26262-3) — the computed value is used": "{1}: ASIL in der Datei ist {2}, S{3}/E{4}/C{5} ergibt {6} (ISO 26262-3) — der berechnete Wert wird verwendet",
   "{}: previously imported item was deleted": "{1}: zuvor importiertes Objekt wurde gelöscht",
-  "{}: the item it was imported into has been deleted — skipped": "{1}: das Objekt, in das importiert wurde, ist gelöscht — übersprungen"
+  "{}: the item it was imported into has been deleted — skipped": "{1}: das Objekt, in das importiert wurde, ist gelöscht — übersprungen",
+  "Too many failed sign-in attempts. Try again in {} minute(s).": "Zu viele fehlgeschlagene Anmeldeversuche. Bitte in {1} Minute(n) erneut versuchen.",
+  "Failed sign-in for {}": "Fehlgeschlagene Anmeldung für {1}",
+  "Sign-in for {} blocked after repeated failures": "Anmeldung für {1} nach wiederholten Fehlversuchen gesperrt",
+  "The data was changed at the same time by someone else — reload and try again": "Die Daten wurden gleichzeitig von jemand anderem geändert — bitte neu laden und erneut versuchen",
+  "Internal server error": "Interner Serverfehler",
+  "Item '{}' not found": "Objekt „{1}“ nicht gefunden"
  },
  "texts": {
   "Applies to: {expr}": "Gilt für: {expr}",

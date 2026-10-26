@@ -17,7 +17,7 @@ import httpx
 import jwt
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from almlight.core.config import get_settings
@@ -165,8 +165,9 @@ def provision(db: Session, claims: dict[str, Any]) -> User:
     username = username.split("@")[0] if "@" in username and s.oidc_username_claim == "email" else username
     if not username:
         raise Unauthorized("The ID token has no username")
-    username = username[:64]
-    user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
+    # Local user names are lower case; Entra ID may send the UPN in any case, which must not create a second account.
+    username = username.lower()[:64]
+    user = db.execute(select(User).where(func.lower(User.username) == username)).scalar_one_or_none()
     groups = claims.get("groups") or []
     is_admin = bool(s.oidc_admin_group and s.oidc_admin_group in groups)
     name = str(claims.get("name") or username)[:128]

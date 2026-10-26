@@ -36,7 +36,7 @@ export function DevelopmentTab({ item }: { item: ItemDetail }) {
       <RevisionsSection item={item} />
       <Text fw={600} mb={4}>{tx("Other references")}</Text>
       <Text size="sm" c="dimmed" mb="sm">
-        {tx("Commits, pull requests, builds, work items and CAD/PDM artefacts linked to")} {item.key}{tx(". Integrations add them automatically when a commit message, branch or work item mentions")} <span className="item-key">{item.key}</span>.
+        {tx("Artefacts of other systems linked to")} {item.key}{tx(": CAD and PDM models, builds, work items and anything with a URL. Pull requests and work items are added automatically when they mention")} <span className="item-key">{item.key}</span>{tx(". Commits of a connected repository belong above, under Linked revisions.")}
       </Text>
       {can("contributor") && (
         <Card withBorder padding="sm" mb="md" bg="var(--mantine-color-default-hover)">

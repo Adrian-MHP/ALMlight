@@ -372,7 +372,11 @@
   "Item '{}' not found": "Objekt „{1}“ nicht gefunden",
   "Every signed-in user now has the role {} in {}": "Alle angemeldeten Benutzer haben jetzt die Rolle {1} im Projekt {2}",
   "{} is open to members only": "{1} ist nur für Mitglieder zugänglich",
-  "The role for all users must be viewer, contributor or reviewer": "Die Rolle für alle Benutzer muss viewer, contributor oder reviewer sein"
+  "The role for all users must be viewer, contributor or reviewer": "Die Rolle für alle Benutzer muss viewer, contributor oder reviewer sein",
+  "The Git server did not accept the access: the access token is wrong, expired or lacks read access to this repository (a GitHub token needs 'Contents: read'; a password does not work).": "Der Git-Server hat den Zugriff abgelehnt: Das Zugriffstoken ist falsch, abgelaufen oder hat kein Leserecht auf dieses Repository (ein GitHub-Token braucht „Contents: read“; ein Passwort funktioniert nicht).",
+  "The Git server did not accept the access: the repository is private or does not exist — add an access token (not your password).": "Der Git-Server hat den Zugriff abgelehnt: Das Repository ist privat oder existiert nicht — fügen Sie ein Zugriffstoken hinzu (nicht Ihr Passwort).",
+  "The Git server does not know this repository, or the access token may not read it — check the URL.": "Der Git-Server kennt dieses Repository nicht, oder das Zugriffstoken darf es nicht lesen — prüfen Sie die URL.",
+  "The Git server cannot be reached from this installation: {}": "Der Git-Server ist von dieser Installation aus nicht erreichbar: {1}"
  },
  "texts": {
   "Applies to: {expr}": "Gilt für: {expr}",

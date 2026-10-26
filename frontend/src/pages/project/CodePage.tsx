@@ -17,6 +17,7 @@ import { ItemPicker } from "@/components/ItemPicker";
 import { ProviderIcon } from "@/components/ProviderIcon";
 import { PageHeader } from "@/components/PageHeader";
 import { fmtDateTime, fmtRelative } from "@/lib/format";
+import { NO_FILL } from "@/lib/forms";
 import { tx } from "@/lib/i18n";
 import { useProjectCtx } from "./ProjectLayout";
 
@@ -360,11 +361,12 @@ function ConnectRepo({ onClose, onDone }: { onClose: () => void; onDone: (id: st
     <Modal opened onClose={onClose} title={tx("Connect a Git repository")} size="lg">
       <Stack data-testid="repo-connect-modal">
         <TextInput label={tx("Clone URL")} placeholder="https://github.com/owner/repository.git" value={url} onChange={(e) => setUrl(e.currentTarget.value)} required data-testid="repo-url"
-          description={tx("HTTPS URL of GitHub, GitLab, Bitbucket, Azure Repos or any Git server")} />
-        <TextInput label={tx("Name")} placeholder={guess} value={name} onChange={(e) => setName(e.currentTarget.value)} data-testid="repo-name" />
-        <PasswordInput label={tx("Access token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} data-testid="repo-token"
-          description={tx("Needed for private repositories (read) and for creating branches (write). Stored encrypted; it is never shown again.")} />
-        <TextInput label={tx("User name for the token (Bitbucket only)")} value={user} onChange={(e) => setUser(e.currentTarget.value)} />
+          description={tx("HTTPS URL of GitHub, GitLab, Bitbucket, Azure Repos or any Git server")} {...NO_FILL} />
+        <TextInput label={tx("Name")} placeholder={guess} value={name} onChange={(e) => setName(e.currentTarget.value)} data-testid="repo-name"
+          description={tx("Shown in Ariadne; the repository name is used when you leave it empty.")} {...NO_FILL} />
+        <PasswordInput label={tx("Access token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} data-testid="repo-token" {...NO_FILL} autoComplete="new-password"
+          description={tx("Only for private repositories (read) and for creating branches (write) — an access token of the Git server, never a password or your Ariadne login. Public repositories need none. Stored encrypted; it is never shown again.")} />
+        <TextInput label={tx("User name for the token (Bitbucket only)")} value={user} onChange={(e) => setUser(e.currentTarget.value)} {...NO_FILL} />
         <Text size="xs" c="dimmed">{tx("The server keeps a read-only mirror and fetches it every few minutes; a push webhook (Settings → Integrations) makes it fetch immediately.")}</Text>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>{tx("Cancel")}</Button>
@@ -392,7 +394,7 @@ function RepoSettings({ repo, onClose }: { repo: Repo; onClose: () => void }) {
       <Stack>
         <TextInput label={tx("Name")} value={name} onChange={(e) => setName(e.currentTarget.value)} />
         <Text size="xs">{tx("Clone URL")}: <Code>{repo.url}</Code></Text>
-        <PasswordInput label={repo.has_token ? tx("Replace the access token") : tx("Access token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} />
+        <PasswordInput label={repo.has_token ? tx("Replace the access token") : tx("Access token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} {...NO_FILL} autoComplete="new-password" />
         {repo.has_token && <Button size="xs" variant="subtle" color="red" onClick={() => save.mutate({ clear_token: true })}>{tx("Remove the stored token")}</Button>}
         <Switch label={tx("Fetch automatically")} checked={enabled} onChange={(e) => setEnabled(e.currentTarget.checked)} />
         <Group justify="space-between">

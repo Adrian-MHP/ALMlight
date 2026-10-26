@@ -59,6 +59,9 @@ def test_connect_sync_and_linked_revisions(team, project, db):
                      ("/etc", "must be below"), ("--upload-pack=x", "clone URL")]:
         err = m.post(f"{p}/repositories", {"name": "x", "url": bad}, expect=422)
         assert msg in err["error"]["message"], (bad, err)
+    # an unreachable or refused repository says what to do, instead of echoing the Git output
+    err = m.post(f"{p}/repositories", {"name": "x", "url": "https://127.0.0.1:9/nope.git"}, expect=422)
+    assert "cannot be reached" in err["error"]["message"] or "Cannot reach" in err["error"]["message"], err
     repo = m.post(f"{p}/repositories", {"name": "fw", "url": str(path), "token": "secret-token-123"}, expect=201)
     assert repo["sync"]["ok"] and repo["sync"]["new_commits"] == 5 and repo["sync"]["linked"] == 3
     assert repo["has_token"] and "token" not in repo and repo["default_branch"] == "main"
@@ -212,6 +215,18 @@ def test_github_pull_requests_and_push_webhook(team, project, db, monkeypatch):
     # a push webhook asks for an immediate sync of the matching repository
     repo.next_sync_at = None
     assert service.request_sync(db, proj, "https://github.com/acme/fw") == 1 and repo.next_sync_at is not None
+
+
+def test_unreachable_messages_tell_the_person_what_to_do():
+    from almlight.modules.vcs.service import _unreachable
+
+    prompt = "fatal: could not read Username for 'https://github.com': terminal prompts disabled"
+    assert "private or does not exist" in _unreachable(prompt, with_token=False)
+    assert "wrong, expired" in _unreachable(prompt, with_token=True)
+    assert "wrong, expired" in _unreachable("remote: Invalid username or password. fatal: Authentication failed", True)
+    assert "does not know this repository" in _unreachable("remote: Repository not found.", False)
+    assert "cannot be reached" in _unreachable("fatal: unable to access: Could not resolve host: nope", False)
+    assert _unreachable("something else entirely", False).startswith("Cannot reach the repository:")
 
 
 def test_concurrent_syncs_index_each_commit_once(team, project):

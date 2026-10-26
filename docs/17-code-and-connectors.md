@@ -29,8 +29,13 @@ indexes only what is still new).
 **Linked revisions** (Polarion): a commit whose message mentions an item key — `SYS-12: add range check`,
 `Fix drift, closes PR-3` — is linked to that item. The item's *Development* tab lists its linked revisions (commit,
 title, repository, author, date, link to the provider), the **branches** whose names contain its key and, for GitHub,
-the **pull requests** mentioning it. A commit can also be linked by hand (enter its hash); manual links can be
-removed, links from the message stay. *Create branch* proposes `feature/<KEY>-<title>` and creates it in the remote
+the **pull requests** mentioning it. A commit can also be linked **by picking it**: the *Revision to link* list
+searches the repository's indexed commits by message, author or hash (the server searches, the list shows the short
+hash, the subject, the author, the age and the items the commit is already linked to); *Branch or tag* narrows it to
+one branch or release, so the newest entry is the tagged commit — the way to point a requirement at a concrete
+software version. Commits already linked to this item are shown but cannot be picked twice. Manual links can be
+removed, links from the message stay. Artefacts of other systems (CAD, PDM, builds, work items) stay in *Other
+references* as before. *Create branch* proposes `feature/<KEY>-<title>` and creates it in the remote
 repository (needs a write token; otherwise the `git checkout -b …` command is offered to copy).
 
 **Code page** (repository browser):

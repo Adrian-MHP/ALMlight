@@ -245,7 +245,7 @@ trip, write-back, hostile model files, medini HARA and FMEA, SysML v2, preview d
 tests (new: Code page with commit, diff and linked items, linked revisions and branch of an item, EA import wizard,
 medini HARA import).
 
-## 14.8 Round 6 — hardening for the first public deployment (0.8.1, 0.8.2)
+## 14.8 Round 6 — hardening for the first public deployment (0.8.1 … 0.8.3)
 
 **Method**: review of the sign-in, session, WebSocket, upload and concurrency paths before the application was put
 on an internet-facing address (Azure Container Apps, [18](18-azure-container-apps.md)); every fix with a backend test;
@@ -264,17 +264,19 @@ saves of one item); the 81 hostile-input checks of round 5 repeated; the browser
 | 8 | The demo dataset on a reachable server would have created users with the published password `demo1234`, and no colleague could open the example project without being added one by one | security / usability | `ALMLIGHT_DEMO_SIGN_IN=false` gives the demo users random passwords (their approvals are signed with it during the load); a project can carry an **open role** that every signed-in user holds (`ALMLIGHT_DEMO_OPEN_ROLE`, or *Settings → Members → Everyone who signs in*) |
 | 9 | The demo firmware repository lives below the data directory; after a container restart it would report a fetch error | bug | Written again at start with the same commit hashes (dates are anchored at the first load) |
 | 10 | Found by the test of finding 9: the fetch lock reloaded the repository object and discarded changes not yet written | bug | Changes are written before the reload |
+| 11 | Connecting a repository: the browser offered the saved Ariadne login for *Name* + *Access token*, and the wrong token made GitHub refuse a **public** repository ("could not read Username…") | bug | Fields that hold a foreign credential refuse autofill (`autocomplete`, password-manager attributes), the token field says it is a token of the Git server and that public repositories need none, and a refused or unreachable repository now gets a message that says what to do instead of the raw Git output |
+| 12 | A revision was linked by typing a commit hash, so people copied links out of the Git provider into *Other references* | usability | The *Revision to link* list picks commits of the repository (server-side search over message, author and hash, with author and age in the list), *Branch or tag* narrows it to one release, and commits already linked cannot be picked twice |
 
 **Live checks**: after ten wrong guesses the eleventh attempt is refused whatever `X-Forwarded-For` says (the per-user
 limit does not depend on the address); another user can sign in; five failures followed by the right password sign
 in; 16 parallel saves in eight rounds ended with exactly one 200 and one 409 each, never a 5xx. Without the row lock the
 test of finding 5 fails with the unique-constraint error of the old code.
 
-**Automated tests at the end of round 6**: 195 backend tests (new: sign-in limit and audit, address limit and reset, the
+**Automated tests at the end of round 6**: 196 backend tests (new: sign-in limit and audit, address limit and reset, the
 current-password limit, the window and its memory bound, single-sign-on user names, the concurrent save, conflict and
-fault answers, open projects for every role and path, the demo for a reachable server, the repository written again),
-53 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message, a manager opening
-a project to everyone).
+fault answers, open projects for every role and path, the demo for a reachable server, the repository written again, the
+messages for a refused or unreachable repository), 53 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message, a manager opening
+a project to everyone, picking a revision from the repository and from one release).
 
 ## 14.9 Known limitations
 

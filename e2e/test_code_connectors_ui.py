@@ -5,7 +5,7 @@ import re
 
 from playwright.sync_api import Page, expect
 
-from conftest import login, shot
+from conftest import choose, login, shot
 
 DEMO_PW = "demo1234"
 API = "/api/v1/projects/DEMO"
@@ -45,13 +45,34 @@ def test_code_page_linked_revisions_and_branch(page: Page):
     page.get_by_test_id("revision-create-branch").click()
     expect(page.get_by_test_id("revision-branch").first).to_contain_text(f"feature/{range_key}")
     shot(page, "71-linked-revisions")
-    # link an unrelated commit by hand, then remove it again
+    # pick a commit from the repository (no hash typing): search, choose, link, remove again
     readme = page.request.get(f"{API}/repositories/{repo['id']}/commits?q=README").json()["commits"][0]
-    page.get_by_test_id("revision-sha").fill(readme["short"])
+    picker = page.get_by_test_id("revision-commit")
+    picker.click()
+    picker.fill("README")
+    option = page.get_by_role("option").filter(has_text=readme["short"]).first
+    expect(option).to_contain_text("Update README")
+    expect(option).to_contain_text("Max Manager")  # the option shows author and age, not just the hash
+    option.click()
     page.get_by_test_id("revision-link").click()
     expect(revs).to_contain_text("Update README")
+    # a commit that is linked already cannot be picked twice
+    picker.click()
+    picker.fill("README")
+    expect(page.get_by_role("option").filter(has_text=readme["short"]).first).to_contain_text("already linked")
+    page.keyboard.press("Escape")
     revs.get_by_test_id(f"revision-{readme['short']}").get_by_test_id("revision-unlink").click()
     expect(revs).not_to_contain_text("Update README")
+    # the branch/tag filter narrows the list to one release: its newest commit is the tagged one
+    choose(page, "revision-ref", "v0.9.0")
+    tagged = page.request.get(f"{API}/repositories/{repo['id']}/commits?ref=v0.9.0&limit=1").json()["commits"][0]
+    picker.click()
+    expect(page.get_by_role("option").first).to_contain_text(tagged["short"])
+    page.get_by_role("option").first.click()
+    page.get_by_test_id("revision-link").click()
+    expect(revs).to_contain_text(tagged["title"])
+    shot(page, "75-commit-picker")
+    revs.get_by_test_id(f"revision-{tagged['short']}").get_by_test_id("revision-unlink").click()
     # the query finds items with linked commits
     keys = {i["key"] for i in page.request.get(f"{API}/items?ql=commits:true&limit=100").json()["items"]}
     assert range_key in keys

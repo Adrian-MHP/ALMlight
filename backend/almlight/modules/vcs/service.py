@@ -111,6 +111,21 @@ def get_repo(db: Session, project: Project, repo_id: uuid.UUID | str) -> Reposit
     return repo
 
 
+def _unreachable(error: str, with_token: bool) -> str:
+    """Turn the Git output of a failed first contact into something the person can act on."""
+    low = error.lower()
+    if "could not read username" in low or "authentication failed" in low or "invalid username or password" in low:
+        return ("The Git server did not accept the access: " + (
+            "the access token is wrong, expired or lacks read access to this repository (a GitHub token needs "
+            "'Contents: read'; a password does not work)." if with_token else
+            "the repository is private or does not exist — add an access token (not your password)."))
+    if "repository not found" in low or "not found" in low or "403" in low:
+        return "The Git server does not know this repository, or the access token may not read it — check the URL."
+    if "timed out" in low or "could not resolve host" in low or "failed to connect" in low:
+        return f"The Git server cannot be reached from this installation: {error}"
+    return f"Cannot reach the repository: {error}"
+
+
 def add_repository(db: Session, project: Project, actor: User, *, name: str, url: str, token: str | None = None,
                    auth_user: str | None = None, web_url: str | None = None) -> Repository:
     name = (name or "").strip()
@@ -123,7 +138,7 @@ def add_repository(db: Session, project: Project, actor: User, *, name: str, url
     try:
         git.ls_remote(clean, git.Auth(token=token, user=auth_user) if token else None, local)
     except git.GitError as exc:
-        raise ValidationFailed(f"Cannot reach the repository: {exc}") from None
+        raise ValidationFailed(_unreachable(str(exc), bool(token))) from None
     repo = Repository(project_id=project.id, name=name, url=clean, provider=provider,
                       web_url=(web_url or "").strip().rstrip("/") or web, auth_user=(auth_user or "").strip() or None,
                       token_enc=secretbox.seal(token) if token else None, created_by=actor.id, next_sync_at=utcnow())

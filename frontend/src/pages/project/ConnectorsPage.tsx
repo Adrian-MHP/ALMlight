@@ -15,6 +15,7 @@ import type { ConnectorResult, ConnectorInfo, SysmlSettings } from "@/api/types"
 import { ItemPicker } from "@/components/ItemPicker";
 import { PageHeader } from "@/components/PageHeader";
 import { RepoList } from "@/components/RepoList";
+import { NO_FILL } from "@/lib/forms";
 import { locale, tm, tx } from "@/lib/i18n";
 import { useProjectCtx } from "./ProjectLayout";
 
@@ -112,8 +113,8 @@ function SysmlCard({ onImport }: { onImport: () => void }) {
       {can("manager") && (
         <Stack gap="xs">
           <Group align="flex-end" gap="xs" wrap="wrap">
-            <TextInput size="xs" label={tx("Server URL")} value={url} onChange={(e) => setBase(e.currentTarget.value)} style={{ flex: 1, minWidth: 220 }} data-testid="sysml-url" />
-            <PasswordInput size="xs" label={tx("Token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} w={160} />
+            <TextInput size="xs" label={tx("Server URL")} value={url} onChange={(e) => setBase(e.currentTarget.value)} style={{ flex: 1, minWidth: 220 }} data-testid="sysml-url" {...NO_FILL} />
+            <PasswordInput size="xs" label={tx("Token (optional)")} value={token} onChange={(e) => setToken(e.currentTarget.value)} w={160} {...NO_FILL} autoComplete="new-password" />
             <Button size="xs" variant="default" onClick={() => save.mutate({})} loading={save.isPending} data-testid="sysml-connect">{tx("Connect")}</Button>
           </Group>
           {projects && (

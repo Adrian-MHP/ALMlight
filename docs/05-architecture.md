@@ -36,6 +36,13 @@ single-page frontend; a PostgreSQL container stores all data. Files live in a co
 Start-up: wait for the database → `alembic upgrade head` → bootstrap the first administrator → (optional demo data)
 → start the outbox worker and the Git sync worker.
 
+**Deployment topologies.** The same image runs either with Docker Compose on a machine of your own (PostgreSQL as a
+second container, `/data` as a volume, TLS from a reverse proxy) or as a single managed container with a managed
+database and a mounted attachment directory — on Azure Container Apps with Entra ID sign-on, pinned to one replica
+([ADR-0033](adr/0033-managed-hosting-on-container-apps.md), [18](18-azure-container-apps.md), and the deployment
+architecture section of the README). Only `/data/files` has to be durable; Git mirrors, the connector cache and
+temporary uploads are rebuilt.
+
 ## 5.3 Building blocks (modular monolith)
 
 ```
@@ -93,6 +100,7 @@ See the [ADRs](adr/). In short:
 | Change | CMII-light, release via change order ([ADR-0007](adr/0007-cmii-light-change.md)) |
 | Variants | Features as items + applicability expressions ([ADR-0008](adr/0008-variants-150-model.md)) |
 | Delivery | One image, SPA served by the API, Docker-only toolchain ([ADR-0009](adr/0009-single-image-delivery.md)) |
+| Hosting | Compose on your own machine, or one managed container (one replica) with managed PostgreSQL ([ADR-0033](adr/0033-managed-hosting-on-container-apps.md)) |
 | Security | Local users, cookie sessions, API tokens, OIDC single sign-on ([ADR-0010](adr/0010-authentication.md), [ADR-0024](adr/0024-single-sign-on-oidc.md)) |
 | Branching | Change-scoped revisions now; document branches later ([ADR-0011](adr/0011-branching-strategy.md)) |
 | Integration | Webhooks in/out, external refs, outbox ([ADR-0012](adr/0012-integration-strategy.md)) |

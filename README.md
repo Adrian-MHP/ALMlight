@@ -128,6 +128,91 @@ smart-sensor product platform.
 
 API documentation: <http://localhost:48080/api/v1/docs>
 
+## Deployment architecture
+
+Ariadne ships as **one image**: the Dockerfile builds the React bundle with Node and copies it into the Python
+image, so a single container serves the REST API, the OpenAPI documentation, the WebSocket endpoints and the
+single-page frontend. It runs as a non-root user (uid 10001) and listens on port 8000. Only two things live
+outside it: **PostgreSQL** and a **directory for attachments**. Everything below follows from that.
+
+### On your own infrastructure
+
+`docker compose up -d` starts the app container plus PostgreSQL 16 and keeps `/data` in a named volume. For
+production put a reverse proxy with TLS in front (Traefik, nginx, Caddy, IIS/ARR); it has to forward the WebSocket
+upgrade and the original host — see [operations](docs/08-operations.md) §8.8.
+
+### On Azure (Container Apps)
+
+The managed alternative, used for the first shared installation. Step-by-step commands:
+[Azure Container Apps](docs/18-azure-container-apps.md).
+
+```
+                         Entra ID (OpenID Connect, assignment required)
+                              ▲ code flow with PKCE, ID token via JWKS
+                              │
+Browser ──https (443)──▶ Container Apps ingress ──http (8000)──▶ ariadne container  ◀── image: Container Registry
+  REST · WebSockets        TLS terminated here,                  1 replica (min=max=1)        (built from this repo)
+                           X-Forwarded-* added                   0.5 vCPU / 1 GiB
+                                                                     │        │
+                                        SQLAlchemy (psycopg 3)       │        │  SMB mount
+                                        sslmode=require              ▼        ▼
+                                              ┌──────────────────────────┐  ┌──────────────────────┐
+                                              │ PostgreSQL Flexible      │  │ Azure Files share    │
+                                              │ Server (B1ms, "almlight")│  │ mounted /data/files  │
+                                              └──────────────────────────┘  └──────────────────────┘
+                 outbound: Git over HTTPS · GitHub API · SysML v2 server · SMTP · signed webhooks
+                 logs: Log Analytics workspace of the Container Apps environment
+```
+
+**Resources and why each one is there**
+
+| Resource | SKU in the first installation | Role |
+|---|---|---|
+| Container Apps environment + app | Consumption, 0.5 vCPU / 1 GiB, 1 replica | Runs the image, terminates TLS, gives the `https://<app>.<env>.<region>.azurecontainerapps.io` name |
+| PostgreSQL Flexible Server | Burstable B1ms, 32 GB | All data: items, versions, links, audit trail, commit index, co-editing drafts |
+| Storage account + file share | Standard_LRS, 20 GB | Attachments and file revisions, mounted at `/data/files` |
+| Container Registry | Basic | The image; `az acr build` builds it in Azure from the public repository (no local Docker, no ARM/x86 problem) |
+| Entra ID app registration | — | Single sign-on; *Assignment required* decides who may sign in |
+| Log Analytics workspace | created with the environment | Container logs (`az containerapp logs show`) |
+
+**The request path.** The ingress terminates TLS with its own certificate and forwards to port 8000. Uvicorn runs
+with `--proxy-headers`, so the application reads scheme and host from `X-Forwarded-*`: session cookies are marked
+`Secure` (`ALMLIGHT_COOKIE_SECURE=true`), the single-sign-on redirect uses `ALMLIGHT_PUBLIC_URL`, and the
+Content-Security-Policy names the public host for the two WebSocket endpoints (`/api/v1/live` for change events and
+presence, `/api/v1/collab/items/{id}` for co-editing). Container Apps passes WebSockets through; the browser pings
+every 25 s to keep idle connections open. Cross-site WebSocket connections are refused by comparing the `Origin`
+header with the forwarded host.
+
+**Why exactly one replica.** Live co-editing rooms, presence and the two background workers (outbound webhooks and
+e-mail digests, Git fetch every `ALMLIGHT_GIT_SYNC_MINUTES`) all run inside the application process. A second
+replica would hold a second set of editing rooms, and scaling to zero would stop the workers. The app is
+otherwise stateless — sessions are signed JWTs in a cookie, not a server-side store, so a restart does not sign
+anyone out as long as `ALMLIGHT_SECRET_KEY` stays the same.
+
+**What lives where**
+
+| Place | Content | After a restart |
+|---|---|---|
+| PostgreSQL | Items, versions, links, baselines, audit trail, indexed commits, unsaved co-editing drafts | Kept; `alembic upgrade head` runs at every start, and interrupted editing sessions are saved as versions |
+| `/data/files` (Azure Files) | Attachments and file revisions, content-addressed as `files/ab/cd/<sha256>` | Kept — this is the one directory that must be mounted |
+| `/data/vcs` | Bare Git mirrors of connected repositories | Fetched again (the commit index in the database stays) |
+| `/data/repos-local` | The demo firmware repository | Written again at start with identical commit hashes |
+| `/data/connector-cache`, `/data/tmp` | SysML model cache (1 h), uploaded EA models while parsing | Rebuilt on demand |
+| `/data/secret_key` | Generated session key when `ALMLIGHT_SECRET_KEY` is unset | **Set the variable instead** — the key also encrypts stored Git and SysML tokens |
+| Process memory | Editing rooms, presence, failed-sign-in counters | Lost by design |
+
+**Identity and secrets.** Colleagues sign in with their company account through Entra ID (OIDC code flow with
+PKCE, ID token verified against the issuer's JWKS); local accounts keep working, with sign-in attempts limited per
+user name and client address. The database URL, session key, administrator password and the OIDC client secret are
+Container Apps secrets referenced as `secretref:`; nothing sensitive is in the image or this repository. Tokens for
+Git and SysML servers are entered in the application and stored encrypted with the session key.
+
+**Limits to plan around.** The ingress ends a request after about four minutes, so very large imports can fail
+there; attachments sit on an SMB share, not on Blob storage; the database firewall starts open to Azure services
+and should be narrowed before sensitive project data arrives; and electronic signatures still need a local account
+(they verify the user's own password). Rough cost of the setup above: 35–50 € per month — check the Azure price
+calculator.
+
 ## Documentation
 
 | | |
@@ -150,7 +235,7 @@ API documentation: <http://localhost:48080/api/v1/docs>
 | [Languages](docs/16-languages.md) | German and English interface, translated models, server texts |
 | [Code and connectors](docs/17-code-and-connectors.md) | Git repositories, linked revisions, Enterprise Architect, medini analyze, SysML v2 |
 | [Azure Container Apps](docs/18-azure-container-apps.md) | Running Ariadne in an Azure resource group with company sign-in |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0032 |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0033 |
 
 ## Technology
 

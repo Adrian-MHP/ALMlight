@@ -34,5 +34,6 @@
 | [0030](0030-internationalisation-with-english-source-keys.md) | Internationalisation: English source texts as keys, server-side translation of server texts | accepted |
 | [0031](0031-git-mirrors-and-linked-revisions.md) | Git: server-side mirrors, an indexed commit history and linked revisions | accepted |
 | [0032](0032-connector-framework.md) | Connectors share one neutral model and one import pipeline | accepted |
+| [0033](0033-managed-hosting-on-container-apps.md) | Shared installations run as a single managed container, not as a scaled-out service | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

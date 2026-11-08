@@ -121,6 +121,14 @@ export class Model {
     return Object.entries(groups).map(([group, items]) => ({ group, items }));
   }
 
+  /** The relationship types the model allows between two item types (for drawing on a diagram). */
+  allowedLinks(sourceType: string, targetType: string) {
+    const fits = (list: string[], key: string) => list.includes("*") || list.includes(key);
+    return this.config.link_types
+      .filter((lt) => fits(lt.sources, sourceType) && fits(lt.targets, targetType))
+      .map((lt) => ({ value: lt.key, label: lt.label }));
+  }
+
   /** Link types usable from (or to) an item of the given type, with direction. */
   linkOptions(typeKey: string) {
     const out: { value: string; label: string; linkType: string; direction: "outgoing" | "incoming"; otherTypes: string[] }[] = [];

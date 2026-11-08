@@ -7,7 +7,7 @@ import { useDisclosure, useLocalStorage } from "@mantine/hooks";
 import {
   IconActivity, IconAlertTriangle, IconApi, IconBell, IconCalendarStats, IconLayoutKanban, IconTimeline, IconClock, IconGitBranch, IconPlugConnected, IconBinaryTree, IconChartBar, IconChevronDown, IconFileText, IconFolders,
   IconGitCompare, IconGridDots, IconHome, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconListDetails,
-  IconLogout, IconLanguage, IconCheck, IconMoon, IconRoute, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
+  IconLogout, IconLanguage, IconCheck, IconMoon, IconRoute, IconSchema, IconSearch, IconSettings, IconShieldCheck, IconSitemap, IconSun, IconTestPipe,
   IconTopologyStar3, IconUser, IconUsers, type Icon,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,7 @@ export const PROJECT_NAV: NavGroup[] = [
     { to: "items", label: tx("Items"), icon: IconListDetails, hint: tx("Requirements, elements, tests — search and edit") },
     { to: "documents", label: tx("Documents"), icon: IconFileText, hint: tx("Live documents, co-editing, Word & ReqIF") },
     { to: "structure", label: tx("Structure"), icon: IconSitemap, hint: tx("Product and system structure") },
+    { to: "architecture", label: tx("Architecture"), icon: IconSchema, hint: tx("Diagrams of elements, functions, interfaces and their relationships") },
     { to: "traceability", label: tx("Traceability"), icon: IconRoute, hint: tx("Matrix, coverage and impact") },
     { to: "code", label: tx("Code"), icon: IconGitBranch, hint: tx("Git repositories: commits linked to items, diffs, files, branches") },
   ] },

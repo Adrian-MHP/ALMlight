@@ -51,6 +51,11 @@ ALMlight.)*
   changed through *Revise*.
 - **Traceability**: typed links with rules, suspect links when a linked item changes, impact analysis, a trace
   matrix and coverage from stakeholder needs to test results.
+- **Architecture diagrams**: views of the project's own model — put elements, functions and interfaces on a
+  canvas, draw relationships that *are* real links (with the model's rules), arrange them in layers, and export
+  the picture as SVG. An element lives in the model and may appear on many diagrams; taking it off one changes
+  nothing. Diagrams are items, so they have versions, approvals and baselines
+  ([guide](docs/20-architecture-diagrams.md)).
 - **Live documents**: specifications assembled from individually versioned items, with a release guard.
 - **Workflows and approvals**: configurable lifecycles, approvals by role with the four-eyes rule and electronic
   signatures, and an approval inbox.
@@ -241,7 +246,8 @@ calculator.
 | [Code and connectors](docs/17-code-and-connectors.md) | Git repositories, linked revisions, Enterprise Architect, medini analyze, SysML v2 |
 | [Azure Container Apps](docs/18-azure-container-apps.md) | Running Ariadne in an Azure resource group with company sign-in |
 | [AI assistant](docs/19-ai-assistant.md) | What the assistant can do, how changes are confirmed, permissions, configuration |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0034 |
+| [Architecture diagrams](docs/20-architecture-diagrams.md) | Modelling in Ariadne compared with EA, Cameo and ArchiMate; diagrams as views over the model |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0035 |
 
 ## Technology
 
@@ -258,16 +264,17 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 222 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 235 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 58 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 60 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.9: an **AI assistant** inside the project that answers from its data and proposes changes you confirm
-([guide](docs/19-ai-assistant.md)) — on top of 0.8 (sign-in protection, projects open to every signed-in user,
+Version 0.10: **architecture diagrams** — views of the project's own model, where a drawn relationship is a real
+link ([guide](docs/20-architecture-diagrams.md)) — on top of 0.9 (an **AI assistant** that answers from the
+project's data and proposes changes you confirm, [guide](docs/19-ai-assistant.md)) and 0.8 (sign-in protection, projects open to every signed-in user,
 revisions picked from the repository, running on Azure Container Apps — [guide](docs/18-azure-container-apps.md)):
 Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
 analyze and SysML v2 servers ([guide](docs/17-code-and-connectors.md), sample files in `samples/`) — on top of 0.7

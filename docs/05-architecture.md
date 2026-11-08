@@ -70,6 +70,7 @@ backend/almlight/
                    auto-scheduling, levelling); resource load
     worklog/       time records, timesheet, spent/remaining effort
     assistant/     AI assistant: conversation, tool calling over the normal services, confirmed changes
+    diagrams/      architecture diagrams: views over the model (nodes show items, edges are links), SVG
     vcs/           Git repositories: bare mirrors (git CLI), commit index, linked revisions, browsing, branches
     connectors/    connector framework (neutral model + import pipeline): Enterprise Architect, medini analyze,
                    SysML v2 API
@@ -103,6 +104,7 @@ See the [ADRs](adr/). In short:
 | Delivery | One image, SPA served by the API, Docker-only toolchain ([ADR-0009](adr/0009-single-image-delivery.md)) |
 | Hosting | Compose on your own machine, or one managed container (one replica) with managed PostgreSQL ([ADR-0033](adr/0033-managed-hosting-on-container-apps.md)) |
 | AI assistant | Tool calling over the existing services, changes only after confirmation ([ADR-0034](adr/0034-ai-assistant-tools-and-confirmation.md)) |
+| Architecture | Diagrams are views over the project's own model, edges are real links ([ADR-0035](adr/0035-diagrams-as-views-over-the-model.md)) |
 | Security | Local users, cookie sessions, API tokens, OIDC single sign-on ([ADR-0010](adr/0010-authentication.md), [ADR-0024](adr/0024-single-sign-on-oidc.md)) |
 | Branching | Change-scoped revisions now; document branches later ([ADR-0011](adr/0011-branching-strategy.md)) |
 | Integration | Webhooks in/out, external refs, outbox ([ADR-0012](adr/0012-integration-strategy.md)) |

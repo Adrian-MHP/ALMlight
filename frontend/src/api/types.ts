@@ -986,6 +986,31 @@ export interface ItemRevisions {
   branch_name: string;
 }
 
+// --- architecture diagrams ---
+export interface DiagramNode {
+  id: string; x: number; y: number; w: number; h: number;
+  kind?: "item" | "note"; text?: string;
+  item?: string; title?: string; type?: string; type_label?: string; category?: string;
+  state?: string | null; state_category?: string | null; version?: string; missing?: boolean;
+}
+export interface DiagramEdge {
+  id: string; from: string; to: string; link: string | null;
+  type: string | null; label: string | null; suspect: boolean;
+}
+export interface Diagram {
+  key: string; title: string; version: string; version_no: number; viewpoint: string; frozen: boolean;
+  nodes: DiagramNode[]; edges: DiagramEdge[];
+  stale: { missing_items: string[]; removed_links: string[] };
+}
+export interface DiagramSummary extends Item { viewpoint: string; nodes: number; edges: number }
+export interface DiagramPalette {
+  viewpoint: string;
+  suggested_types: { key: string; label: string; category: string }[];
+  suggested_links: { key: string; label: string; sources: string[]; targets: string[] }[];
+  all_types: { key: string; label: string; category: string }[];
+}
+export interface DiagramRelated { key: string; title: string; type_label: string; via: string }
+
 // --- AI assistant ---
 export interface AssistantThreadRef { id: string; title: string; updated_at: string; pending: number; model: string | null }
 export interface AssistantModel { id: string; label: string; provider: "azure" | "ollama"; local: boolean; note: string | null }

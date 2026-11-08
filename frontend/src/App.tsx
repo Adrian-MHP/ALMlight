@@ -17,6 +17,8 @@ import { DocumentsPage } from "./pages/project/DocumentsPage";
 import { DocumentView } from "./pages/project/DocumentView";
 import { CompareView } from "./pages/project/document/CompareView";
 import { StructurePage } from "./pages/project/StructurePage";
+import { ArchitecturePage } from "./pages/project/ArchitecturePage";
+import { DiagramEditor } from "./pages/project/DiagramEditor";
 import { TraceabilityPage } from "./pages/project/TraceabilityPage";
 import { ChangesPage } from "./pages/project/ChangesPage";
 import { VerificationPage } from "./pages/project/VerificationPage";
@@ -59,6 +61,8 @@ export const router = createBrowserRouter([
           { path: "documents/:specKey", element: <DocumentView /> },
           { path: "documents/:specKey/compare", element: <CompareView /> },
           { path: "structure", element: <StructurePage /> },
+          { path: "architecture", element: <ArchitecturePage /> },
+          { path: "architecture/:diagramKey", element: <DiagramEditor /> },
           { path: "traceability", element: <TraceabilityPage /> },
           { path: "changes", element: <ChangesPage /> },
           { path: "verification", element: <VerificationPage /> },

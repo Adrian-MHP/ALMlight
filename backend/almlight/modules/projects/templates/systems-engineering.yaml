@@ -14,7 +14,7 @@ label: Systems Engineering (generic)
 description: >
   Requirements from stakeholder to module level, RFLP architecture, verification,
   closed-loop change management, variants and maturity tracking.
-version: 5
+version: 6
 revision_scheme: letters
 
 item_types:
@@ -153,6 +153,30 @@ item_types:
     fields:
       - {key: interface_kind, label: Interface kind, type: enum, options: [mechanical, electrical, data, software, fluid, thermal]}
       - {key: standardized, label: Standardized, type: boolean, default: false}
+
+  - key: diagram
+    label: Architecture Diagram
+    prefix: DIA
+    category: architecture
+    workflow: element
+    description: >
+      A view of the architecture: elements, functions, interfaces and requirements of this project, placed on a
+      canvas. The elements stay items of the project — a diagram shows them, it does not own them, and a
+      relationship drawn here is a real link.
+    fields:
+      - key: viewpoint
+        label: Viewpoint
+        type: enum
+        options:
+          - {key: context, label: System context}
+          - {key: decomposition, label: Decomposition}
+          - {key: internal, label: Internal structure and interfaces}
+          - {key: allocation, label: Requirements allocation}
+          - {key: deployment, label: Physical/deployment}
+          - {key: free, label: Free}
+        default: free
+        help: What the diagram is for. It suggests the element and relationship types, it does not restrict them.
+      - {key: content, label: Diagram, type: diagram, help: "Nodes and edges with their places on the canvas"}
 
   - key: test_case
     label: Test Case
@@ -360,7 +384,7 @@ link_types:
     acyclic: true
     sources: [specification, heading, system_element, function, feature]
     targets: [heading, stakeholder_requirement, system_requirement, element_requirement, function, system_element,
-              interface, test_case, document, feature]
+              interface, test_case, document, feature, diagram]
     attributes:
       - {key: quantity, label: Quantity, type: number, min: 0}
       - {key: unit, label: Unit, type: enum, options: [pcs, set, m, kg, l]}

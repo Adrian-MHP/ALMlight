@@ -53,6 +53,8 @@ def _coerce(db: Session, f: FieldDef, value: Any) -> Any:
             return _bounded(f, float(value))
         except (TypeError, ValueError):
             raise ValueError("must be a number") from None
+    if t == "diagram":
+        return _diagram(value)
     if t == "steps":
         if not isinstance(value, list):
             raise ValueError("must be a list of steps")
@@ -140,6 +142,71 @@ def apply_computed(defs: list[FieldDef], values: dict[str, Any]) -> dict[str, An
             else:
                 out.pop(f.key, None)
     return out
+
+
+MAX_NODES = 300
+MAX_EDGES = 600
+MAX_NOTE = 1000
+_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+
+
+def _coord(value: Any, lo: float = -40_000, hi: float = 40_000) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError("has a coordinate that is not a number") from None
+    if number != number or number in (float("inf"), float("-inf")):  # noqa: PLR0124 — NaN check
+        raise ValueError("has a coordinate that is not a number")
+    return round(max(lo, min(hi, number)), 2)
+
+
+def _diagram(value: Any) -> dict[str, Any]:
+    """An architecture diagram: nodes that show items (or notes) and edges that show links.
+
+    Everything a browser sends is checked here, because this is stored and rendered again later.
+    """
+    if not isinstance(value, dict):
+        raise ValueError("must be a diagram")
+    nodes_in = value.get("nodes") or []
+    edges_in = value.get("edges") or []
+    if not isinstance(nodes_in, list) or not isinstance(edges_in, list):
+        raise ValueError("must have a list of nodes and a list of edges")
+    if len(nodes_in) > MAX_NODES:
+        raise ValueError(f"may show at most {MAX_NODES} elements")
+    if len(edges_in) > MAX_EDGES:
+        raise ValueError(f"may show at most {MAX_EDGES} relationships")
+    nodes, seen = [], set()
+    for n in nodes_in:
+        if not isinstance(n, dict) or not _ID.match(str(n.get("id") or "")):
+            raise ValueError("has a node without a usable id")
+        if n["id"] in seen:
+            raise ValueError(f"has the node '{n['id']}' twice")
+        seen.add(n["id"])
+        node = {"id": n["id"], "x": _coord(n.get("x", 0)), "y": _coord(n.get("y", 0)),
+                "w": _coord(n.get("w", 180), 60, 2000), "h": _coord(n.get("h", 72), 40, 2000)}
+        if n.get("kind") == "note":
+            node["kind"] = "note"
+            node["text"] = str(n.get("text") or "")[:MAX_NOTE]
+        else:
+            key = str(n.get("item") or "").strip().upper()
+            if not key:
+                raise ValueError(f"node '{n['id']}' shows no item")
+            node["item"] = key[:32]
+        nodes.append(node)
+    edges = []
+    for e in edges_in:
+        if not isinstance(e, dict) or not _ID.match(str(e.get("id") or "")):
+            raise ValueError("has an edge without a usable id")
+        if e.get("from") not in seen or e.get("to") not in seen:
+            raise ValueError(f"edge '{e['id']}' does not connect two of its nodes")
+        edge = {"id": e["id"], "from": e["from"], "to": e["to"]}
+        if e.get("link"):
+            try:
+                edge["link"] = str(uuid.UUID(str(e["link"])))
+            except ValueError:
+                raise ValueError(f"edge '{e['id']}' has no usable link") from None
+        edges.append(edge)
+    return {"nodes": nodes, "edges": edges}
 
 
 def _is_empty(value: Any) -> bool:

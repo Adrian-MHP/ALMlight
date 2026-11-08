@@ -21,7 +21,8 @@ Role = Literal["viewer", "contributor", "reviewer", "manager"]
 ROLE_RANK: dict[str, int] = {"viewer": 0, "contributor": 1, "reviewer": 2, "manager": 3}
 
 FieldType = Literal[
-    "string", "text", "integer", "number", "boolean", "date", "enum", "multienum", "tags", "user", "url", "steps"
+    "string", "text", "integer", "number", "boolean", "date", "enum", "multienum", "tags", "user", "url", "steps",
+    "diagram",
 ]
 ItemCategory = Literal["requirement", "architecture", "verification", "change", "document", "variability", "risk",
                        "planning", "other"]

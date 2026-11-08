@@ -36,5 +36,6 @@
 | [0032](0032-connector-framework.md) | Connectors share one neutral model and one import pipeline | accepted |
 | [0033](0033-managed-hosting-on-container-apps.md) | Shared installations run as a single managed container, not as a scaled-out service | accepted |
 | [0034](0034-ai-assistant-tools-and-confirmation.md) | The AI assistant reads through the normal services and may only propose changes | accepted |
+| [0035](0035-diagrams-as-views-over-the-model.md) | Architecture diagrams are views over the project's own model, not a second notation | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

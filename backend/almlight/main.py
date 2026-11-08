@@ -23,6 +23,7 @@ from almlight.modules.bom.router import router as bom_router
 from almlight.modules.branches.router import router as branches_router
 from almlight.modules.collab import router as collab
 from almlight.modules.connectors.router import router as connectors_router
+from almlight.modules.diagrams.router import router as diagrams_router
 from almlight.modules.doc_collections.router import router as collections_router
 from almlight.modules.doctemplates.router import router as doctemplates_router
 from almlight.modules.documents.router import router as documents_router
@@ -139,7 +140,7 @@ def create_app() -> FastAPI:
               reports_router, documents_router, collections_router, images_router, collab.router, live_router,
               risks_router, bom_router, planning_router, notifications_router, queries_router, files_router,
               doctemplates_router, boards_router, worklog_router, vcs_router,
-              connectors_router, assistant_router):
+              connectors_router, assistant_router, diagrams_router):
         app.include_router(r, prefix=API_PREFIX)
     collab.install()
 

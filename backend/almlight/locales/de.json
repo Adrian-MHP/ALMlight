@@ -398,7 +398,13 @@
   "Unknown tool '{}'": "Unbekanntes Werkzeug „{1}“",
   "Write a question for the assistant": "Schreiben Sie eine Frage an den Assistenten",
   "The language model '{}' is not available in this installation": "Das Sprachmodell „{1}“ ist in dieser Installation nicht verfügbar",
-  "{} is not a document — call documents without a key to see them": "{1} ist kein Dokument — rufen Sie „documents“ ohne Schlüssel auf, um die Dokumente zu sehen"
+  "{} is not a document — call documents without a key to see them": "{1} ist kein Dokument — rufen Sie „documents“ ohne Schlüssel auf, um die Dokumente zu sehen",
+  "A note cannot be connected": "Eine Notiz kann nicht verbunden werden",
+  "Already on the diagram": "Schon auf dem Diagramm",
+  "Not in this project: {}": "Nicht in diesem Projekt: {1}",
+  "The diagram has no such node": "Das Diagramm hat dieses Element nicht",
+  "The diagram has no such relationship": "Das Diagramm hat diese Beziehung nicht",
+  "{} is not an architecture diagram": "{1} ist kein Architekturdiagramm"
  },
  "texts": {
   "Applies to: {expr}": "Gilt für: {expr}",

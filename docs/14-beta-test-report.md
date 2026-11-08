@@ -313,6 +313,32 @@ its confirmation, editing with a before/after preview, roles, conversations priv
 the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps, the model list and the choice per conversation, a local server that is off, streaming for both surfaces with its reassembly of split tool calls, a failure in mid-stream, the five tools for documents, plans, BOM, risks and code), 58 browser E2E tests (new: an answer from the project, a proposed change
 that is first discarded and then applied, and a reader whose assistant cannot change anything, picking the local model, and an answer appearing while it is written).
 
+## 14.9 Round 8 — architecture diagrams (0.10)
+
+**Method**: the capability comparison with Enterprise Architect, Cameo and ArchiMate first (what a modelling
+tool must do that a drawing tool does not), then the feature built on the existing metamodel; backend tests that
+state the rules (an element on several diagrams, removing versus deleting, a drawn relationship is a real link),
+a browser test that actually builds a diagram with the mouse, and a reading of everything a browser may store
+on the canvas.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | `GET …/diagrams/{key}.svg` answered 404: the general `/{diagram_key}` route swallowed the name including the suffix | bug | The picture route is declared before the general one; a test pins it |
+| 2 | A canvas comes from the browser and is stored and rendered again later, so it is foreign input | hardening | The new `diagram` field type validates it: ids, bounded coordinates and sizes, at most 300 elements and 600 relationships, link ids as UUIDs, note text cut — tested from both sides |
+| 3 | Two relationships between the same pair of elements lay exactly on top of each other | UI | Parallel relationships are bowed apart, in the editor and in the SVG, by the same rule |
+| 4 | Saving a diagram that was not changed produced no version — so the test for the version conflict and the one for a released diagram both passed for the wrong reason | test | The tests change something before they save; the conflict (409) and the freeze (423) are now really covered |
+
+**What the tests state as rules**: an element lives in the model and may be on several diagrams; taking it off a
+diagram leaves the item and its links untouched; a relationship drawn on the canvas is a real link, with the
+information model's rules (a test case may not satisfy a requirement), with the suspect marking and in the
+audit trail; deleting an item leaves a visible placeholder and the diagram says so; a diagram is an item, so it
+is versioned, can be released and is then frozen.
+
+**Automated tests at the end of round 8**: 235 backend tests (new: the diagram rules above, the viewpoints, the
+layering including cycles, what may be stored on a canvas, the SVG with escaping and bowed parallel edges, the
+permissions), 60 browser E2E tests (new: building a diagram with the mouse — add, connect, move, save, download,
+remove — and a reader who can look but not change).
+
 ## 14.9 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
@@ -324,6 +350,8 @@ that is first discarded and then applied, and a reader whose assistant cannot ch
 - The demo data is created in one go, so the demo burn-up shows a single step.
 - Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
+- Architecture diagrams have no bend points, no behaviour diagrams and are not embedded in Word/PDF yet (the
+  SVG endpoint exists); see [20](20-architecture-diagrams.md).
 - The assistant answers when it is finished (no streaming), holds a database connection while it works, and only
   knows what its tools expose (items, links, coverage, impact, history — not documents, baselines, plans or BOM).
 - Single-sign-on users cannot give electronic signatures (they check the user's own password): approvals with a

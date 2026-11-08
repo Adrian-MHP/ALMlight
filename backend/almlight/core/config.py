@@ -60,7 +60,12 @@ class Settings(BaseSettings):
     azure_openai_api_key: str | None = None
     azure_openai_deployment: str | None = None
     azure_openai_api_version: str = "2024-10-21"
+    # the responses API (reasoning models need it for tool calling) has its own versions
+    azure_openai_responses_api_version: str = "2025-04-01-preview"
+    assistant_api: str = "auto"   # auto | chat | responses
     assistant_max_steps: int = 6          # tool rounds per question
+    # Reasoning models refuse tools unless this is "none"; empty = send nothing and learn it from the answer.
+    assistant_reasoning_effort: str | None = None
     assistant_timeout_seconds: int = 120
     assistant_max_history: int = 40       # messages of a conversation sent to the model
 

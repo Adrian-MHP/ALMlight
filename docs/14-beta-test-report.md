@@ -295,9 +295,18 @@ cloud service; plus a reading of the paths where a model's answer is foreign inp
 | 6 | A new question while proposals were waiting would have left the conversation in a shape the model rejects (a tool call without its answer) | bug | Waiting proposals are dropped first and the model is told |
 | 7 | The demo's release started on the first of the month while its sprints are relative to the current week, so plans sorted differently depending on the day — and on a weekend the overloaded week lay in the past, so resource levelling had nothing left to move | bug (demo data) | All plan dates are relative to the demo week, which on a weekend is the coming one; found because this round ran on a Sunday |
 
-**Automated tests at the end of round 7**: 207 backend tests (new: the assistant's reading tools, the proposal and
+**Against a real deployment** (Azure OpenAI, a GPT-6.1 reasoning deployment), which the stand-in could not have
+shown:
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 8 | The deployment refused tool calling on chat completions ("to use function tools, use /v1/responses"), and `reasoning_effort: none` — what its own error suggested — is not a value it accepts either | gap | The responses API as a second surface, chosen automatically from the refusal and kept for that deployment; the request shapes were verified against the live endpoint before they were written, and a test pins them |
+| 9 | `coverage` read row keys the service does not produce (`allocated`, `refined`), so its gap list was empty of facts and listed every item | bug | The real keys (`satisfied_by`, `verified_by`, `verification`), a legend for the model, and a test that pins one row |
+| 10 | "Which requirements have no test case?" is a link filter, but `search_items` offered none — the model invented `verifies:any`, the query language refused it, and it fell back to reading nine items one by one | gap | `search_items` takes `link_type`, `link_direction` and `has_link`; `project_overview` names the query fields. The same question now takes two tool calls instead of eleven |
+
+**Automated tests at the end of round 7**: 213 backend tests (new: the assistant's reading tools, the proposal and
 its confirmation, editing with a before/after preview, roles, conversations private to their owner, a failing tool,
-the step limit, broken model answers), 56 browser E2E tests (new: an answer from the project, a proposed change
+the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps), 56 browser E2E tests (new: an answer from the project, a proposed change
 that is first discarded and then applied, and a reader whose assistant cannot change anything).
 
 ## 14.9 Known limitations

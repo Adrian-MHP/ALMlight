@@ -116,7 +116,11 @@ def _overview(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
                       "fields": [{k: v for k, v in f.items() if v is not None} for f in fields]})
     links = [{"key": lt.key, "label": lt.label, "from": lt.sources, "to": lt.targets,
               "structural": lt.structural or None} for lt in model.link_types]
+    from almlight.modules.items.query import BUILTIN, custom_fields
+
+    fields = sorted(BUILTIN) + sorted(custom_fields(ctx.project))
     return {"project": {"key": ctx.project.key, "name": ctx.project.name, "description": ctx.project.description},
+            "query_fields": fields,
             "your_role": "manager" if ctx.user.is_admin else (
                 "contributor" if ctx.may_write() else "viewer"),
             "item_types": types, "link_types": [{k: v for k, v in lt.items() if v is not None} for lt in links],
@@ -132,10 +136,17 @@ def _search(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
         except ValidationFailed as exc:
             return {"error": str(exc), "hint": "Use plain words in 'text' instead, or check the field names with "
                                                "project_overview."}
+    link_type = _str(args, "link_type")
+    has_link = args.get("has_link")
+    if link_type and ctx.project.model.link_type(link_type) is None:
+        return {"error": f"Unknown link type '{link_type}'", "hint": "project_overview lists the link types."}
     query = items_svc.ItemQuery(
         q=_str(args, "text") or text, types=_list(args, "types") or None, states=_list(args, "states") or None,
         conditions=conditions or None, sort=_str(args, "sort") or "-updated",
         limit=_int(args, "limit", 25, 1, MAX_ROWS), user_id=ctx.user.id,
+        link_type=link_type or None,
+        link_dir="in" if _str(args, "link_direction") == "incoming" else "out",
+        link_exists=bool(has_link) if isinstance(has_link, bool) and link_type else None,
     )
     items, total = items_svc.query_items(ctx.db, ctx.project, query)
     return {"total": total, "shown": len(items), "items": [_item_row(ctx, i) for i in items]}
@@ -163,11 +174,16 @@ def _coverage(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
     if ctx.project.model.item_type(type_key) is None:
         raise ValidationFailed(f"Unknown item type '{type_key}' — project_overview lists them")
     data = verification_svc.coverage(ctx.db, ctx.project, type_key)
-    gaps = [{"key": r["key"], "title": r["title"], "refined": r.get("refined"), "allocated": r.get("allocated"),
-             "verified": r.get("verification")} for r in data.get("rows", [])
-            if not (r.get("allocated") and r.get("verification") in ("passed", "verified"))][:MAX_ROWS]
-    return {"total": data.get("total"), "allocated_pct": data.get("allocated_pct"),
-            "verified_pct": data.get("verified_pct"), "items_with_gaps": gaps}
+    gaps = [{"key": r["key"], "title": r["title"], "refined_by": r["refined_by"], "satisfied_by": r["satisfied_by"],
+             "test_cases": r["verified_by"], "verification": r["verification"]}
+            for r in data.get("rows", [])
+            if not (r["satisfied_by"] and r["verified_by"] and r["verification"] == "passed")][:MAX_ROWS]
+    return {"total": data.get("total"), "refined_pct": data.get("refined_pct"),
+            "allocated_pct": data.get("allocated_pct"), "with_tests_pct": data.get("with_tests_pct"),
+            "verified_pct": data.get("verified_pct"),
+            "legend": {"refined_by": "number of refining items", "satisfied_by": "allocated to elements",
+                       "test_cases": "verifying test cases", "verification": "result of the last test run"},
+            "items_with_gaps": gaps}
 
 
 def _impact(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
@@ -257,14 +273,22 @@ TOOLS: list[Tool] = [
          "numbers. Call this first when you need to know which types, fields or link types exist.",
          {"type": "object", "properties": {}}, _overview),
     Tool("search_items",
-         "Find items of the project. Either plain words in 'text', or a precise filter in 'query_language' "
-         "(examples: 'type:system_requirement state:approved', 'priority:must AND NOT verifies:any', "
-         "'updated:-7d', 'owner:me'). Returns key, type, title, state.",
+         "Find items of the project. Combine: plain words in 'text', a filter in 'query_language' (only the "
+         "fields project_overview lists under query_fields, e.g. 'type:system_requirement state:approved', "
+         "'priority:must', 'updated:-7d', 'owner:me'), and a traceability filter with link_type/has_link. "
+         "Traceability gaps are asked for here, not in the query language: requirements nothing verifies are "
+         "link_type='verifies', link_direction='incoming', has_link=false.",
          {"type": "object", "properties": {
              "text": {"type": "string", "description": "words to search in key, title and description"},
              "query_language": {"type": "string", "description": "filter in the project's query language"},
              "types": {"type": "array", "items": {"type": "string"}, "description": "item type keys"},
              "states": {"type": "array", "items": {"type": "string"}},
+             "link_type": {"type": "string", "description": "link type key, e.g. verifies or satisfies"},
+             "link_direction": {"type": "string", "enum": ["incoming", "outgoing"],
+                                "description": "incoming: other items point at these (a test case verifies a "
+                                               "requirement); outgoing: these point at others"},
+             "has_link": {"type": "boolean", "description": "true: items that have such a link, false: items "
+                                                            "that lack it (the gap)"},
              "sort": {"type": "string", "enum": ["key", "-updated", "title", "state"]},
              "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS}}}, _search),
     Tool("get_item",

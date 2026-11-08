@@ -30,7 +30,8 @@ If `ALMLIGHT_ADMIN_PASSWORD` is empty, a password is generated once and printed 
 | `ALMLIGHT_ADMIN_USERNAME` / `ALMLIGHT_ADMIN_PASSWORD` | `admin` / generated | First administrator (empty installation only) |
 | `ALMLIGHT_DEMO_DATA` | `false` | Load the demo project and demo users |
 | `ALMLIGHT_AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT` | – | AI assistant ([19](19-ai-assistant.md)); all three switch it on, the key stays on the server |
-| `ALMLIGHT_AZURE_OPENAI_API_VERSION` | `2024-10-21` | API version of the Azure OpenAI resource |
+| `ALMLIGHT_AZURE_OPENAI_API_VERSION` / `_RESPONSES_API_VERSION` | `2024-10-21` / `2025-04-01-preview` | API versions of the two Azure surfaces (chat completions and responses) |
+| `ALMLIGHT_ASSISTANT_API` / `ALMLIGHT_ASSISTANT_REASONING_EFFORT` | `auto` / – | Pin the surface instead of detecting it; reasoning effort for reasoning models |
 | `ALMLIGHT_ASSISTANT_MAX_STEPS` | `6` | Tool rounds the assistant may take for one question |
 | `ALMLIGHT_ASSISTANT_TIMEOUT_SECONDS` / `ALMLIGHT_ASSISTANT_MAX_HISTORY` | `120` / `40` | Patience per model call, messages of a conversation sent along |
 | `ALMLIGHT_DEMO_SIGN_IN` | `true` | `false` on a server others can reach: the demo users get passwords nobody knows (the default password `demo1234` would be public) |

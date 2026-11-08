@@ -12,7 +12,7 @@ instead of guessing:
 | Tool | What it does |
 |---|---|
 | `project_overview` | The information model — item types with their fields, states and link types — plus the project's numbers. It calls this before it uses a type or field name. |
-| `search_items` | Finds items, either by words or with a filter in the project's query language (`type:system_requirement state:approved`, `priority:must AND NOT verifies:any`, `updated:-7d`). |
+| `search_items` | Finds items: by words, by a filter in the project's query language (`type:system_requirement state:approved`, `priority:must`, `updated:-7d`, `owner:me` — `project_overview` names the fields), and by traceability (`link_type=verifies, link_direction=incoming, has_link=false` are the requirements nothing verifies). |
 | `get_item` | One item in full: description, fields, owner, state, version, links, attachments. |
 | `coverage` | Traceability coverage of an item type and the items with gaps. |
 | `impact` | What a change of an item would affect. |
@@ -62,10 +62,24 @@ ALMLIGHT_AZURE_OPENAI_API_KEY=<key of the Azure OpenAI resource>
 ALMLIGHT_AZURE_OPENAI_DEPLOYMENT=<name of the deployment, e.g. gpt-4o>
 ```
 
-The deployment name is the one from Azure AI Foundry, not the model name. The model has to support **tool
-calling** (GPT-4o, GPT-4.1, GPT-5 and the like); without it the assistant can only chat and never reads the
-project. `ALMLIGHT_AZURE_OPENAI_API_VERSION` follows the resource (default `2024-10-21`). On Azure Container Apps
-the key belongs in a secret, like the other secrets in [18](18-azure-container-apps.md).
+The deployment name is the one from Azure AI Foundry, not the model name, and the model has to support **tool
+calling** — without it the assistant can only chat and never reads the project.
+
+Azure has two surfaces for that, and Ariadne picks the right one by itself: classic **chat completions** (GPT-4o
+and the like) and the **responses** API, which reasoning models require for tools. On the first question the
+assistant tries chat completions; if the deployment answers "to use function tools, use /v1/responses" it repeats
+the request there and stays on it (visible once in the log). Requests to the responses API carry `store: false`,
+so the conversation is not kept at the provider.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ALMLIGHT_AZURE_OPENAI_API_VERSION` | `2024-10-21` | version for chat completions |
+| `ALMLIGHT_AZURE_OPENAI_RESPONSES_API_VERSION` | `2025-04-01-preview` | version for the responses API |
+| `ALMLIGHT_ASSISTANT_API` | `auto` | `chat` or `responses` pins the surface instead of letting it be detected |
+| `ALMLIGHT_ASSISTANT_REASONING_EFFORT` | – | `low`, `medium`, `high` for reasoning models (more thinking, slower and dearer) |
+
+On Azure Container Apps the key belongs in a secret, like the other secrets in
+[18](18-azure-container-apps.md).
 
 Without configuration the panel says so and names the variables; nothing else in the application changes.
 

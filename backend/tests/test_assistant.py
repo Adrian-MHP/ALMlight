@@ -4,11 +4,13 @@ application does with an answer — not what a model happens to say."""
 
 import json
 
+import httpx
 import pytest
 from conftest import new_item
 from sqlalchemy import select
 
 from almlight.core.config import get_settings
+from almlight.core.errors import ValidationFailed
 from almlight.modules.assistant import llm
 
 
@@ -32,6 +34,10 @@ class FakeModel:
         return {t["function"]["name"] for t in (self.tools[-1] if self.tools else [])}
 
 
+TOOL_SCHEMA = {"type": "function", "function": {"name": "search_items", "description": "Find items",
+                                               "parameters": {"type": "object", "properties": {}}}}
+
+
 def call(name, args, cid="c1"):
     return llm.Reply(tool_calls=[llm.ToolCall(id=cid, name=name, arguments=args)])
 
@@ -42,6 +48,8 @@ def configured(monkeypatch):
     monkeypatch.setattr(s, "azure_openai_endpoint", "https://example.invalid")
     monkeypatch.setattr(s, "azure_openai_api_key", "k")
     monkeypatch.setattr(s, "azure_openai_deployment", "gpt-test")
+    monkeypatch.setattr(s, "assistant_api", "auto")
+    llm._quirks.clear()  # what a deployment needs is learned per process
     return s
 
 
@@ -221,8 +229,40 @@ def test_overview_and_coverage_give_the_model_the_project_model(team, project, c
     req = next(t for t in overview["item_types"] if t["key"] == "system_requirement")
     assert "priority" in {f["key"] for f in req["fields"]} and "draft" in req["states"]
     assert overview["statistics"]["total_items"] == 1
+    assert "priority" in overview["query_fields"] and "state" in overview["query_fields"]
     cov = json.loads(out["messages"][4]["content"])
-    assert cov["total"] == 1 and cov["items_with_gaps"][0]["key"] == key
+    assert cov["total"] == 1 and cov["with_tests_pct"] == 0
+    gap = cov["items_with_gaps"][0]
+    assert gap == {"key": key, "title": "Measure pressure", "refined_by": 0, "satisfied_by": 0,
+                   "test_cases": 0, "verification": "none"}
+
+
+def test_it_finds_traceability_gaps_with_one_search(team, project, configured, monkeypatch):
+    """"Which requirements have no test case" is a link filter — the query language has no field for it."""
+    c = team["contributor"]
+    covered = new_item(c, project, "system_requirement", "Measuring range")["key"]
+    open_one = new_item(c, project, "system_requirement", "Vibration")["key"]
+    test = new_item(c, project, "test_case", "Range test")["key"]
+    c.post(f"/projects/{project}/links", {"type": "verifies", "source": test, "target": covered}, expect=201)
+    fake = model(monkeypatch,
+                 call("search_items", {"types": ["system_requirement"], "link_type": "verifies",
+                                       "link_direction": "incoming", "has_link": False}),
+                 llm.Reply(content=f"Only {open_one} has no test case."))
+    tid = thread_of(c, project)
+    out = c.post(f"/projects/{project}/assistant/threads/{tid}/messages",
+                 {"text": "Which requirements have no test case?"})
+    found = json.loads(out["messages"][2]["content"])
+    assert [i["key"] for i in found["items"]] == [open_one] and found["total"] == 1
+
+    # the other direction and an unknown link type are answered usefully, not with a crash
+    fake.replies = [call("search_items", {"types": ["system_requirement"], "link_type": "verifies",
+                                          "link_direction": "incoming", "has_link": True}, cid="c2"),
+                    call("search_items", {"link_type": "nonsense", "has_link": False}, cid="c3"),
+                    llm.Reply(content="done")]
+    out = c.post(f"/projects/{project}/assistant/threads/{tid}/messages", {"text": "And which ones have one?"})
+    answers = {m["meta"]["call_id"]: json.loads(m["content"]) for m in out["messages"] if m["role"] == "tool"}
+    assert [i["key"] for i in answers["c2"]["items"]] == [covered]
+    assert "Unknown link type" in answers["c3"]["error"]
 
 
 def test_conversations_are_listed_and_can_be_deleted(team, project, configured, monkeypatch, db):
@@ -263,3 +303,102 @@ def test_nothing_to_confirm_and_long_questions_are_refused(team, project, config
     assert "nothing waiting" in err["error"]["message"]
     c.post(f"/projects/{project}/assistant/threads/{tid}/messages", {"text": "   "}, expect=422)
     c.post(f"/projects/{project}/assistant/threads/{tid}/messages", {"text": "x" * 9000}, expect=422)
+
+
+class FakeHttp:
+    """Stands in for the Azure endpoint: answers a scripted list and records every request."""
+
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.calls: list[tuple[str, dict]] = []
+
+    def __call__(self, url, json=None, headers=None, timeout=None):
+        self.calls.append((url, json))
+        status, body = self.answers.pop(0) if self.answers else (200, {})
+        return httpx.Response(status, json=body, request=httpx.Request("POST", url))
+
+
+CHAT_ANSWER = {"choices": [{"message": {"content": "", "tool_calls": [
+    {"id": "c1", "type": "function", "function": {"name": "search_items", "arguments": '{"limit": 5}'}}]},
+    "finish_reason": "tool_calls"}], "usage": {"total_tokens": 7}}
+# what Azure says when a reasoning model is asked for tools on chat completions (seen on a real deployment)
+NEEDS_RESPONSES = {"error": {"param": "reasoning_effort", "type": "invalid_request_error", "message":
+                   "Function tools with reasoning_effort are not supported for this model in /v1/chat/completions."
+                   " To use function tools, use /v1/responses or set reasoning_effort to 'none'."}}
+RESPONSES_ANSWER = {"status": "completed", "output": [
+    {"type": "reasoning", "summary": []},
+    {"type": "function_call", "call_id": "call_abc", "name": "search_items", "arguments": '{"limit": 5}'}],
+    "usage": {"total_tokens": 82}}
+
+
+def test_a_classic_deployment_is_asked_on_chat_completions(configured, monkeypatch):
+    http = FakeHttp((200, CHAT_ANSWER))
+    monkeypatch.setattr(llm.httpx, "post", http)
+    reply = llm.chat([{"role": "user", "content": "hi"}], [TOOL_SCHEMA])
+    url, body = http.calls[0]
+    assert url.endswith("/openai/deployments/gpt-test/chat/completions?api-version=2024-10-21")
+    assert body["messages"][0]["content"] == "hi" and body["temperature"] == 0.1
+    assert body["tools"][0]["function"]["name"] == "search_items" and body["tool_choice"] == "auto"
+    assert reply.tool_calls[0].name == "search_items" and reply.tool_calls[0].arguments == {"limit": 5}
+
+
+def test_a_reasoning_deployment_switches_to_the_responses_api(configured, monkeypatch):
+    """A model that refuses tools on chat completions is asked again on the responses API — and stays there."""
+    http = FakeHttp((400, NEEDS_RESPONSES), (200, RESPONSES_ANSWER), (200, {"status": "completed", "output": [
+        {"type": "message", "content": [{"type": "output_text", "text": "Es gibt **8 Anforderungen**."}]}]}))
+    monkeypatch.setattr(llm.httpx, "post", http)
+    reply = llm.chat([{"role": "system", "content": "You are the assistant."},
+                      {"role": "user", "content": "Wie viele?"}], [TOOL_SCHEMA])
+    assert [u.split("/openai/")[1].split("?")[0] for u, _ in http.calls] == [
+        "deployments/gpt-test/chat/completions", "responses"]
+    url, body = http.calls[1]
+    assert "api-version=2025-04-01-preview" in url
+    assert body["model"] == "gpt-test" and body["store"] is False and "temperature" not in body
+    assert body["input"] == [{"role": "system", "content": "You are the assistant."},
+                             {"role": "user", "content": "Wie viele?"}]
+    assert body["tools"][0] == {"type": "function", "name": "search_items", "description": "Find items",
+                                "parameters": {"type": "object", "properties": {}}}
+    assert reply.tool_calls[0].id == "call_abc" and reply.tool_calls[0].arguments == {"limit": 5}
+    assert reply.usage == {"total_tokens": 82}
+
+    # the next round goes straight to the responses API and carries the tool result in its shape
+    reply = llm.chat([{"role": "user", "content": "Wie viele?"},
+                      {"role": "assistant", "content": "", "tool_calls": [
+                          {"id": "call_abc", "type": "function",
+                           "function": {"name": "search_items", "arguments": '{"limit": 5}'}}]},
+                      {"role": "tool", "tool_call_id": "call_abc", "content": '{"total": 8}'}], [TOOL_SCHEMA])
+    assert len(http.calls) == 3 and http.calls[2][0].endswith("responses?api-version=2025-04-01-preview")
+    assert http.calls[2][1]["input"][1:] == [
+        {"type": "function_call", "call_id": "call_abc", "name": "search_items", "arguments": '{"limit": 5}'},
+        {"type": "function_call_output", "call_id": "call_abc", "output": '{"total": 8}'}]
+    assert reply.content == "Es gibt **8 Anforderungen**." and reply.tool_calls == []
+
+
+def test_a_model_that_refuses_the_temperature_is_asked_again_without_it(configured, monkeypatch):
+    http = FakeHttp((400, {"error": {"param": "temperature", "message": "Unsupported value: 'temperature'"}}),
+                    (200, CHAT_ANSWER))
+    monkeypatch.setattr(llm.httpx, "post", http)
+    llm.chat([{"role": "user", "content": "hi"}], [TOOL_SCHEMA])
+    assert "temperature" in http.calls[0][1] and "temperature" not in http.calls[1][1]
+
+
+def test_the_surface_can_be_pinned_and_a_real_error_is_not_retried(configured, monkeypatch):
+    monkeypatch.setattr(configured, "assistant_api", "responses")
+    monkeypatch.setattr(configured, "assistant_reasoning_effort", "low")
+    http = FakeHttp((400, NEEDS_RESPONSES))
+    monkeypatch.setattr(llm.httpx, "post", http)
+    with pytest.raises(ValidationFailed, match="answered with an error"):
+        llm.chat([{"role": "user", "content": "hi"}], [TOOL_SCHEMA])
+    assert len(http.calls) == 1 and http.calls[0][0].endswith("responses?api-version=2025-04-01-preview")
+    assert http.calls[0][1]["reasoning"] == {"effort": "low"}
+
+
+def test_what_the_model_sends_back_is_read_defensively(configured, monkeypatch):
+    monkeypatch.setattr(configured, "assistant_api", "responses")
+    monkeypatch.setattr(llm.httpx, "post", FakeHttp((200, {"output": [
+        "nonsense", {"type": "message", "content": [{"type": "refusal", "text": "no"}]},
+        {"type": "function_call", "name": "", "arguments": "{}"},
+        {"type": "function_call", "call_id": "x", "name": "get_item", "arguments": "not json"}]})))
+    reply = llm.chat([{"role": "user", "content": "hi"}])
+    assert reply.content == "" and [c.name for c in reply.tool_calls] == ["get_item"]
+    assert reply.tool_calls[0].arguments == {"__invalid__": "not json"}

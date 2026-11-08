@@ -35,5 +35,6 @@
 | [0031](0031-git-mirrors-and-linked-revisions.md) | Git: server-side mirrors, an indexed commit history and linked revisions | accepted |
 | [0032](0032-connector-framework.md) | Connectors share one neutral model and one import pipeline | accepted |
 | [0033](0033-managed-hosting-on-container-apps.md) | Shared installations run as a single managed container, not as a scaled-out service | accepted |
+| [0034](0034-ai-assistant-tools-and-confirmation.md) | The AI assistant reads through the normal services and may only propose changes | accepted |
 
 Format: context → decision → consequences. New decisions get the next number; superseded ones stay with a note.

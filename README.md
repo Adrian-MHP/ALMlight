@@ -90,6 +90,10 @@ ALMlight.)*
 - **Connectors**: Enterprise Architect (import `.qea`/XMI with mapping and GUID identity, export EA XMI, write back
   into the `.qea`), medini analyze (HARA with ISO 26262 ASIL and FMEA both ways, safety requirements via ReqIF) and
   SysML v2 servers (SysON, Cameo) — every import previewed, repeatable, conflicts reported instead of overwritten.
+- **AI assistant**: a chat inside the project that answers from its data — which requirements have no test case,
+  what a change would affect, a summary of the open change requests — and *proposes* changes (new items, edits,
+  links, comments) that you apply or discard after seeing the exact preview. It reads with your permissions, and
+  what it applies becomes a normal, versioned, audited change ([guide](docs/19-ai-assistant.md)).
 - **English and German**: the whole interface, the labels of the information model (translated per customer),
   server messages, notifications, e-mail digests and document exports follow the user's language.
 - **Workflow viewer**: every item shows its state diagram with the path taken and the transitions possible now.
@@ -235,7 +239,8 @@ calculator.
 | [Languages](docs/16-languages.md) | German and English interface, translated models, server texts |
 | [Code and connectors](docs/17-code-and-connectors.md) | Git repositories, linked revisions, Enterprise Architect, medini analyze, SysML v2 |
 | [Azure Container Apps](docs/18-azure-container-apps.md) | Running Ariadne in an Azure resource group with company sign-in |
-| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0033 |
+| [AI assistant](docs/19-ai-assistant.md) | What the assistant can do, how changes are confirmed, permissions, configuration |
+| [Architecture decisions](docs/adr/README.md) | ADR-0001 … ADR-0034 |
 
 ## Technology
 
@@ -252,15 +257,18 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 195 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 207 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 53 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 56 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 
 ## Status
 
-Version 0.8 (0.8.1 … 0.8.3: sign-in protection, projects open to every signed-in user, revisions picked from the repository, running on Azure Container Apps — [guide](docs/18-azure-container-apps.md)): Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
+Version 0.9: an **AI assistant** inside the project that answers from its data and proposes changes you confirm
+([guide](docs/19-ai-assistant.md)) — on top of 0.8 (sign-in protection, projects open to every signed-in user,
+revisions picked from the repository, running on Azure Container Apps — [guide](docs/18-azure-container-apps.md)):
+Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini
 analyze and SysML v2 servers ([guide](docs/17-code-and-connectors.md), sample files in `samples/`) — on top of 0.7
 (boolean queries, dependency types and auto-scheduling, time recording, resources and levelling, German user
 interface), 0.6 (query builder and

@@ -15,6 +15,7 @@ import { Link, Outlet, useLocation, useMatch, useNavigate } from "react-router-d
 import { api } from "@/api/client";
 import { useInbox, useMe, useProjects } from "@/api/hooks";
 import { Logo, LogoMark } from "@/components/Logo";
+import { AssistantButton } from "@/components/AssistantPanel";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { useLive } from "@/live/LiveProvider";
 import { chooseLanguage, LOCALES, locale, tx } from "@/lib/i18n";
@@ -193,6 +194,7 @@ export function AppLayout() {
             <Tooltip label={live.connected ? tx("Live: changes and presence are pushed") : tx("Live connection lost — reconnecting")}>
               <Box className={`live-dot ${live.connected ? "is-on" : ""}`} data-testid="live-indicator" />
             </Tooltip>
+            <AssistantButton projectKey={projectKey} />
             <NotificationCenter />
             <Tooltip label={scheme === "dark" ? tx("Light mode") : tx("Dark mode")}>
               <ActionIcon variant="subtle" color="gray" size="lg" className="header-icon" visibleFrom="sm"

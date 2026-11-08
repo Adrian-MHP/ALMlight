@@ -31,6 +31,13 @@ services:
       ALMLIGHT_OUTBOX_WORKER: "false"
     command: ["pytest", "-q"]
 
+  # stands in for the language model (e2e/llm_stub.py), so the assistant can be tested without a cloud service
+  llm-stub:
+    image: python:3.12-slim
+    volumes:
+      - ./e2e/llm_stub.py:/stub.py:ro
+    command: ["python", "/stub.py"]
+
   app:
     build:
       context: .
@@ -38,11 +45,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      llm-stub:
+        condition: service_started
     environment:
       ALMLIGHT_DATABASE_URL: postgresql+psycopg://almlight:almlight@db:5432/almlight
       ALMLIGHT_ADMIN_PASSWORD: admin-e2e-password
       ALMLIGHT_DEMO_DATA: "true"
       ALMLIGHT_DATA_DIR: /tmp/almlight-data
+      ALMLIGHT_AZURE_OPENAI_ENDPOINT: http://llm-stub:8000
+      ALMLIGHT_AZURE_OPENAI_API_KEY: stub-key
+      ALMLIGHT_AZURE_OPENAI_DEPLOYMENT: gpt-test
     ports:
       - "127.0.0.1:48081:8000"
 

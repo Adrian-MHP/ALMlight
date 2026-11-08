@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     # Outbound webhooks and notification e-mails are delivered by an in-process worker; tests switch it off.
     outbox_worker: bool = True
 
+    # AI assistant (Azure OpenAI). Without endpoint, key and deployment the assistant stays switched off.
+    azure_openai_endpoint: str | None = None
+    azure_openai_api_key: str | None = None
+    azure_openai_deployment: str | None = None
+    azure_openai_api_version: str = "2024-10-21"
+    assistant_max_steps: int = 6          # tool rounds per question
+    assistant_timeout_seconds: int = 120
+    assistant_max_history: int = 40       # messages of a conversation sent to the model
+
     # Git repositories (Code page, linked revisions): mirrors are fetched by a background worker. Local paths
     # are accepted only below <data_dir>/repos-local unless explicitly allowed (they let the server read files).
     git_sync_minutes: float = 10.0
@@ -92,6 +101,10 @@ class Settings(BaseSettings):
         if value not in ("viewer", "contributor", "reviewer"):
             raise ValueError("ALMLIGHT_DEMO_OPEN_ROLE must be viewer, contributor or reviewer")
         return value
+
+    @property
+    def assistant_enabled(self) -> bool:
+        return bool(self.azure_openai_endpoint and self.azure_openai_api_key and self.azure_openai_deployment)
 
     @property
     def files_dir(self) -> Path:

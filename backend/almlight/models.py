@@ -1,6 +1,7 @@
 """Imports every ORM model so that SQLAlchemy metadata (and Alembic) sees the full schema."""
 
 from almlight.core.db import Base
+from almlight.modules.assistant.models import AssistantMessage, AssistantThread
 from almlight.modules.audit.models import AuditEntry
 from almlight.modules.baselines.models import Baseline, BaselineItem, BaselineLink
 from almlight.modules.boards.models import Board
@@ -31,6 +32,8 @@ from almlight.modules.worklog.models import WorkRecord
 
 __all__ = [
     "ApiToken",
+    "AssistantMessage",
+    "AssistantThread",
     "ApprovalRequest",
     "ApprovalVote",
     "AuditEntry",

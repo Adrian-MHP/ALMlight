@@ -986,6 +986,22 @@ export interface ItemRevisions {
   branch_name: string;
 }
 
+// --- AI assistant ---
+export interface AssistantThreadRef { id: string; title: string; updated_at: string; pending: number }
+export interface AssistantInfo {
+  enabled: boolean; model: string | null; can_change: boolean;
+  tools: { name: string; writes: boolean }[]; threads: AssistantThreadRef[];
+}
+export interface AssistantMessage {
+  id: string; role: "user" | "assistant" | "tool"; content: string;
+  meta: Record<string, unknown>; created_at: string;
+}
+export interface AssistantProposal {
+  summary: string | null; name: string; arguments: Record<string, unknown>;
+  preview: Record<string, unknown> | null; error: string | null;
+}
+export interface AssistantThread { id: string; title: string; messages: AssistantMessage[]; pending: AssistantProposal[] }
+
 // --- connectors ---
 export interface ConnectorInfo { key: string; name: string; vendor: string; kind: "file" | "server"; directions: string[]; formats: string[]; description: string; page?: string }
 export interface ConnectorResult {

@@ -418,18 +418,22 @@ def seed_demo(db: Session) -> None:
 
     # --- release planning ----------------------------------------------------------------------------
     today = date.today()
-    r10 = new("release", "Release 1.0 — pilot customers", by=max_,
-              fields={"start_date": (today.replace(day=1)).isoformat(), "due_date": f"{today.year}-12-15",
-                      "goal": "Analog and IO-Link variants for pilot customers", "capacity": 50})
-    engine.execute_transition(db, project, max_, r10, "start")
-    r11 = new("release", "Release 1.1 — HART and SIL 2", by=max_,
-              fields={"start_date": f"{today.year + 1}-01-07", "due_date": f"{today.year + 1}-04-30",
-                      "goal": "Process variant with HART and SIL 2 certification"})
-    monday = today - timedelta(days=today.weekday())
+    # The demo week starts on this week's Monday — on a weekend on the coming one, so that the work planned for
+    # "this week" (and the overload the resource view shows) still lies ahead and can be rescheduled.
+    monday = today + timedelta(days=7 - today.weekday()) if today.weekday() >= 5 else \
+        today - timedelta(days=today.weekday())
 
     def day(n: int) -> str:
         return (monday + timedelta(days=n)).isoformat()
 
+    # all plan dates are relative to this week, so the demo tells the same story on any day of the year
+    r10 = new("release", "Release 1.0 — pilot customers", by=max_,
+              fields={"start_date": day(-21), "due_date": day(70),
+                      "goal": "Analog and IO-Link variants for pilot customers", "capacity": 50})
+    engine.execute_transition(db, project, max_, r10, "start")
+    r11 = new("release", "Release 1.1 — HART and SIL 2", by=max_,
+              fields={"start_date": day(84), "due_date": day(187),
+                      "goal": "Process variant with HART and SIL 2 certification"})
     sprint_a = new("release", "Sprint 1 — core measurement", by=max_,
                    fields={"kind": "iteration", "start_date": day(-14), "due_date": day(11), "capacity": 20,
                            "goal": "Range, accuracy and verification run"})

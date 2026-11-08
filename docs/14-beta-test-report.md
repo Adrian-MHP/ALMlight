@@ -278,6 +278,28 @@ fault answers, open projects for every role and path, the demo for a reachable s
 messages for a refused or unreachable repository), 53 browser E2E tests (new: repositories under Integrations and Connectors, the blocked sign-in message, a manager opening
 a project to everyone, picking a revision from the repository and from one release).
 
+## 14.9 Round 7 — the AI assistant (0.9)
+
+**Method**: the assistant's logic was tested with a **scripted model** (the backend tests say what the application
+does with an answer, not what a model happens to say), the browser tests run against a **stand-in for the model**
+(`e2e/llm_stub.py`) so the whole chain — panel, API, HTTP to the model, tools, database — is exercised without a
+cloud service; plus a reading of the paths where a model's answer is foreign input.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | A tool answer that was too long was cut in the middle, so the model received broken JSON | bug | An oversized answer stays valid JSON (`truncated`, `partial`, and a note to narrow the question); the limit is 30,000 characters |
+| 2 | Tool arguments arrive as a JSON string the model writes: a non-object or broken JSON would have thrown inside the loop | hardening | Arguments are parsed defensively and land as `__invalid__`, the tool answers with an error and the conversation goes on |
+| 3 | A tool that fails (unknown key, unusable filter, a bug) must not end the conversation | hardening | Every tool call is caught; the model gets the error as its answer and can correct itself |
+| 4 | Writing tools would have run as soon as the model called them | design | They are previewed in a rolled-back savepoint and applied only after the person confirms ([ADR-0034](adr/0034-ai-assistant-tools-and-confirmation.md)) |
+| 5 | A reader could have been offered changing tools | security | The tool list depends on the role, and the tools refuse a write without the contributor role — tested from both sides |
+| 6 | A new question while proposals were waiting would have left the conversation in a shape the model rejects (a tool call without its answer) | bug | Waiting proposals are dropped first and the model is told |
+| 7 | The demo's release started on the first of the month while its sprints are relative to the current week, so plans sorted differently depending on the day — and on a weekend the overloaded week lay in the past, so resource levelling had nothing left to move | bug (demo data) | All plan dates are relative to the demo week, which on a weekend is the coming one; found because this round ran on a Sunday |
+
+**Automated tests at the end of round 7**: 207 backend tests (new: the assistant's reading tools, the proposal and
+its confirmation, editing with a before/after preview, roles, conversations private to their owner, a failing tool,
+the step limit, broken model answers), 56 browser E2E tests (new: an answer from the project, a proposed change
+that is first discarded and then applied, and a reader whose assistant cannot change anything).
+
 ## 14.9 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
@@ -289,6 +311,8 @@ a project to everyone, picking a revision from the repository and from one relea
 - The demo data is created in one go, so the demo burn-up shows a single step.
 - Scheduling uses one calendar (Mon–Fri) without holidays or personal absences; levelling moves tasks but does not
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
+- The assistant answers when it is finished (no streaming), holds a database connection while it works, and only
+  knows what its tools expose (items, links, coverage, impact, history — not documents, baselines, plans or BOM).
 - Single-sign-on users cannot give electronic signatures (they check the user's own password): approvals with a
   signature need a local account until signing through the identity provider or a signing password is added.
 - Sign-in limits are kept in memory of the one application process (a restart clears them); behind a proxy the client

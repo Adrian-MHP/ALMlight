@@ -29,6 +29,10 @@ If `ALMLIGHT_ADMIN_PASSWORD` is empty, a password is generated once and printed 
 | `ALMLIGHT_SECRET_KEY` | generated, stored in `/data/secret_key` | Session signing key |
 | `ALMLIGHT_ADMIN_USERNAME` / `ALMLIGHT_ADMIN_PASSWORD` | `admin` / generated | First administrator (empty installation only) |
 | `ALMLIGHT_DEMO_DATA` | `false` | Load the demo project and demo users |
+| `ALMLIGHT_AZURE_OPENAI_ENDPOINT` / `_API_KEY` / `_DEPLOYMENT` | – | AI assistant ([19](19-ai-assistant.md)); all three switch it on, the key stays on the server |
+| `ALMLIGHT_AZURE_OPENAI_API_VERSION` | `2024-10-21` | API version of the Azure OpenAI resource |
+| `ALMLIGHT_ASSISTANT_MAX_STEPS` | `6` | Tool rounds the assistant may take for one question |
+| `ALMLIGHT_ASSISTANT_TIMEOUT_SECONDS` / `ALMLIGHT_ASSISTANT_MAX_HISTORY` | `120` / `40` | Patience per model call, messages of a conversation sent along |
 | `ALMLIGHT_DEMO_SIGN_IN` | `true` | `false` on a server others can reach: the demo users get passwords nobody knows (the default password `demo1234` would be public) |
 | `ALMLIGHT_DEMO_OPEN_ROLE` | empty | `viewer`, `contributor` or `reviewer`: every signed-in user can open the demo project with this role |
 | `ALMLIGHT_LOGIN_MAX_FAILURES` / `ALMLIGHT_LOGIN_WINDOW_SECONDS` | `10` / `900` | Failed sign-ins per user name within the window before further attempts are refused (three times as many per client address); `0` switches it off |

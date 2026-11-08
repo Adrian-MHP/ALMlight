@@ -17,11 +17,21 @@ instead of guessing:
 | `coverage` | Traceability coverage of an item type and the items with gaps. |
 | `impact` | What a change of an item would affect. |
 | `history` | What happened in the project, or to one item, and who did it. |
+| `documents` | The documents of the project, or one document with its headings and items in reading order — for summarising or reviewing a specification. |
+| `plans` | Releases and iterations with dates, goal, progress and status; with a key also the work planned in it. |
+| `bom` | The bill of materials under an item (levels, quantities, find numbers), or where an item is used. |
+| `risks` | The risk register (FMEA): the numbers by level, how many are unmitigated, and the rows. |
+| `revisions` | Code of the connected Git repositories: the commits, branches and pull requests of an item, or the latest commits. |
 | `create_item`, `update_item`, `create_link`, `add_comment` | Changes — **proposed only**, see below. |
 
 So the questions it is good at are the ones whose answer is in the project: *Which requirements have no test case?
 Summarise the open change requests. What would change if SYS-1 changes? Which items did Rita change last week?
-Draft a test case for SYS-4.*
+Draft a test case for SYS-4. Summarise the system specification. Is release 1.0 on track? Which products contain
+the measuring cell? Which risks are still unmitigated? What was committed for SYS-1?*
+
+The answer appears **while it is written**, and the tool activity shows as it happens, so a slow model (a local
+one in particular) does not look stuck. If a model or a surface cannot stream, the answer simply arrives in one
+piece.
 
 ## 19.2 Changes need the person
 
@@ -123,13 +133,14 @@ few thousand tokens — a tag with a large window (for example `qwen3:8b-40k`) a
 
 - One question can take several model calls (`ALMLIGHT_ASSISTANT_MAX_STEPS`, default 6) and holds a database
   connection while it runs — fine for a team, not for dozens of people asking at once.
-- The answer appears when it is finished; there is no token-by-token streaming yet.
 - The assistant sees the last `ALMLIGHT_ASSISTANT_MAX_HISTORY` messages (default 40) of the conversation, and a
   tool answer is cut off at 30,000 characters — it then asks for a narrower question.
 - It proposes one step at a time: a change of twenty items is twenty proposals, which is deliberate. Bulk edit
   (see [15](15-work-management.md)) is the tool for that.
-- It reads items, links, coverage, impact and history. Documents, baselines, plans, the BOM, test runs and the Git
-  commits are not tools yet — ask about the items behind them instead.
+- It reads items, links, coverage, impact, history, documents, plans, the BOM, risks and the Git commits.
+  Baselines, variants, test runs and time records are not tools yet — ask about the items behind them instead.
+- Streaming needs a connection that is not buffered. Behind a reverse proxy, switch buffering off for
+  `/api/v1/projects/*/assistant/*` (the answer carries `X-Accel-Buffering: no`, which nginx honours).
 - The e2e tests use a stand-in for the model (`e2e/llm_stub.py`), which also answers on the Ollama paths, so the
   browser tests cover the model picker without a cloud service; the backend tests script the model directly.
 - A local model is slower than it looks: it runs on the machine that also runs the browser and the containers.

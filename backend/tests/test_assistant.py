@@ -176,7 +176,8 @@ def test_readers_get_no_writing_tools_and_cannot_apply(team, project, configured
     info = v.get(f"/projects/{project}/assistant")
     assert info["can_change"] is False and all(not t["writes"] for t in info["tools"])
     v.post(f"/projects/{project}/assistant/threads/{tid}/messages", {"text": "Create a requirement"})
-    assert fake.tool_names == {"project_overview", "search_items", "get_item", "coverage", "impact", "history"}
+    assert fake.tool_names == {"project_overview", "search_items", "get_item", "coverage", "impact", "history",
+                               "documents", "plans", "bom", "risks", "revisions"}
     assert "only read" in fake.seen[0][0]["content"]
 
     # even if the model asks for a change, the tool refuses and the conversation goes on
@@ -488,3 +489,167 @@ def test_a_local_model_gets_shorter_tool_answers(team, project, configured, monk
     out = c.post(f"/projects/{project}/assistant/threads/{local_thread}/messages", {"text": "?"})
     answer = json.loads(out["messages"][2]["content"])
     assert answer["truncated"] is True and len(answer["partial"]) == 8_000
+
+
+def test_the_new_tools_read_documents_plans_bom_risks_and_code(db, admin, configured, monkeypatch):
+    """Against the demo project, because these tools only pay off on a project that has all of it."""
+    from almlight.seed.demo import seed_demo
+
+    seed_demo(db)
+    fake = model(monkeypatch, call("documents", {}), llm.Reply(content="."))
+    tid = thread_of(admin, "DEMO")
+    ask = lambda text: admin.post(f"/projects/DEMO/assistant/threads/{tid}/messages", {"text": text})  # noqa: E731
+    first = lambda out: json.loads(next(m["content"] for m in out["messages"] if m["role"] == "tool"))  # noqa: E731
+
+    docs = first(ask("Which documents are there?"))
+    spec = next(d for d in docs["documents"] if "System Requirements Specification" in d["title"])
+
+    fake.replies = [call("documents", {"key": spec["key"], "limit": 5}, cid="d2"), llm.Reply(content=".")]
+    out = ask("Show me that one")
+    content = json.loads([m for m in out["messages"] if m["role"] == "tool"][-1]["content"])
+    assert content["document"] == spec["key"] and content["shown"] == 5 and content["entries"] > 5
+    assert any(n.get("heading") for n in content["content"])
+    assert any("shall" in (n.get("text") or "") for n in content["content"])
+
+    fake.replies = [call("plans", {}, cid="p1"), llm.Reply(content=".")]
+    plans = json.loads([m for m in ask("How are the plans doing?")["messages"] if m["role"] == "tool"][-1]["content"])
+    release = next(p for p in plans["plans"] if p["title"].startswith("Release 1.0"))
+    assert release["kind"] == "release" and release["status"] in ("on_track", "at_risk", "overdue", "done")
+    assert release["total"] > 0 and 0 <= release["progress"] <= 1
+
+    fake.replies = [call("risks", {}, cid="r1"), llm.Reply(content=".")]
+    risks = json.loads([m for m in ask("What about the risks?")["messages"] if m["role"] == "tool"][-1]["content"])
+    assert risks["summary"]["total"] == 4 and risks["summary"]["high_unmitigated"] == 1
+    assert {r["level"] for r in risks["risks"]} <= {"high", "medium", "low", None}
+
+    product = admin.get("/projects/DEMO/items?q=Smart%20pressure%20transmitter")["items"][0]["key"]
+    fake.replies = [call("bom", {"key": product}, cid="b1"), llm.Reply(content=".")]
+    bom = json.loads([m for m in ask("What is it made of?")["messages"] if m["role"] == "tool"][-1]["content"])
+    assert bom["rows"] and any(r.get("find_number") for r in bom["rows"])
+    oring = next(r for r in bom["rows"] if r["title"] == "O-ring 12x2 FKM")
+    assert oring["total_quantity"] == 2 and oring["level"] >= 1
+
+    fake.replies = [call("bom", {"key": oring["key"], "direction": "where_used"}, cid="b2"), llm.Reply(content=".")]
+    used = json.loads([m for m in ask("Where is it used?")["messages"] if m["role"] == "tool"][-1]["content"])
+    assert used["used_in"] and all(isinstance(p, str) for p in used["used_in"])
+
+    # code: the demo repository's commits mention item keys, so an item has linked revisions
+    fake.replies = [call("revisions", {}, cid="v1"), llm.Reply(content=".")]
+    code = json.loads([m for m in ask("What happened in the code?")["messages"] if m["role"] == "tool"][-1]["content"])
+    if code.get("repositories") and isinstance(code["repositories"][0], dict):  # git is installed in the image
+        repo = code["repositories"][0]
+        assert repo["repository"] == "sensor-firmware" and repo["commits"]
+        linked = next(c for c in repo["commits"] if c["items"])
+        fake.replies = [call("revisions", {"key": linked["items"][0]}, cid="v2"), llm.Reply(content=".")]
+        item_code = json.loads([m for m in ask("And for that item?")["messages"] if m["role"] == "tool"][-1]["content"])
+        assert item_code["revisions"] and item_code["revisions"][0]["commit"]
+
+
+def sse(*events) -> httpx.Response:
+    body = "".join(f"data: {json.dumps(e)}\n\n" if isinstance(e, dict) else f"data: {e}\n\n" for e in events)
+    return httpx.Response(200, text=body + "data: [DONE]\n\n", request=httpx.Request("POST", "http://x"))
+
+
+class FakeStream:
+    """Stands in for httpx.stream: hands out scripted server-sent-events bodies."""
+
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.calls: list[tuple[str, dict]] = []
+
+    def __call__(self, method, url, json=None, headers=None, timeout=None):
+        self.calls.append((url, json))
+        response = self.responses.pop(0)
+
+        class Ctx:
+            def __enter__(self_inner):
+                return response
+
+            def __exit__(self_inner, *exc):
+                return False
+
+        return Ctx()
+
+
+def test_the_answer_arrives_while_it_is_written(team, project, configured, monkeypatch):
+    """Chat completions stream text in pieces and tool calls in fragments; both are put back together."""
+    c = team["contributor"]
+    with_ollama(monkeypatch, configured)
+    stream = FakeStream(
+        # the protocol sends the name once and the arguments in pieces
+        sse({"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "s1", "type": "function",
+                                                    "function": {"name": "search_items", "arguments": '{"li'}}]}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": 'mit": 3}'}}]}}]},
+            {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]}),
+        sse({"choices": [{"delta": {"content": "Es gibt "}}]},
+            {"choices": [{"delta": {"content": "**3** Objekte."}}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop"}], "usage": {"total_tokens": 31}}))
+    monkeypatch.setattr(llm.httpx, "stream", stream)
+    tid = c.post(f"/projects/{project}/assistant/threads", {"model": "ollama:qwen3:8b"}, expect=201)["id"]
+    resp = c.post(f"/projects/{project}/assistant/threads/{tid}/stream", {"text": "Wie viele?"})
+    events = [json.loads(line[5:]) for line in resp.text.splitlines() if line.startswith("data:")]
+
+    assert stream.calls[0][1]["stream"] is True
+    assert [e["type"] for e in events] == ["tool", "delta", "delta", "done"]
+    assert events[0] == {"type": "tool", "name": "search_items", "ok": True}
+    assert [e["text"] for e in events[1:3]] == ["Es gibt ", "**3** Objekte."]
+    done = events[-1]
+    tool_answer = json.loads(next(m["content"] for m in done["messages"] if m["role"] == "tool"))
+    assert tool_answer["shown"] <= 3  # the arguments {"limit": 3} were put back together from two pieces
+    assert done["messages"][-1]["content"] == "Es gibt **3** Objekte." and done["pending"] == []
+    assert done["messages"][-1]["meta"]["usage"] == {"total_tokens": 31}
+    # and the finished conversation is the same when it is read again
+    assert c.get(f"/projects/{project}/assistant/threads/{tid}")["messages"][-1]["content"] == \
+        "Es gibt **3** Objekte."
+
+
+def test_the_responses_api_streams_too(configured, monkeypatch):
+    monkeypatch.setattr(configured, "assistant_api", "responses")
+    final = {"status": "completed", "output": [{"type": "message", "content": [
+        {"type": "output_text", "text": "Fertig."}]}], "usage": {"total_tokens": 12}}
+    monkeypatch.setattr(llm.httpx, "stream", FakeStream(sse(
+        {"type": "response.created"},
+        {"type": "response.output_text.delta", "delta": "Fer"},
+        {"type": "response.output_text.delta", "delta": "tig."},
+        {"type": "response.completed", "response": final})))
+    out = list(llm.chat_stream([{"role": "user", "content": "hi"}]))
+    assert [kind for kind, _ in out] == ["delta", "delta", "reply"]
+    assert [v for k, v in out if k == "delta"] == ["Fer", "tig."]
+    reply = out[-1][1]
+    assert reply.content == "Fertig." and reply.usage == {"total_tokens": 12}
+
+
+def test_a_failure_in_the_middle_of_a_stream_is_told_to_the_browser(team, project, configured, monkeypatch):
+    c = team["contributor"]
+    with_ollama(monkeypatch, configured)
+
+    def refused(method, url, **kw):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(llm.httpx, "stream", refused)
+    tid = c.post(f"/projects/{project}/assistant/threads", {"model": "ollama:qwen3:8b"}, expect=201)["id"]
+    resp = c.post(f"/projects/{project}/assistant/threads/{tid}/stream", {"text": "Wie viele?"})
+    events = [json.loads(line[5:]) for line in resp.text.splitlines() if line.startswith("data:")]
+    assert events[-1]["type"] == "error" and "not reachable" in events[-1]["message"]
+    # the question stays in the conversation, so the person sees what they asked
+    assert [m["role"] for m in c.get(f"/projects/{project}/assistant/threads/{tid}")["messages"]] == []
+
+
+def test_a_proposal_also_arrives_through_the_stream(team, project, configured, monkeypatch):
+    c = team["contributor"]
+    fake = model(monkeypatch,
+                 call("create_item", {"type": "system_requirement", "title": "Streamed"}),
+                 llm.Reply(content="Vorgeschlagen."), llm.Reply(content="Angelegt."))
+    tid = thread_of(c, project)
+    resp = c.post(f"/projects/{project}/assistant/threads/{tid}/stream", {"text": "Lege etwas an"})
+    events = [json.loads(line[5:]) for line in resp.text.splitlines() if line.startswith("data:")]
+    assert [e["type"] for e in events] == ["pending", "done"]
+    assert events[0]["count"] == 1 and events[-1]["pending"][0]["preview"]["created"]
+    assert c.get(f"/projects/{project}/items?q=Streamed")["total"] == 0
+
+    fake.replies = [llm.Reply(content="Angelegt.")]
+    resp = c.post(f"/projects/{project}/assistant/threads/{tid}/confirm-stream", {"approve": True})
+    events = [json.loads(line[5:]) for line in resp.text.splitlines() if line.startswith("data:")]
+    assert events[0] == {"type": "applied", "count": 1}
+    assert events[-1]["type"] == "done" and events[-1]["pending"] == []
+    assert c.get(f"/projects/{project}/items?q=Streamed")["total"] == 1

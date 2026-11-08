@@ -64,6 +64,27 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802 — name required by BaseHTTPRequestHandler
         self._send(LOCAL_MODELS if self.path.startswith("/api/tags") else {})
 
+    def _send_stream(self, out):
+        """The same answer as server-sent events: text in two pieces, tool calls in one."""
+        message = out["choices"][0]["message"]
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+
+        def event(delta, finish=None):
+            chunk = {"choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            self.wfile.flush()
+
+        if message.get("tool_calls"):
+            event({"tool_calls": message["tool_calls"]}, "tool_calls")
+        else:
+            text = message.get("content") or ""
+            half = len(text) // 2
+            event({"content": text[:half]})
+            event({"content": text[half:]}, "stop")
+        self.wfile.write(b"data: [DONE]\n\n")
+
     def do_POST(self):  # noqa: N802
         body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
         try:
@@ -73,8 +94,11 @@ class Handler(BaseHTTPRequestHandler):
                 out["choices"][0]["message"]["content"] = (
                     (out["choices"][0]["message"]["content"] or "") + " (lokal beantwortet)").strip() or None
         except Exception as exc:  # noqa: BLE001 — the stub must answer something the app can read
-            out = reply(f"stub error: {exc}")
-        self._send(out)
+            sent, out = {}, reply(f"stub error: {exc}")
+        if sent.get("stream"):
+            self._send_stream(out)
+        else:
+            self._send(out)
 
     def log_message(self, *args):
         pass

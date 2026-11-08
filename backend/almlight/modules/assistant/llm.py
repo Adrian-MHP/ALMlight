@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -265,6 +266,108 @@ def _ollama_chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | N
         return _parse_chat(resp.json())
     except ValueError:
         raise ValidationFailed("The language model did not answer with JSON") from None
+
+
+# --- streaming ------------------------------------------------------------------------------------------
+
+
+def _sse(resp: httpx.Response) -> Iterator[dict[str, Any]]:
+    """The JSON objects of a server-sent-events body, in order."""
+    for line in resp.iter_lines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if payload in ("", "[DONE]"):
+            continue
+        try:
+            yield json.loads(payload)
+        except ValueError:
+            log.info("assistant: ignoring a stream line that is not JSON")
+
+
+def _stream_chat(data: Iterator[dict[str, Any]]) -> Iterator[tuple[str, Any]]:
+    """Chat completions (Azure and Ollama): text arrives in deltas, tool calls in fragments."""
+    text: list[str] = []
+    calls: dict[int, dict[str, str]] = {}
+    finish = None
+    usage: dict[str, int] = {}
+    for event in data:
+        usage = event.get("usage") or usage
+        choice = (event.get("choices") or [{}])[0]
+        finish = choice.get("finish_reason") or finish
+        delta = choice.get("delta") or {}
+        if delta.get("content"):
+            text.append(delta["content"])
+            yield "delta", delta["content"]
+        for fragment in delta.get("tool_calls") or []:
+            call = calls.setdefault(fragment.get("index", 0), {"id": "", "name": "", "arguments": ""})
+            call["id"] = fragment.get("id") or call["id"]
+            function = fragment.get("function") or {}
+            call["name"] = function.get("name") or call["name"]
+            call["arguments"] += function.get("arguments") or ""
+    yield "reply", Reply(
+        content="".join(text).strip(), finish_reason=finish, usage=usage,
+        tool_calls=[ToolCall(id=c["id"] or f"call_{n}", name=c["name"], arguments=_parse_arguments(c["arguments"]))
+                    for n, c in sorted(calls.items()) if c["name"]])
+
+
+def _stream_responses(data: Iterator[dict[str, Any]]) -> Iterator[tuple[str, Any]]:
+    """The responses API sends typed events; the finished response carries everything, so it is parsed as usual."""
+    text: list[str] = []
+    reply = None
+    for event in data:
+        kind = event.get("type")
+        if kind == "response.output_text.delta" and event.get("delta"):
+            text.append(event["delta"])
+            yield "delta", event["delta"]
+        elif kind in ("response.completed", "response.incomplete") and event.get("response"):
+            reply = _parse_responses(event["response"])
+        elif kind == "response.failed":
+            raise ValidationFailed("The language model answered with an error")
+    yield "reply", reply or Reply(content="".join(text).strip())
+
+
+def chat_stream(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, *,
+                temperature: float = 0.1, model: Model | None = None) -> Iterator[tuple[str, Any]]:
+    """One round, but the text arrives while it is written: yields ("delta", text) … and finally ("reply", Reply)."""
+    s = get_settings()
+    chosen = model or resolve(None)
+    if chosen is None:
+        raise ValidationFailed("The AI assistant is not configured on this installation "
+                               "(endpoint, key and deployment of the language model are missing)")
+    quirks = _deployment_quirks()
+    if chosen.provider == "ollama":
+        url = f"{(s.ollama_url or '').rstrip('/')}/v1/chat/completions"
+        body: dict[str, Any] = {"model": chosen.name, "messages": messages, "temperature": temperature}
+        if tools:
+            body["tools"] = tools
+            body["tool_choice"] = "auto"
+        headers = {}
+        responses_api = False
+    elif quirks.get("api") == "responses":
+        url, body = _responses_request(messages, tools, quirks)
+        headers = {"api-key": s.azure_openai_api_key or ""}
+        responses_api = True
+    else:
+        # the first round of a deployment may still have to find its surface, so it is not streamed
+        yield "reply", chat(messages, tools, temperature=temperature, model=chosen)
+        return
+    body["stream"] = True
+    try:
+        with httpx.stream("POST", url, json=body, headers={**headers, "Content-Type": "application/json"},
+                          timeout=httpx.Timeout(s.assistant_timeout_seconds, connect=10.0)) as resp:
+            if resp.status_code >= 400:
+                resp.read()
+                log.warning("assistant: the language model answered %s: %s", resp.status_code, resp.text[:300])
+                raise ValidationFailed(f"The language model answered with an error ({resp.status_code})")
+            yield from (_stream_responses(_sse(resp)) if responses_api else _stream_chat(_sse(resp)))
+    except httpx.TimeoutException:
+        raise ValidationFailed("The language model did not answer in time — try again or ask something "
+                               "smaller") from None
+    except httpx.HTTPError as exc:
+        log.warning("assistant: the language model is not reachable: %s", exc)
+        raise ValidationFailed("The language model is not reachable from this installation") from None
 
 
 # --- one round ------------------------------------------------------------------------------------------

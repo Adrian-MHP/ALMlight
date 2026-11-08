@@ -210,6 +210,117 @@ def _history(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
                         for r in rows]}
 
 
+def _documents(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
+    """The documents of the project, or one document with its headings and items in order."""
+    from almlight.modules.documents import service as documents_svc
+
+    key = _str(args, "key")
+    document_types = [t.key for t in ctx.project.model.item_types if t.document]
+    if not key:
+        rows = items_svc.query_items(ctx.db, ctx.project, items_svc.ItemQuery(
+            types=document_types or None, limit=MAX_ROWS, sort="key"))[0]
+        return {"documents": [_item_row(ctx, i) for i in rows]}
+    root = _item(ctx, key)
+    if root.type_key not in document_types:
+        raise ValidationFailed(f"{root.key} is not a document — call documents without a key to see them")
+    snapshot = documents_svc.snapshot_for(ctx.db, ctx.project, root, at=None, baseline=None)
+    limit = _int(args, "limit", 60, 1, 200)
+    nodes = []
+    for n in list(snapshot.walk())[:limit]:
+        entry = {"number": n.number, "key": n.key, "title": n.title, "type": n.type_label,
+                 "heading": n.is_heading or None, "state": n.state}
+        if not n.is_heading and _str(args, "with_text", "yes") != "no":
+            entry["text"] = _text(n.raw_description, 1200)
+        nodes.append({k: v for k, v in entry.items() if v is not None})
+    return {"document": root.key, "title": root.title, "version": root.version_label,
+            "entries": len(list(snapshot.walk())), "shown": len(nodes), "content": nodes}
+
+
+def _plans(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
+    """Releases and iterations with their progress — what is planned and how it is going."""
+    from almlight.modules.planning.router import _sub_plans, plan_of
+
+    sem = ctx.project.model.semantics
+    t = ctx.project.model.item_type(sem.release_type) if sem.release_type else None
+    if t is None:
+        return {"error": "This project has no plans"}
+    releases = ctx.db.execute(select(Item).where(Item.project_id == ctx.project.id, Item.type_key == t.key,
+                                                 Item.deleted_at.is_(None))).scalars().all()
+    tree = _sub_plans(ctx.db, ctx.project)
+    key = _str(args, "key")
+    out = []
+    for r in releases:
+        if key and r.key != key.upper():
+            continue
+        p = plan_of(ctx.db, ctx.project, r, with_items=bool(key), tree=tree)
+        row = {k: p.get(k) for k in ("key", "title", "kind", "state_label", "start_date", "due_date", "goal",
+                                     "total", "done", "progress", "status", "estimate", "capacity", "parent")}
+        if key:
+            row["items"] = [{"key": i["key"], "title": i["title"], "state": i.get("state_label") or i.get("state")}
+                            for i in (p.get("items") or [])][:MAX_ROWS]
+        out.append({k: v for k, v in row.items() if v is not None})
+    out.sort(key=lambda r: (r.get("start_date") or r.get("due_date") or "9999", r["key"]))
+    return {"plans": out}
+
+
+def _bom(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
+    """The bill of materials under an item, or where an item is used."""
+    from almlight.modules.bom.router import bom_rows, where_used
+
+    item = _item(ctx, _str(args, "key"))
+    if _str(args, "direction") == "where_used":
+        # the endpoint is a plain function; calling it keeps one implementation of the upward walk
+        found = where_used(ctx.project.key, item.key, ctx.user, ctx.db)
+        return {"item": item.key, "used_in": [" / ".join(step["key"] for step in path)
+                                              for path in found.get("paths", [])][:MAX_ROWS]}
+    rows = bom_rows(ctx.db, ctx.project, item)[:MAX_ROWS]
+    return {"item": item.key, "title": item.title,
+            "rows": [{k: r[k] for k in ("level", "key", "title", "quantity", "unit", "find_number",
+                                        "total_quantity", "part_number") if r.get(k) is not None} for r in rows]}
+
+
+def _risks(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
+    """The risk register (FMEA): the numbers and the risks that still need work."""
+    from almlight.modules.risks.router import risk_overview
+
+    data = risk_overview(ctx.db, ctx.project)
+    if not data.get("enabled"):
+        return {"error": "This project has no risk type"}
+    rows = [{"key": r["key"], "title": r["title"], "level": r.get("level"), "rpn": r.get("rpn"),
+             "residual_level": r.get("residual_level"), "mitigations": r.get("mitigations", 0),
+             "state": r.get("state_label")} for r in data.get("risks", [])][:MAX_ROWS]
+    return {"summary": data.get("summary"), "risks": rows}
+
+
+def _revisions(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
+    """Code: the commits linked to an item, or the latest commits of the connected repositories."""
+    from almlight.modules.vcs import service as vcs_svc
+    from almlight.modules.vcs.models import Repository
+
+    key = _str(args, "key")
+    if key:
+        data = vcs_svc.item_revisions(ctx.db, ctx.project, _item(ctx, key))
+        return {"item": key.upper(),
+                "revisions": [{"commit": r["short"], "title": r["title"], "author": r["author"],
+                               "at": r["committed_at"][:10], "repository": r["repository"]["name"],
+                               "source": r["source"]} for r in data["revisions"][:MAX_ROWS]],
+                "branches": [b["name"] for b in data["branches"]],
+                "pull_requests": [{"id": p["external_id"], "title": p["title"], "status": p["status"]}
+                                  for p in data["pull_requests"]]}
+    repos = ctx.db.execute(select(Repository).where(Repository.project_id == ctx.project.id)).scalars().all()
+    if not repos:
+        return {"repositories": [], "note": "No Git repository is connected to this project."}
+    out = []
+    for repo in repos:
+        found = vcs_svc.list_commits(ctx.db, repo, q=_str(args, "text") or None,
+                                     limit=_int(args, "limit", 10, 1, MAX_ROWS))
+        out.append({"repository": repo.name, "total": found["total"],
+                    "commits": [{"commit": c["short"], "title": c["title"], "author": c["author"],
+                                 "at": c["committed_at"][:10],
+                                 "items": [i["key"] for i in c.get("items") or []]} for c in found["commits"]]})
+    return {"repositories": out}
+
+
 # --- changing (previewed, applied only after the person confirms) -----------------------------------------
 
 
@@ -307,6 +418,32 @@ TOOLS: list[Tool] = [
     Tool("impact",
          "What a change of this item would affect: the items that depend on it and the documents containing it.",
          {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}, _impact),
+    Tool("documents",
+         "The documents of the project; with a key, that document with its headings and items in reading order "
+         "(use it to summarise or review a specification).",
+         {"type": "object", "properties": {
+             "key": {"type": "string", "description": "key of the document; leave out to list the documents"},
+             "with_text": {"type": "string", "enum": ["yes", "no"], "description": "include the item texts"},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 200}}}, _documents),
+    Tool("plans",
+         "Releases and iterations with dates, goal, progress and status; with a key also the work planned in it.",
+         {"type": "object", "properties": {"key": {"type": "string", "description": "key of one plan"}}}, _plans),
+    Tool("bom",
+         "The bill of materials under an item (levels, quantities, find numbers), or — with "
+         "direction='where_used' — every structure the item is used in.",
+         {"type": "object", "properties": {
+             "key": {"type": "string"},
+             "direction": {"type": "string", "enum": ["bom", "where_used"]}}, "required": ["key"]}, _bom),
+    Tool("risks",
+         "The risk register (FMEA): how many risks there are by level, how many are unmitigated, and the rows.",
+         {"type": "object", "properties": {}}, _risks),
+    Tool("revisions",
+         "Code of the connected Git repositories: with a key the commits, branches and pull requests linked to "
+         "that item, otherwise the latest commits (optionally searched with 'text').",
+         {"type": "object", "properties": {
+             "key": {"type": "string", "description": "item key, e.g. SYS-12"},
+             "text": {"type": "string", "description": "search in commit messages and authors"},
+             "limit": {"type": "integer", "minimum": 1, "maximum": MAX_ROWS}}}, _revisions),
     Tool("history",
          "What happened recently in the project, or to one item (key): who changed what and when.",
          {"type": "object", "properties": {"key": {"type": "string"},

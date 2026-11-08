@@ -140,10 +140,13 @@ docker run --rm -v "$PWD/backend":/src -w /src python:3.12-slim sh -c \
   "pip install -q -r requirements.in && pip freeze > requirements.txt"
 ```
 
-## 8.8 Reverse proxy and WebSockets
+## 8.8 Reverse proxy, WebSockets and the assistant's stream
 
-Live editing and live updates use two WebSocket endpoints (`/api/v1/collab/…`, `/api/v1/live`). The proxy must forward
-the upgrade and the original host; the application refuses WebSocket connections whose `Origin` does not match the
+Live editing and live updates use two WebSocket endpoints (`/api/v1/collab/…`, `/api/v1/live`), and the assistant
+answers as a server-sent-events stream (`…/assistant/threads/*/stream`), which must not be buffered — the answer
+carries `X-Accel-Buffering: no` for nginx; other proxies need `proxy_buffering off` or the equivalent. The proxy
+must forward the upgrade and the original host; the application refuses WebSocket connections whose `Origin` does
+not match the
 host (or `ALMLIGHT_CORS_ORIGINS`).
 
 ```nginx

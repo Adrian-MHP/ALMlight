@@ -10,8 +10,8 @@ import {
 } from "@tabler/icons-react";
 import { useLocalStorage } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/api/client";
-import { pk, useProjectMutation } from "@/api/hooks";
+import { api, ApiError, streamEvents } from "@/api/client";
+import { pk } from "@/api/hooks";
 import type { AssistantInfo, AssistantMessage, AssistantProposal, AssistantThread } from "@/api/types";
 import { Markdown } from "@/components/Markdown";
 import { fmtRelative } from "@/lib/format";
@@ -58,18 +58,38 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
     mutationFn: () => api.post(`${base}/threads`, { model: wanted }),
     onSuccess: (t) => { show(t); qc.invalidateQueries({ queryKey: pk(projectKey, "assistant") }); },
   });
-  const ask = useMutation<AssistantThread, ApiError, string>({
-    mutationFn: async (question) => {
-      const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`, { model: wanted })).id;
-      setThreadId(id);
-      return api.post(`${base}/threads/${id}/messages`, { text: question });
-    },
-    onSuccess: (t) => { show(t); qc.invalidateQueries({ queryKey: pk(projectKey, "assistant") }); },
-    onError: (err) => notifications.show({ color: "red", title: tx("The assistant could not answer"), message: err.full }),
-  });
-  // applying may change items, so every project query is refreshed
-  const confirm = useProjectMutation(projectKey, (approve: boolean) =>
-    api.post<AssistantThread>(`${base}/threads/${threadId}/confirm`, { approve }), { onSuccess: show });
+  // the answer is read while it is written: text in pieces, plus what the tools did
+  const [live, setLive] = useState<{ text: string; tools: { name: string; ok: boolean }[] } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async (path: string, body: unknown, changes = false) => {
+    setBusy(true);
+    setLive({ text: "", tools: [] });
+    try {
+      await streamEvents(path, body, (event) => {
+        const kind = event.type;
+        if (kind === "delta") setLive((l) => (l ? { ...l, text: l.text + String(event.text ?? "") } : l));
+        else if (kind === "tool") setLive((l) => (l ? { ...l, tools: [...l.tools, { name: String(event.name), ok: event.ok !== false }] } : l));
+        else if (kind === "done") show(event as unknown as AssistantThread);
+        else if (kind === "error") notifications.show({ color: "red", title: tx("The assistant could not answer"), message: String(event.message ?? "") });
+      });
+      qc.invalidateQueries({ queryKey: pk(projectKey, "assistant") });
+      if (changes) qc.invalidateQueries({ queryKey: ["p", projectKey] });  // applied changes touch the project
+    } catch (err) {
+      notifications.show({ color: "red", title: tx("The assistant could not answer"),
+        message: err instanceof ApiError ? err.full : String(err) });
+    } finally {
+      setLive(null);
+      setBusy(false);
+    }
+  };
+
+  const ask = async (question: string) => {
+    const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`, { model: wanted })).id;
+    setThreadId(id);
+    await run(`${base}/threads/${id}/stream`, { text: question });
+  };
+  const confirm = (approve: boolean) => run(`${base}/threads/${threadId}/confirm-stream`, { approve }, approve);
   const remove = useMutation<unknown, ApiError, string>({
     mutationFn: (id) => api.del(`${base}/threads/${id}`),
     onSuccess: (_r, id) => {
@@ -80,12 +100,11 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
 
   const messages = thread.data?.messages ?? [];
   const pending = thread.data?.pending ?? [];
-  const busy = ask.isPending || confirm.isPending;
   useEffect(() => {
     viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, pending.length, busy]);
 
-  const send = () => { if (text.trim() && !busy) { ask.mutate(text.trim()); setText(""); } };
+  const send = () => { if (text.trim() && !busy) { void ask(text.trim()); setText(""); } };
 
   return (
     <Drawer.Root opened={opened} onClose={onClose} position="right" size={520} padding="md">
@@ -147,20 +166,34 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
           </Group>
           <ScrollArea style={{ flex: 1 }} viewportRef={viewport} type="auto">
             <Stack gap="sm" pb="md" data-testid="assistant-messages">
-              {messages.length === 0 && !busy && <Intro canChange={info.data?.can_change ?? false} onPick={(q) => ask.mutate(q)} />}
+              {messages.length === 0 && !busy && <Intro canChange={info.data?.can_change ?? false} onPick={(q) => void ask(q)} />}
               {messages.map((m) => <Message key={m.id} message={m} />)}
               {pending.map((p, n) => <Proposal key={n} proposal={p} />)}
-              {pending.length > 0 && (
+              {pending.length > 0 && !busy && (
                 <Group gap="xs" data-testid="assistant-confirm">
-                  <Button size="xs" leftSection={<IconCheck size={14} />} loading={confirm.isPending}
-                    onClick={() => confirm.mutate(true)} disabled={pending.every((p) => p.error)} data-testid="assistant-apply">
+                  <Button size="xs" leftSection={<IconCheck size={14} />}
+                    onClick={() => void confirm(true)} disabled={pending.every((p) => p.error)} data-testid="assistant-apply">
                     {tx("Apply")}
                   </Button>
-                  <Button size="xs" variant="default" leftSection={<IconX size={14} />} onClick={() => confirm.mutate(false)}
+                  <Button size="xs" variant="default" leftSection={<IconX size={14} />} onClick={() => void confirm(false)}
                     data-testid="assistant-discard">{tx("Discard")}</Button>
                 </Group>
               )}
-              {busy && <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{tx("The assistant is working…")}</Text></Group>}
+              {live?.tools.map((t, n) => {
+                const { label, icon: Icon } = toolInfo(t.name);
+                return (
+                  <Group key={n} gap={6} wrap="nowrap">
+                    <Icon size={13} color={t.ok ? "var(--mantine-color-dimmed)" : "var(--mantine-color-red-6)"} />
+                    <Text size="xs" c={t.ok ? "dimmed" : "red"}>{label}</Text>
+                  </Group>
+                );
+              })}
+              {live?.text && (
+                <Box className="assistant-answer" data-testid="assistant-streaming"><Markdown text={live.text} /></Box>
+              )}
+              {busy && !live?.text && (
+                <Group gap="xs"><Loader size="xs" /><Text size="sm" c="dimmed">{tx("The assistant is working…")}</Text></Group>
+              )}
             </Stack>
           </ScrollArea>
           <Box pt="xs" pb="md" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>

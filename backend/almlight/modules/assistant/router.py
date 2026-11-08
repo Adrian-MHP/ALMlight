@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
+from collections.abc import Iterator
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from almlight.core.db import get_db
+from almlight.core.db import get_db, session_factory
 from almlight.core.deps import current_user
 from almlight.core.schemas import Ok
 from almlight.modules.assistant import llm, service
@@ -17,6 +20,7 @@ from almlight.modules.assistant.tools import TOOLS
 from almlight.modules.identity.models import User
 from almlight.modules.projects.access import get_project, has_role
 
+log = logging.getLogger("almlight.assistant")
 router = APIRouter(prefix="/projects/{project_key}/assistant", tags=["assistant"])
 
 
@@ -78,6 +82,62 @@ def confirm(project_key: str, thread_id: uuid.UUID, body: ConfirmIn, user: User 
     result = service.confirm(db, project, user, thread, body.approve)
     db.commit()
     return result
+
+
+def _events(project_key: str, thread_id: uuid.UUID, user_id: uuid.UUID, work: str,
+            approve: bool = False, text: str = "") -> Iterator[str]:
+    """Run the conversation in its own session and report what happens as server-sent events.
+
+    A streaming response outlives the request's session, so this opens its own and closes it at the end.
+    """
+    import json as _json
+
+    from almlight.core.errors import DomainError
+    from almlight.modules.identity.models import User as UserModel
+
+    def line(event: dict[str, Any]) -> str:
+        return f"data: {_json.dumps(event, ensure_ascii=False, default=str)}\n\n"
+
+    with session_factory()() as db:
+        try:
+            user = db.get(UserModel, user_id)
+            project = get_project(db, project_key, user)
+            thread = service._thread(db, project, user, thread_id)
+            steps = (service.ask_stream(db, project, user, thread, text) if work == "ask"
+                     else service.confirm_stream(db, project, user, thread, approve))
+            for event in steps:
+                yield line(event)
+            db.commit()
+            yield line({"type": "done", **service.state(db, thread)})
+        except DomainError as exc:
+            db.rollback()
+            yield line({"type": "error", "message": exc.message})
+        except Exception:  # noqa: BLE001 — the browser must learn that it is over
+            db.rollback()
+            log.exception("assistant stream failed")
+            yield line({"type": "error", "message": "The assistant stopped unexpectedly"})
+
+
+def _stream(generator: Iterator[str]) -> StreamingResponse:
+    return StreamingResponse(generator, media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+@router.post("/threads/{thread_id}/stream", summary="Ask the assistant and follow the answer while it is written")
+def ask_streaming(project_key: str, thread_id: uuid.UUID, body: AskIn, user: User = Depends(current_user),
+                  db: Session = Depends(get_db)) -> StreamingResponse:
+    project = get_project(db, project_key, user)  # refuse early, before the stream starts
+    service._thread(db, project, user, thread_id)
+    return _stream(_events(project_key, thread_id, user.id, "ask", text=body.text))
+
+
+@router.post("/threads/{thread_id}/confirm-stream",
+             summary="Apply or discard the proposals and follow what the assistant says next")
+def confirm_streaming(project_key: str, thread_id: uuid.UUID, body: ConfirmIn, user: User = Depends(current_user),
+                      db: Session = Depends(get_db)) -> StreamingResponse:
+    project = get_project(db, project_key, user)
+    service._thread(db, project, user, thread_id)
+    return _stream(_events(project_key, thread_id, user.id, "confirm", approve=body.approve))
 
 
 @router.delete("/threads/{thread_id}", response_model=Ok, summary="Delete a conversation")

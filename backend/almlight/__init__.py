@@ -1,6 +1,6 @@
 """Ariadne (code name ALMlight) — a lightweight, configurable engineering backbone (ALM/PLM)."""
 
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 
 # Product name shown to users. "almlight" remains the technical code name (package, settings, identifiers).
 PRODUCT = "Ariadne"

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
@@ -156,8 +157,20 @@ def _run_tool(ctx: tools.Context, call: dict[str, Any], limit: int = MAX_RESULT_
         return _result_text({"error": f"{type(exc).__name__}: {exc}"[:300]}, limit), False
 
 
-def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
-    """Ask the model until it answers, running read tools and parking changing ones for confirmation."""
+def _answer(messages: list[dict[str, Any]], schemas: list[dict[str, Any]], model: llm.Model | None,
+            stream: bool) -> Iterator[tuple[str, Any]]:
+    """One round with the model, either in one piece or while it writes."""
+    if stream:
+        yield from llm.chat_stream(messages, schemas, model=model)
+    else:
+        yield "reply", llm.chat(messages, schemas, model=model)
+
+
+def _loop(db: Session, thread: AssistantThread, ctx: tools.Context, stream: bool = False) -> Iterator[dict[str, Any]]:
+    """Ask the model until it answers, running read tools and parking changing ones for confirmation.
+
+    Yields what happens, so the browser can show it while it happens; the plain endpoint just drains it.
+    """
     from almlight.core.config import get_settings
 
     steps = get_settings().assistant_max_steps
@@ -165,7 +178,14 @@ def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
     model = llm.resolve(thread.model or None)
     limit = MAX_RESULT_CHARS_LOCAL if model and model.local else MAX_RESULT_CHARS
     for _ in range(steps):
-        reply = llm.chat(_history(db, thread, ctx), schemas, model=model)
+        reply = None
+        for kind, value in _answer(_history(db, thread, ctx), schemas, model, stream):
+            if kind == "delta":
+                yield {"type": "delta", "text": value}
+            else:
+                reply = value
+        if reply is None:  # pragma: no cover — _answer always ends with a reply
+            reply = llm.Reply(content="")
         if not reply.tool_calls:
             _add(db, thread, "assistant", reply.content or "…",
                  {"usage": reply.usage, "model": model.label if model else None})
@@ -191,14 +211,17 @@ def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
             else:
                 content, ok = _run_tool(ctx, call, limit)
                 _add(db, thread, "tool", content, {"call_id": call["id"], "name": call["name"], "ok": ok})
+                yield {"type": "tool", "name": call["name"], "ok": ok}
         if pending:  # wait for the person; the conversation continues after confirm()
             thread.pending = pending
+            yield {"type": "pending", "count": len(pending)}
             return
     _add(db, thread, "assistant",
          "I stopped after several steps without reaching an answer. Please ask something more specific.", {})
 
 
-def ask(db: Session, project: Project, user: User, thread: AssistantThread, text: str) -> dict[str, Any]:
+def _begin_ask(db: Session, project: Project, user: User, thread: AssistantThread, text: str) -> tools.Context:
+    """Everything before the model is asked: checks, the dropped proposals, the question and the audit entry."""
     text = (text or "").strip()
     if not text:
         raise ValidationFailed("Write a question for the assistant")
@@ -216,8 +239,22 @@ def ask(db: Session, project: Project, user: User, thread: AssistantThread, text
     audit.record(db, actor=user, action="assistant.asked", entity_type="project", entity_id=project.id,
                  project_id=project.id, summary=f"Asked the assistant in {project.key}",
                  details={"thread": str(thread.id), "question": text[:TITLE_CHARS]})
-    _loop(db, thread, ctx)
+    return ctx
+
+
+def ask(db: Session, project: Project, user: User, thread: AssistantThread, text: str) -> dict[str, Any]:
+    """Ask and wait for the whole answer."""
+    ctx = _begin_ask(db, project, user, thread, text)
+    for _ in _loop(db, thread, ctx):
+        pass
     return state(db, thread)
+
+
+def ask_stream(db: Session, project: Project, user: User, thread: AssistantThread,
+               text: str) -> Iterator[dict[str, Any]]:
+    """Ask and follow along: yields the text as it is written and what the tools do."""
+    ctx = _begin_ask(db, project, user, thread, text)
+    yield from _loop(db, thread, ctx, stream=True)
 
 
 def _settle(db: Session, thread: AssistantThread, ctx: tools.Context, *, approve: bool, note: str = "") -> int:
@@ -239,7 +276,8 @@ def _settle(db: Session, thread: AssistantThread, ctx: tools.Context, *, approve
     return applied
 
 
-def confirm(db: Session, project: Project, user: User, thread: AssistantThread, approve: bool) -> dict[str, Any]:
+def _begin_confirm(db: Session, project: Project, user: User, thread: AssistantThread,
+                   approve: bool) -> tuple[tools.Context, int]:
     if not thread.pending:
         raise ValidationFailed("There is nothing waiting for confirmation")
     ctx = tools.Context(db=db, project=project, user=user)
@@ -252,8 +290,21 @@ def confirm(db: Session, project: Project, user: User, thread: AssistantThread, 
                      project_id=project.id,
                      summary=f"Applied {applied} change(s) proposed by the assistant in {project.key}",
                      details={"thread": str(thread.id), "proposals": proposals})
-    _loop(db, thread, ctx)
+    return ctx, applied
+
+
+def confirm(db: Session, project: Project, user: User, thread: AssistantThread, approve: bool) -> dict[str, Any]:
+    ctx, _ = _begin_confirm(db, project, user, thread, approve)
+    for _ in _loop(db, thread, ctx):
+        pass
     return state(db, thread)
+
+
+def confirm_stream(db: Session, project: Project, user: User, thread: AssistantThread,
+                   approve: bool) -> Iterator[dict[str, Any]]:
+    ctx, applied = _begin_confirm(db, project, user, thread, approve)
+    yield {"type": "applied", "count": applied}
+    yield from _loop(db, thread, ctx, stream=True)
 
 
 def state(db: Session, thread: AssistantThread) -> dict[str, Any]:

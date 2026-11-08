@@ -258,9 +258,9 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 217 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 222 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 57 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 58 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 

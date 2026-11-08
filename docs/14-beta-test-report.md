@@ -306,10 +306,12 @@ shown:
 
 | 11 | A local 8B model (qwen3) answered a two-part counting question wrongly: it had searched only the approved requirements and reported that count as the total. The tools were right, the conclusion was not | finding (model quality) | Every search answer now carries the filter it applied, and tool answers are cut shorter for local models (8,000 characters) because of their smaller context. The guide says plainly what a local model is good for |
 
-**Automated tests at the end of round 7**: 217 backend tests (new: the assistant's reading tools, the proposal and
+| 12 | Two tools written for the new sources were wrong on first contact with real data: the BOM tool called a function that does not exist, and the risk tool treated a count as a list | bug | Both fixed; the new tools are tested against the demo project, which has documents, plans, a BOM, risks and a repository |
+
+**Automated tests at the end of round 7**: 222 backend tests (new: the assistant's reading tools, the proposal and
 its confirmation, editing with a before/after preview, roles, conversations private to their owner, a failing tool,
-the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps, the model list and the choice per conversation, a local server that is off), 57 browser E2E tests (new: an answer from the project, a proposed change
-that is first discarded and then applied, and a reader whose assistant cannot change anything, and picking the local model).
+the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps, the model list and the choice per conversation, a local server that is off, streaming for both surfaces with its reassembly of split tool calls, a failure in mid-stream, the five tools for documents, plans, BOM, risks and code), 58 browser E2E tests (new: an answer from the project, a proposed change
+that is first discarded and then applied, and a reader whose assistant cannot change anything, picking the local model, and an answer appearing while it is written).
 
 ## 14.9 Known limitations
 

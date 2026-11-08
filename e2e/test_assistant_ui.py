@@ -80,6 +80,19 @@ def test_a_reader_gets_an_assistant_that_cannot_change_anything(page: Page, play
     assert page.request.get(f"{API}/items?q=Testlauf").json()["total"] == 0
 
 
+def test_the_answer_appears_while_it_is_written(page: Page):
+    """The panel reads a stream: the tool activity and the text show up before the answer is finished."""
+    login(page, "alex", DEMO_PW)
+    page.goto("/p/DEMO")
+    open_assistant(page)
+    page.get_by_test_id("assistant-input").fill("Wie viele Anforderungen gibt es?")
+    page.get_by_test_id("assistant-send").click()
+    # the tool line comes from the stream, before the answer is stored
+    expect(page.get_by_test_id("assistant-tool-search_items")).to_be_visible()
+    expect(page.get_by_test_id("assistant-answer").last).to_contain_text("Systemanforderungen")
+    expect(page.get_by_test_id("assistant-streaming")).to_have_count(0)  # replaced by the stored message
+
+
 def test_the_model_can_be_chosen_per_conversation(page: Page):
     """Two models are configured in the test stack (a cloud one and a local one): the panel lets you pick."""
     login(page, "alex", DEMO_PW)

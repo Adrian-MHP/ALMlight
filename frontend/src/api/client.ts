@@ -75,6 +75,37 @@ export const api = {
     handle<T>(await fetch(BASE + path, { method: "POST", credentials: "same-origin", body: form, headers: langHeader() })),
 };
 
+/** Reads a server-sent-events answer (the assistant) and hands over every event as it arrives. */
+export async function streamEvents(path: string, body: unknown, onEvent: (event: Record<string, unknown>) => void): Promise<void> {
+  const res = await fetch(BASE + path, {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json", ...langHeader() }, body: JSON.stringify(body),
+  });
+  if (!res.ok || !res.body) {
+    await handle(res);                       // turns the error body into an ApiError
+    throw new ApiError(res.status, "error", res.statusText);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith("data:")) continue;
+      try {
+        onEvent(JSON.parse(line.slice(5)));
+      } catch {
+        /* a line that is not JSON is ignored */
+      }
+    }
+  }
+}
+
 export function qs(params: Record<string, string | number | boolean | string[] | undefined | null>): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {

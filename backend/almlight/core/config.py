@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     # the responses API (reasoning models need it for tool calling) has its own versions
     azure_openai_responses_api_version: str = "2025-04-01-preview"
     assistant_api: str = "auto"   # auto | chat | responses
+    # A language model on the network (Ollama), as an alternative to Azure for simple questions and for data that
+    # must not leave the machine. Empty models = offer everything the server has.
+    ollama_url: str | None = None
+    ollama_models: str = ""
+    assistant_default_model: str | None = None
+
     assistant_max_steps: int = 6          # tool rounds per question
     # Reasoning models refuse tools unless this is "none"; empty = send nothing and learn it from the answer.
     assistant_reasoning_effort: str | None = None
@@ -108,8 +114,12 @@ class Settings(BaseSettings):
         return value
 
     @property
-    def assistant_enabled(self) -> bool:
+    def azure_enabled(self) -> bool:
         return bool(self.azure_openai_endpoint and self.azure_openai_api_key and self.azure_openai_deployment)
+
+    @property
+    def assistant_enabled(self) -> bool:
+        return self.azure_enabled or bool(self.ollama_url)
 
     @property
     def files_dir(self) -> Path:

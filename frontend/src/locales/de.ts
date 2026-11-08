@@ -1614,4 +1614,5 @@ export const de: Record<string, string> = {
   "read the information model": "Informationsmodell gelesen",
   "searched items": "Objekte gesucht",
   "write a comment": "Kommentar schreiben",
+  "Language model": "Sprachmodell",
 };

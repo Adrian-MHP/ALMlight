@@ -93,7 +93,8 @@ ALMlight.)*
 - **AI assistant**: a chat inside the project that answers from its data — which requirements have no test case,
   what a change would affect, a summary of the open change requests — and *proposes* changes (new items, edits,
   links, comments) that you apply or discard after seeing the exact preview. It reads with your permissions, and
-  what it applies becomes a normal, versioned, audited change ([guide](docs/19-ai-assistant.md)).
+  what it applies becomes a normal, versioned, audited change. Pick the model per conversation: Azure OpenAI, or a
+  local one (Ollama) so that nothing leaves the machine ([guide](docs/19-ai-assistant.md)).
 - **English and German**: the whole interface, the labels of the information model (translated per customer),
   server messages, notifications, e-mail digests and document exports follow the user's language.
 - **Workflow viewer**: every item shows its state diagram with the path taken and the transitions possible now.
@@ -257,9 +258,9 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 213 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 217 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
-docker compose -f compose.test.yaml run --rm e2e                                 # 56 browser E2E tests
+docker compose -f compose.test.yaml run --rm e2e                                 # 57 browser E2E tests
 docker compose -f compose.test.yaml down
 ```
 

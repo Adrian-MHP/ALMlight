@@ -52,7 +52,30 @@ proposed. Nothing the assistant does bypasses a workflow, a frozen state or the 
   that the deployment you configure has the data-protection terms your project needs before you point the
   assistant at real customer data.
 
-## 19.4 Configuration
+## 19.4 Choosing the model
+
+An installation can offer **several models**, and the panel lets the person pick one per conversation (the choice
+is remembered for the next one). Two kinds:
+
+- **Azure OpenAI** — the deployment from the configuration, one per installation.
+- **A local server (Ollama)** — everything that server has, or the allow-list in `ALMLIGHT_OLLAMA_MODELS`. The
+  list is read from the server every half minute; if it is off, the panel simply offers the cloud model and says
+  nothing is wrong. Local models answer over Ollama's OpenAI-compatible endpoint, so the same tools work — the
+  model has to support **tool calling** (qwen3 and the like do).
+
+Why a local model: the project's data never leaves the machine, and simple lookups cost nothing. Why not always:
+a small model reasons less well. In a measured comparison on the demo project, the cloud model answered "which
+requirements have no test case" correctly in 12 s, while `qwen3:8b` took 42 s on a two-part counting question and
+drew the wrong conclusion — it had searched only the approved requirements and reported that count as the total.
+Tool answers are therefore cut shorter for local models (8,000 instead of 30,000 characters, because of the
+smaller context), and every search answer now carries the filter it applied, so a number cannot be read as
+"everything". Use a local model for lookups and drafts, the cloud model for anything you are going to rely on —
+and check what the assistant says, whichever model wrote it.
+
+A conversation keeps the model it started with (the picker locks once the first answer is in) and the answer
+names the model that wrote it. `ALMLIGHT_ASSISTANT_DEFAULT_MODEL` sets what a new conversation starts with.
+
+## 19.5 Configuration
 
 Set the three variables (see [operations](08-operations.md) §8.3) and restart:
 
@@ -83,7 +106,20 @@ On Azure Container Apps the key belongs in a secret, like the other secrets in
 
 Without configuration the panel says so and names the variables; nothing else in the application changes.
 
-## 19.5 Limits
+### A local model server
+
+```bash
+ALMLIGHT_OLLAMA_URL=http://host.docker.internal:11434   # from the container, this is the host
+# ALMLIGHT_OLLAMA_MODELS=qwen3:8b-40k                   # optional allow-list
+# ALMLIGHT_ASSISTANT_DEFAULT_MODEL=ollama:qwen3:8b-40k  # what a new conversation starts with
+```
+
+Azure and a local server can be configured at the same time; either alone switches the assistant on. Mind the
+**context**: Ollama gives a model the context its tag was built with, and the information model of a project is a
+few thousand tokens — a tag with a large window (for example `qwen3:8b-40k`) answers noticeably better than the
+4k default.
+
+## 19.6 Limits
 
 - One question can take several model calls (`ALMLIGHT_ASSISTANT_MAX_STEPS`, default 6) and holds a database
   connection while it runs — fine for a team, not for dozens of people asking at once.
@@ -94,5 +130,6 @@ Without configuration the panel says so and names the variables; nothing else in
   (see [15](15-work-management.md)) is the tool for that.
 - It reads items, links, coverage, impact and history. Documents, baselines, plans, the BOM, test runs and the Git
   commits are not tools yet — ask about the items behind them instead.
-- The e2e tests use a stand-in for the model (`e2e/llm_stub.py`), so the browser tests do not need a cloud service;
-  the backend tests script the model directly.
+- The e2e tests use a stand-in for the model (`e2e/llm_stub.py`), which also answers on the Ollama paths, so the
+  browser tests cover the model picker without a cloud service; the backend tests script the model directly.
+- A local model is slower than it looks: it runs on the machine that also runs the browser and the containers.

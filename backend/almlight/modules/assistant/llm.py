@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,12 +40,72 @@ class Reply:
     usage: dict[str, int] = field(default_factory=dict)
 
 
+@dataclass
+class Model:
+    """A language model this installation offers."""
+
+    id: str                  # "azure:<deployment>" or "ollama:<tag>"
+    label: str
+    provider: str            # azure | ollama
+    name: str                # deployment or Ollama tag
+    local: bool = False
+    note: str | None = None
+
+
+_OLLAMA_CACHE: dict[str, Any] = {"at": 0.0, "models": []}
+
+
+def _ollama_models() -> list[Model]:
+    """What the Ollama server has. Asked at most every half minute and never for long, so a server that is off
+    does not slow the panel down."""
+    s = get_settings()
+    if not s.ollama_url:
+        return []
+    allowed = [m.strip() for m in (s.ollama_models or "").split(",") if m.strip()]
+    if time.monotonic() - _OLLAMA_CACHE["at"] < 30:
+        tags = _OLLAMA_CACHE["models"]
+    else:
+        try:
+            resp = httpx.get(f"{s.ollama_url.rstrip('/')}/api/tags", timeout=httpx.Timeout(4.0, connect=2.0))
+            tags = [m.get("name") for m in (resp.json() or {}).get("models", []) if m.get("name")]
+        except (httpx.HTTPError, ValueError) as exc:
+            log.info("assistant: the local model server is not reachable: %s", exc)
+            tags = []
+        _OLLAMA_CACHE.update(at=time.monotonic(), models=tags)
+    names = [t for t in tags if not allowed or t in allowed] or allowed
+    return [Model(id=f"ollama:{t}", label=t, provider="ollama", name=t, local=True,
+                  note="runs on this machine") for t in names]
+
+
+def models() -> list[Model]:
+    """Every model that can be chosen, the default first."""
+    s = get_settings()
+    out: list[Model] = []
+    if s.azure_enabled:
+        out.append(Model(id=f"azure:{s.azure_openai_deployment}", label=s.azure_openai_deployment or "",
+                         provider="azure", name=s.azure_openai_deployment or ""))
+    out += _ollama_models()
+    preferred = s.assistant_default_model
+    if preferred:
+        out.sort(key=lambda m: (m.id != preferred and m.name != preferred))
+    return out
+
+
+def resolve(model_id: str | None) -> Model | None:
+    """The model of this conversation; falls back to the default when it is gone (a tag was removed)."""
+    available = models()
+    if not available:
+        return None
+    return next((m for m in available if m.id == model_id), available[0])
+
+
 def enabled() -> bool:
-    return get_settings().assistant_enabled
+    return bool(models())
 
 
 def model_name() -> str | None:
-    return get_settings().azure_openai_deployment
+    first = models()
+    return first[0].label if first else None
 
 
 # What this deployment needs or refuses, learned from its answers (per process, per deployment).
@@ -175,16 +236,50 @@ def _parse_responses(data: dict[str, Any]) -> Reply:
                  usage={"total_tokens": usage["total_tokens"]} if usage.get("total_tokens") else {})
 
 
+# --- a local model (Ollama) -----------------------------------------------------------------------------
+
+
+def _ollama_chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None, temperature: float,
+                 model: Model) -> Reply:
+    """Ollama speaks the chat-completions shape, so the same conversation and tools go over the wire."""
+    s = get_settings()
+    body: dict[str, Any] = {"model": model.name, "messages": messages, "temperature": temperature, "stream": False}
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
+    try:
+        resp = httpx.post(f"{(s.ollama_url or '').rstrip('/')}/v1/chat/completions", json=body,
+                          timeout=httpx.Timeout(s.assistant_timeout_seconds, connect=5.0))
+    except httpx.TimeoutException:
+        raise ValidationFailed("The language model did not answer in time — try again or ask something "
+                               "smaller") from None
+    except httpx.HTTPError as exc:
+        log.warning("assistant: the local model server is not reachable: %s", exc)
+        raise ValidationFailed("The language model is not reachable from this installation") from None
+    if resp.status_code == 404:
+        raise ValidationFailed("The language model deployment does not exist — check the assistant configuration")
+    if resp.status_code >= 400:
+        log.warning("assistant: %s answered %s: %s", model.name, resp.status_code, resp.text[:300])
+        raise ValidationFailed(f"The language model answered with an error ({resp.status_code})")
+    try:
+        return _parse_chat(resp.json())
+    except ValueError:
+        raise ValidationFailed("The language model did not answer with JSON") from None
+
+
 # --- one round ------------------------------------------------------------------------------------------
 
 
 def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, *,
-         temperature: float = 0.1) -> Reply:
-    """One round with the model. Raises ValidationFailed with a message the person can act on."""
+         temperature: float = 0.1, model: Model | None = None) -> Reply:
+    """One round with the chosen model. Raises ValidationFailed with a message the person can act on."""
     s = get_settings()
-    if not s.assistant_enabled:
+    chosen = model or resolve(None)
+    if chosen is None:
         raise ValidationFailed("The AI assistant is not configured on this installation "
                                "(endpoint, key and deployment of the language model are missing)")
+    if chosen.provider == "ollama":
+        return _ollama_chat(messages, tools, temperature, chosen)
     quirks = _deployment_quirks()
     resp: httpx.Response | None = None
     used_responses = False

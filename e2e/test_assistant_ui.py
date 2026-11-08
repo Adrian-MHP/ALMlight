@@ -78,3 +78,21 @@ def test_a_reader_gets_an_assistant_that_cannot_change_anything(page: Page, play
     expect(page.get_by_test_id("assistant-answer").last).to_be_visible()
     expect(page.get_by_test_id("assistant-proposal")).to_have_count(0)
     assert page.request.get(f"{API}/items?q=Testlauf").json()["total"] == 0
+
+
+def test_the_model_can_be_chosen_per_conversation(page: Page):
+    """Two models are configured in the test stack (a cloud one and a local one): the panel lets you pick."""
+    login(page, "alex", DEMO_PW)
+    page.goto("/p/DEMO")
+    open_assistant(page)
+    picker = page.get_by_test_id("assistant-model")
+    expect(picker).to_have_value("gpt-test")
+    picker.click()
+    page.get_by_role("option", name="qwen3:8b (lokal)").click()
+    page.get_by_test_id("assistant-input").fill("Wie viele Anforderungen gibt es?")
+    page.get_by_test_id("assistant-send").click()
+    answer = page.get_by_test_id("assistant-answer").last
+    expect(answer).to_contain_text("lokal beantwortet")
+    expect(answer).to_contain_text("qwen3:8b")           # the answer names the model that wrote it
+    expect(picker).to_be_disabled()                       # a running conversation keeps its model
+    shot(page, "78-assistant-model")

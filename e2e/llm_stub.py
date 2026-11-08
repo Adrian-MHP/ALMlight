@@ -1,6 +1,7 @@
 """A stand-in for the language model, so the browser tests can exercise the whole assistant.
 
-It speaks the Azure OpenAI chat-completions API that ``modules/assistant/llm.py`` calls, and answers by simple
+It speaks the Azure OpenAI chat-completions API that ``modules/assistant/llm.py`` calls — and, on the Ollama
+paths, stands in for a local model server as well, so the model picker can be tested too. It answers by simple
 rules instead of by thinking: a question about a number makes it search, a request to add something makes it
 propose a new item, and a tool answer makes it reply with what came back. Only used by compose.test.yaml.
 """
@@ -48,20 +49,32 @@ def answer(messages):
     return reply("Ich bin der Test-Assistent. Frag mich nach Anzahlen oder bitte mich, etwas anzulegen.")
 
 
+LOCAL_MODELS = {"models": [{"name": "qwen3:8b"}]}
+
+
 class Handler(BaseHTTPRequestHandler):
-    def do_POST(self):  # noqa: N802 — name required by BaseHTTPRequestHandler
-        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
-        try:
-            messages = json.loads(body)["messages"]
-            out = answer(messages)
-        except Exception as exc:  # noqa: BLE001 — the stub must answer something the app can read
-            out = reply(f"stub error: {exc}")
-        data = json.dumps(out).encode()
+    def _send(self, payload):
+        data = json.dumps(payload).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def do_GET(self):  # noqa: N802 — name required by BaseHTTPRequestHandler
+        self._send(LOCAL_MODELS if self.path.startswith("/api/tags") else {})
+
+    def do_POST(self):  # noqa: N802
+        body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        try:
+            sent = json.loads(body)
+            out = answer(sent["messages"])
+            if sent.get("model", "").startswith("qwen"):  # the local model says who answered
+                out["choices"][0]["message"]["content"] = (
+                    (out["choices"][0]["message"]["content"] or "") + " (lokal beantwortet)").strip() or None
+        except Exception as exc:  # noqa: BLE001 — the stub must answer something the app can read
+            out = reply(f"stub error: {exc}")
+        self._send(out)
 
     def log_message(self, *args):
         pass

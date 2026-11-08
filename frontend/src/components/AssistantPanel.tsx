@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  ActionIcon, Alert, Badge, Box, Button, Card, Code, Drawer, Group, Loader, Menu, ScrollArea, Stack, Table, Text,
-  Textarea, Tooltip,
+  ActionIcon, Alert, Badge, Box, Button, Card, Code, Drawer, Group, Loader, Menu, ScrollArea, Select, Stack,
+  Table, Text, Textarea, Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
-  IconAlertTriangle, IconCheck, IconChevronDown, IconCirclesRelation, IconHistory, IconListSearch, IconMessage,
+  IconAlertTriangle, IconCheck, IconChevronDown, IconCirclesRelation, IconCpu, IconHistory, IconListSearch, IconMessage,
   IconPencil, IconPlus, IconReportSearch, IconRoute, IconSend, IconSparkles, IconTable, IconTrash, IconX,
 } from "@tabler/icons-react";
+import { useLocalStorage } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/api/client";
 import { pk, useProjectMutation } from "@/api/hooks";
@@ -41,6 +42,7 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
   const qc = useQueryClient();
   const [threadId, setThreadId] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [wanted, setWanted] = useLocalStorage<string | null>({ key: "alm-assistant-model", defaultValue: null });
   const viewport = useRef<HTMLDivElement>(null);
   const base = `/projects/${projectKey}/assistant`;
   const info = useQuery<AssistantInfo>({
@@ -53,12 +55,12 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
   const show = (t: AssistantThread) => { setThreadId(t.id); qc.setQueryData(pk(projectKey, "assistant", t.id), t); };
 
   const start = useMutation<AssistantThread, ApiError>({
-    mutationFn: () => api.post(`${base}/threads`),
+    mutationFn: () => api.post(`${base}/threads`, { model: wanted }),
     onSuccess: (t) => { show(t); qc.invalidateQueries({ queryKey: pk(projectKey, "assistant") }); },
   });
   const ask = useMutation<AssistantThread, ApiError, string>({
     mutationFn: async (question) => {
-      const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`)).id;
+      const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`, { model: wanted })).id;
       setThreadId(id);
       return api.post(`${base}/threads/${id}/messages`, { text: question });
     },
@@ -131,7 +133,17 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
                 ))}
               </Menu.Dropdown>
             </Menu>
-            {info.data && !info.data.can_change && <Badge size="xs" variant="outline" color="gray">{tx("read only")}</Badge>}
+            <Group gap="xs">
+              {info.data && !info.data.can_change && <Badge size="xs" variant="outline" color="gray">{tx("read only")}</Badge>}
+              {(info.data?.models.length ?? 0) > 1 && (
+                <Select size="xs" w={190} allowDeselect={false} data-testid="assistant-model"
+                  aria-label={tx("Language model")} leftSection={<IconCpu size={14} />}
+                  value={thread.data?.model ?? wanted ?? info.data?.models[0]?.id ?? null}
+                  disabled={messages.length > 0}
+                  onChange={(v) => { setWanted(v); if (messages.length) setThreadId(null); }}
+                  data={info.data?.models.map((m) => ({ value: m.id, label: m.local ? `${m.label} (lokal)` : m.label }))} />
+              )}
+            </Group>
           </Group>
           <ScrollArea style={{ flex: 1 }} viewportRef={viewport} type="auto">
             <Stack gap="sm" pb="md" data-testid="assistant-messages">
@@ -217,7 +229,14 @@ function Message({ message }: { message: AssistantMessage }) {
     );
   }
   if (!message.content) return null;
-  return <Box data-testid="assistant-answer" className="assistant-answer"><Markdown text={message.content} /></Box>;
+  return (
+    <Box data-testid="assistant-answer" className="assistant-answer">
+      <Markdown text={message.content} />
+      {typeof message.meta.model === "string" && (
+        <Text size="xs" c="dimmed" mt={2}>{String(message.meta.model)}</Text>
+      )}
+    </Box>
+  );
 }
 
 function shortError(content: string): string {

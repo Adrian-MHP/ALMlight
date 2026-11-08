@@ -396,7 +396,8 @@
   "This needs the contributor role in the project": "Dafür wird im Projekt die Rolle „contributor“ benötigt",
   "Unknown item type '{}' — project_overview lists them": "Unbekannter Objekttyp „{1}“ — project_overview listet sie auf",
   "Unknown tool '{}'": "Unbekanntes Werkzeug „{1}“",
-  "Write a question for the assistant": "Schreiben Sie eine Frage an den Assistenten"
+  "Write a question for the assistant": "Schreiben Sie eine Frage an den Assistenten",
+  "The language model '{}' is not available in this installation": "Das Sprachmodell „{1}“ ist in dieser Installation nicht verfügbar"
  },
  "texts": {
   "Applies to: {expr}": "Gilt für: {expr}",

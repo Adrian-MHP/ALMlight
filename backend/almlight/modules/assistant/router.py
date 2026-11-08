@@ -24,6 +24,10 @@ class AskIn(BaseModel):
     text: str = Field(max_length=8000, description="The question or instruction")
 
 
+class ThreadIn(BaseModel):
+    model: str | None = Field(default=None, description="Language model for this conversation")
+
+
 class ConfirmIn(BaseModel):
     approve: bool = Field(description="true applies the proposed changes, false discards them")
 
@@ -33,15 +37,18 @@ def overview(project_key: str, user: User = Depends(current_user), db: Session =
     project = get_project(db, project_key, user)
     may_write = has_role(db, project, user, "contributor")
     return {"enabled": llm.enabled(), "model": llm.model_name() if llm.enabled() else None,
+            "models": [{"id": m.id, "label": m.label, "provider": m.provider, "local": m.local, "note": m.note}
+                       for m in llm.models()],
             "can_change": may_write,
             "tools": [{"name": t.name, "writes": t.writes} for t in TOOLS if may_write or not t.writes],
             "threads": service.threads(db, project, user)}
 
 
 @router.post("/threads", status_code=201, summary="Start a conversation")
-def start(project_key: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+def start(project_key: str, body: ThreadIn | None = None, user: User = Depends(current_user),
+          db: Session = Depends(get_db)) -> dict[str, Any]:
     project = get_project(db, project_key, user)
-    thread = service.create_thread(db, project, user)
+    thread = service.create_thread(db, project, user, body.model if body else None)
     db.commit()
     return service.state(db, thread)
 

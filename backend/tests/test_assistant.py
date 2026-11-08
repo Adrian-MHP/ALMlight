@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from almlight.core.config import get_settings
 from almlight.core.errors import ValidationFailed
-from almlight.modules.assistant import llm
+from almlight.modules.assistant import llm, tools
 
 
 class FakeModel:
@@ -50,6 +50,7 @@ def configured(monkeypatch):
     monkeypatch.setattr(s, "azure_openai_deployment", "gpt-test")
     monkeypatch.setattr(s, "assistant_api", "auto")
     llm._quirks.clear()  # what a deployment needs is learned per process
+    llm._OLLAMA_CACHE.update(at=0.0, models=[])
     return s
 
 
@@ -88,6 +89,7 @@ def test_it_answers_from_the_project_with_its_tools(team, project, configured, m
     found = json.loads(out["messages"][2]["content"])
     assert found["total"] == 2 and {i["title"] for i in found["items"]} == {"Measure gauge pressure 0-10 bar",
                                                                            "Withstand vibration"}
+    assert found["filter"] == {"types": ["system_requirement"]}
     assert out["messages"][2]["meta"] == {"call_id": "c1", "name": "search_items", "ok": True}
     # the model was given the project in its system prompt, the question, and then the tool answer
     assert fake.seen[0][0]["role"] == "system" and f"project {project}" in fake.seen[0][0]["content"]
@@ -253,6 +255,8 @@ def test_it_finds_traceability_gaps_with_one_search(team, project, configured, m
                  {"text": "Which requirements have no test case?"})
     found = json.loads(out["messages"][2]["content"])
     assert [i["key"] for i in found["items"]] == [open_one] and found["total"] == 1
+    # the answer says what was counted, so a total cannot be read as "all items"
+    assert found["filter"] == {"types": ["system_requirement"], "link": "lacks incoming verifies"}
 
     # the other direction and an unknown link type are answered usefully, not with a crash
     fake.replies = [call("search_items", {"types": ["system_requirement"], "link_type": "verifies",
@@ -402,3 +406,85 @@ def test_what_the_model_sends_back_is_read_defensively(configured, monkeypatch):
     reply = llm.chat([{"role": "user", "content": "hi"}])
     assert reply.content == "" and [c.name for c in reply.tool_calls] == ["get_item"]
     assert reply.tool_calls[0].arguments == {"__invalid__": "not json"}
+
+
+TAGS = {"models": [{"name": "qwen3:8b"}, {"name": "qwen3:8b-40k"}, {"name": "llama3.2:1b"}]}
+
+
+def with_ollama(monkeypatch, settings, tags=TAGS, allowed=""):
+    monkeypatch.setattr(settings, "ollama_url", "http://ollama.invalid:11434")
+    monkeypatch.setattr(settings, "ollama_models", allowed)
+    monkeypatch.setattr(llm.httpx, "get", lambda url, **kw: httpx.Response(
+        200, json=tags, request=httpx.Request("GET", url)))
+
+
+def test_the_installation_offers_the_models_it_has(configured, monkeypatch):
+    assert [m.id for m in llm.models()] == ["azure:gpt-test"]
+    with_ollama(monkeypatch, configured)
+    assert [m.id for m in llm.models()] == ["azure:gpt-test", "ollama:qwen3:8b", "ollama:qwen3:8b-40k",
+                                            "ollama:llama3.2:1b"]
+    assert [m.local for m in llm.models()] == [False, True, True, True]
+    # the installation can name a default and can narrow the list
+    monkeypatch.setattr(configured, "assistant_default_model", "ollama:qwen3:8b-40k")
+    assert llm.models()[0].id == "ollama:qwen3:8b-40k" and llm.resolve(None).id == "ollama:qwen3:8b-40k"
+    llm._OLLAMA_CACHE.update(at=0.0, models=[])
+    with_ollama(monkeypatch, configured, allowed="qwen3:8b")
+    assert [m.id for m in llm.models()] == ["azure:gpt-test", "ollama:qwen3:8b"]
+    # a conversation whose model is gone falls back instead of failing
+    assert llm.resolve("ollama:removed").id == "azure:gpt-test"
+
+
+def test_a_local_model_server_that_is_off_does_not_break_the_panel(configured, monkeypatch, team, project):
+    def boom(url, **kw):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(configured, "ollama_url", "http://ollama.invalid:11434")
+    monkeypatch.setattr(llm.httpx, "get", boom)
+    assert [m.id for m in llm.models()] == ["azure:gpt-test"]
+    info = team["contributor"].get(f"/projects/{project}/assistant")
+    assert info["enabled"] is True and [m["id"] for m in info["models"]] == ["azure:gpt-test"]
+
+
+def test_a_conversation_keeps_the_model_it_was_started_with(team, project, configured, monkeypatch):
+    c = team["contributor"]
+    with_ollama(monkeypatch, configured)
+    info = c.get(f"/projects/{project}/assistant")
+    assert [m["label"] for m in info["models"]][:2] == ["gpt-test", "qwen3:8b"]
+    assert info["models"][1]["local"] is True and info["models"][0]["provider"] == "azure"
+
+    http = FakeHttp((200, {"choices": [{"message": {"content": "Vier Anforderungen."}, "finish_reason": "stop"}],
+                           "usage": {"total_tokens": 20}}))
+    monkeypatch.setattr(llm.httpx, "post", http)
+    thread = c.post(f"/projects/{project}/assistant/threads", {"model": "ollama:qwen3:8b"}, expect=201)
+    assert thread["model"] == "ollama:qwen3:8b" and thread["model_label"] == "qwen3:8b"
+    out = c.post(f"/projects/{project}/assistant/threads/{thread['id']}/messages", {"text": "Wie viele?"})
+    url, body = http.calls[0]
+    assert url == "http://ollama.invalid:11434/v1/chat/completions"
+    assert body["model"] == "qwen3:8b" and body["stream"] is False and body["messages"][0]["role"] == "system"
+    assert out["messages"][-1]["content"] == "Vier Anforderungen."
+    assert out["messages"][-1]["meta"]["model"] == "qwen3:8b"
+    assert c.get(f"/projects/{project}/assistant")["threads"][0]["model"] == "ollama:qwen3:8b"
+    # a model this installation does not have is refused when the conversation starts
+    err = c.post(f"/projects/{project}/assistant/threads", {"model": "ollama:nope"}, expect=422)
+    assert "not available" in err["error"]["message"]
+
+
+def test_a_local_model_gets_shorter_tool_answers(team, project, configured, monkeypatch):
+    """Local models have a small context, so a long answer is cut earlier than for the cloud model."""
+    c = team["contributor"]
+    with_ollama(monkeypatch, configured)
+    long_text = "x" * 20_000
+    monkeypatch.setitem(tools.BY_NAME, "search_items", tools.BY_NAME["search_items"])
+    monkeypatch.setattr(tools.BY_NAME["search_items"], "run", lambda ctx, args: {"items": long_text})
+    fake = model(monkeypatch, call("search_items", {}), llm.Reply(content="done"),
+                 call("search_items", {}, cid="c2"), llm.Reply(content="done"))
+    azure_thread = c.post(f"/projects/{project}/assistant/threads", expect=201)["id"]
+    out = c.post(f"/projects/{project}/assistant/threads/{azure_thread}/messages", {"text": "?"})
+    assert len(out["messages"][2]["content"]) > 19_000  # the cloud model sees it in full
+
+    fake.replies = [call("search_items", {}, cid="c3"), llm.Reply(content="done")]
+    local_thread = c.post(f"/projects/{project}/assistant/threads", {"model": "ollama:qwen3:8b"},
+                          expect=201)["id"]
+    out = c.post(f"/projects/{project}/assistant/threads/{local_thread}/messages", {"text": "?"})
+    answer = json.loads(out["messages"][2]["content"])
+    assert answer["truncated"] is True and len(answer["partial"]) == 8_000

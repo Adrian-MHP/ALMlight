@@ -27,6 +27,8 @@ class AssistantThread(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    # which language model answers in this conversation ("azure:<deployment>", "ollama:<tag>"); empty = the default
+    model: Mapped[str] = mapped_column(String(120), nullable=False, default="", server_default="")
     # tool calls the model wants to run that change data; they wait for the person's confirmation
     pending: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
     created_at: Mapped[datetime] = created_at_col()

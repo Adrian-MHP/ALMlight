@@ -27,6 +27,7 @@ from almlight.modules.projects.models import Project
 
 log = logging.getLogger("almlight.assistant")
 MAX_RESULT_CHARS = 30_000
+MAX_RESULT_CHARS_LOCAL = 8_000  # local models have a much smaller context
 TITLE_CHARS = 120
 
 SYSTEM_PROMPT = """You are the assistant of Ariadne, an ALM/PLM system for engineering teams. You work inside the
@@ -63,11 +64,15 @@ def threads(db: Session, project: Project, user: User, limit: int = 30) -> list[
         .order_by(AssistantThread.updated_at.desc()).limit(limit)
     ).scalars().all()
     return [{"id": str(t.id), "title": t.title or "…", "updated_at": t.updated_at.isoformat(),
-             "pending": len(t.pending)} for t in rows]
+             "pending": len(t.pending), "model": t.model or None} for t in rows]
 
 
-def create_thread(db: Session, project: Project, user: User) -> AssistantThread:
-    thread = AssistantThread(project_id=project.id, user_id=user.id, title="", pending=[])
+def create_thread(db: Session, project: Project, user: User, model: str | None = None) -> AssistantThread:
+    chosen = llm.resolve(model)
+    if model and (chosen is None or chosen.id != model):
+        raise ValidationFailed(f"The language model '{model}' is not available in this installation")
+    thread = AssistantThread(project_id=project.id, user_id=user.id, title="", pending=[],
+                             model=chosen.id if chosen else "")
     db.add(thread)
     db.flush()
     return thread
@@ -131,24 +136,24 @@ def _history(db: Session, thread: AssistantThread, ctx: tools.Context) -> list[d
     return out
 
 
-def _result_text(value: Any) -> str:
+def _result_text(value: Any, limit: int = MAX_RESULT_CHARS) -> str:
     """A tool answer as JSON. An oversized one stays valid JSON, so the model can still read what came back."""
     text = json.dumps(value, ensure_ascii=False, default=str)
-    if len(text) <= MAX_RESULT_CHARS:
+    if len(text) <= limit:
         return text
-    return json.dumps({"truncated": True, "partial": text[:MAX_RESULT_CHARS],
+    return json.dumps({"truncated": True, "partial": text[:limit],
                        "note": "The answer was too large. Narrow it down (a filter, fewer rows, one item)."},
                       ensure_ascii=False)
 
 
-def _run_tool(ctx: tools.Context, call: dict[str, Any]) -> tuple[str, bool]:
+def _run_tool(ctx: tools.Context, call: dict[str, Any], limit: int = MAX_RESULT_CHARS) -> tuple[str, bool]:
     try:
-        return _result_text(tools.run(ctx, call["name"], call["arguments"])), True
+        return _result_text(tools.run(ctx, call["name"], call["arguments"]), limit), True
     except DomainError as exc:
-        return _result_text({"error": exc.message}), False
+        return _result_text({"error": exc.message}, limit), False
     except Exception as exc:  # noqa: BLE001 — the model must learn about the failure, the loop must go on
         log.exception("assistant tool %s failed", call["name"])
-        return _result_text({"error": f"{type(exc).__name__}: {exc}"[:300]}), False
+        return _result_text({"error": f"{type(exc).__name__}: {exc}"[:300]}, limit), False
 
 
 def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
@@ -157,13 +162,17 @@ def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
 
     steps = get_settings().assistant_max_steps
     schemas = tools.schemas(ctx)
+    model = llm.resolve(thread.model or None)
+    limit = MAX_RESULT_CHARS_LOCAL if model and model.local else MAX_RESULT_CHARS
     for _ in range(steps):
-        reply = llm.chat(_history(db, thread, ctx), schemas)
+        reply = llm.chat(_history(db, thread, ctx), schemas, model=model)
         if not reply.tool_calls:
-            _add(db, thread, "assistant", reply.content or "…", {"usage": reply.usage})
+            _add(db, thread, "assistant", reply.content or "…",
+                 {"usage": reply.usage, "model": model.label if model else None})
             return
         calls = [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in reply.tool_calls]
-        _add(db, thread, "assistant", reply.content, {"tool_calls": calls, "usage": reply.usage})
+        _add(db, thread, "assistant", reply.content,
+             {"tool_calls": calls, "usage": reply.usage, "model": model.label if model else None})
         pending: list[dict[str, Any]] = []
         for call in calls:
             tool = tools.BY_NAME.get(call["name"])
@@ -180,7 +189,7 @@ def _loop(db: Session, thread: AssistantThread, ctx: tools.Context) -> None:
                                 "summary": tools.describe(ctx, call["name"], call["arguments"]),
                                 "preview": preview, "error": error})
             else:
-                content, ok = _run_tool(ctx, call)
+                content, ok = _run_tool(ctx, call, limit)
                 _add(db, thread, "tool", content, {"call_id": call["id"], "name": call["name"], "ok": ok})
         if pending:  # wait for the person; the conversation continues after confirm()
             thread.pending = pending
@@ -248,7 +257,9 @@ def confirm(db: Session, project: Project, user: User, thread: AssistantThread, 
 
 
 def state(db: Session, thread: AssistantThread) -> dict[str, Any]:
+    model = llm.resolve(thread.model or None)
     return {"id": str(thread.id), "title": thread.title or "…",
+            "model": model.id if model else None, "model_label": model.label if model else None,
             "messages": [message_out(m) for m in messages(db, thread)],
             "pending": [{"summary": p.get("summary"), "name": p["name"], "arguments": p["arguments"],
                          "preview": p.get("preview"), "error": p.get("error")} for p in thread.pending]}

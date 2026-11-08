@@ -304,10 +304,12 @@ shown:
 | 9 | `coverage` read row keys the service does not produce (`allocated`, `refined`), so its gap list was empty of facts and listed every item | bug | The real keys (`satisfied_by`, `verified_by`, `verification`), a legend for the model, and a test that pins one row |
 | 10 | "Which requirements have no test case?" is a link filter, but `search_items` offered none — the model invented `verifies:any`, the query language refused it, and it fell back to reading nine items one by one | gap | `search_items` takes `link_type`, `link_direction` and `has_link`; `project_overview` names the query fields. The same question now takes two tool calls instead of eleven |
 
-**Automated tests at the end of round 7**: 213 backend tests (new: the assistant's reading tools, the proposal and
+| 11 | A local 8B model (qwen3) answered a two-part counting question wrongly: it had searched only the approved requirements and reported that count as the total. The tools were right, the conclusion was not | finding (model quality) | Every search answer now carries the filter it applied, and tool answers are cut shorter for local models (8,000 characters) because of their smaller context. The guide says plainly what a local model is good for |
+
+**Automated tests at the end of round 7**: 217 backend tests (new: the assistant's reading tools, the proposal and
 its confirmation, editing with a before/after preview, roles, conversations private to their owner, a failing tool,
-the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps), 56 browser E2E tests (new: an answer from the project, a proposed change
-that is first discarded and then applied, and a reader whose assistant cannot change anything).
+the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps, the model list and the choice per conversation, a local server that is off), 57 browser E2E tests (new: an answer from the project, a proposed change
+that is first discarded and then applied, and a reader whose assistant cannot change anything, and picking the local model).
 
 ## 14.9 Known limitations
 

@@ -55,6 +55,7 @@ services:
       ALMLIGHT_AZURE_OPENAI_ENDPOINT: http://llm-stub:8000
       ALMLIGHT_AZURE_OPENAI_API_KEY: stub-key
       ALMLIGHT_AZURE_OPENAI_DEPLOYMENT: gpt-test
+      ALMLIGHT_OLLAMA_URL: http://llm-stub:8000
     ports:
       - "127.0.0.1:48081:8000"
 

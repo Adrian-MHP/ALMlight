@@ -149,7 +149,12 @@ def _search(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
         link_exists=bool(has_link) if isinstance(has_link, bool) and link_type else None,
     )
     items, total = items_svc.query_items(ctx.db, ctx.project, query)
-    return {"total": total, "shown": len(items), "items": [_item_row(ctx, i) for i in items]}
+    # say what was counted: a total means nothing without the filter it belongs to
+    applied = {"text": query.q, "types": query.types, "states": query.states, "query_language": ql or None,
+               "link": f"{'has' if query.link_exists else 'lacks'} {query.link_dir}coming {query.link_type}"
+                       if query.link_type and query.link_exists is not None else None}
+    return {"total": total, "shown": len(items), "filter": {k: v for k, v in applied.items() if v},
+            "items": [_item_row(ctx, i) for i in items]}
 
 
 def _get_item(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:

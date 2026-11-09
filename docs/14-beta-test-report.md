@@ -1,4 +1,4 @@
-# 14 Beta test report (0.4 → 0.7)
+# 14 Beta test report (0.4 → 0.10)
 
 Two beta rounds were run against the complete application in Docker (`compose.test.yaml`: PostgreSQL 16, the
 production image with demo data, Playwright/Chromium), in addition to the automated suites. Round 1 finalised 0.4
@@ -313,7 +313,7 @@ its confirmation, editing with a before/after preview, roles, conversations priv
 the step limit, broken model answers, both Azure surfaces and the switch between them, traceability gaps, the model list and the choice per conversation, a local server that is off, streaming for both surfaces with its reassembly of split tool calls, a failure in mid-stream, the five tools for documents, plans, BOM, risks and code), 58 browser E2E tests (new: an answer from the project, a proposed change
 that is first discarded and then applied, and a reader whose assistant cannot change anything, picking the local model, and an answer appearing while it is written).
 
-## 14.9 Round 8 — architecture diagrams (0.10)
+## 14.10 Round 8 — architecture diagrams (0.10)
 
 **Method**: the capability comparison with Enterprise Architect, Cameo and ArchiMate first (what a modelling
 tool must do that a drawing tool does not), then the feature built on the existing metamodel; backend tests that
@@ -339,7 +339,36 @@ layering including cycles, what may be stored on a canvas, the SVG with escaping
 permissions), 60 browser E2E tests (new: building a diagram with the mouse — add, connect, move, save, download,
 remove — and a reader who can look but not change).
 
-## 14.9 Known limitations
+## 14.11 Round 9 — example diagrams and a review of the whole feature (0.10.1)
+
+**Method**: three example diagrams were added to the demo (decomposition, internal structure with an interface,
+requirements allocation) — a feature nobody can see in the demo is a feature nobody tries. Then a review of
+everything the new field type touches outside its own module: the table exports, the item list, the query
+builder, the version history, the document and baseline comparisons, the Word round trip and the assistant.
+Every finding below was reproduced first, then fixed, then pinned by a test.
+
+| # | Finding | Kind | Fix |
+|---|---|---|---|
+| 1 | Editing a link's attributes closes its row and writes a new one with a **new id** (that is how versioned links work), so a diagram silently lost the relationship | bug | An edge carries its link type; the live link is found by id, and when that id is gone, by the same relationship between the same two items. A test does the whole round trip: edit the link, grow the diagram, delete through the diagram |
+| 2 | The editor dropped that type when it saved the canvas — which would have made the fix above useless | bug | The canvas sends it back; both sides are in one test |
+| 3 | A link id on the canvas was looked up **without the project**, so a hand-written canvas could have named a link of another project — and "delete the link as well" would have deleted it there | security | Every lookup is scoped to the project; a test tries it from a second project and gets 404, and the other project keeps its link |
+| 4 | The session does not flush by itself, so links written in the same transaction were invisible: the demo's diagrams came out without any relationships | bug | An explicit flush where the canvas asks the database what exists |
+| 5 | A canvas could store a line that stands for **no link at all** — drawing, not modelling | hardening | An edge without a link is rejected; duplicate edge ids too |
+| 6 | **The Excel export of a project that contains a diagram answered 500** (a canvas is a dict, which openpyxl cannot write), and the CSV wrote the raw JSON into a cell | bug | A canvas is not a table column. Test steps now export readably as "action → expected" instead of as Python objects |
+| 7 | The canvas showed up as `[object Object]` in the version history, the baseline comparison, the document comparison and the Word round trip, as a column in the item list and as a filter in the query builder | bug | One formatter for field values — a canvas reads as "10 elements, 9 relationships" — and a canvas is offered neither as a column nor as a query field |
+| 8 | The assistant's `get_item` sent the whole canvas to the model; for a local model that is the entire context | bug | It gets what the diagram shows, not its coordinates; a test pins the size of the answer |
+| 9 | The names of two relationships between the same pair lay on top of each other ("relates tons" in the screenshot) | UI | The labels are stacked as well as the curves bowed — the same rule in the editor and in the server's SVG |
+| 10 | A long type name ran into the item key in the corner of a box | UI | It is cut with an ellipsis, again by the same rule in both renderers |
+| 11 | A diagram wider than the window opened with elements outside the view | UI | It is fitted into the view when opened (never enlarged), and a button puts it back after panning away |
+| 12 | A refetch could throw away places that were moved but not saved yet | bug | Unsaved places survive; every request sends the canvas as it is on screen, and the server's answer then holds it |
+| 13 | Smaller ones from the same reading: "delete the link as well" answered 404 on an edge whose link was already replaced, a canvas was rendered inside a text input in the item form, the assistant's apply path used the cloud limit for a local model, and a failure while a conversation was being started was not reported | bug | All fixed with the same tests |
+
+**Automated tests at the end of round 9**: 240 backend tests (new: a link that was edited keeps its edge, a
+canvas may not reach another project's link, an edge without a link, the exports and the query fields with a
+diagram in the project, the assistant's view of a canvas, and the demo's three diagrams including their
+layering), 60 browser E2E tests (unchanged, all green against a freshly built stack).
+
+## 14.12 Known limitations
 
 - Live editing sessions and live updates run in one application process (single app container).
 - Two interface languages (English, German); request-validation details from the API framework stay English.
@@ -352,8 +381,8 @@ remove — and a reader who can look but not change).
   split or stretch them, so a task needing more hours per day than its owner has stays overloaded (it is listed).
 - Architecture diagrams have no bend points, no behaviour diagrams and are not embedded in Word/PDF yet (the
   SVG endpoint exists); see [20](20-architecture-diagrams.md).
-- The assistant answers when it is finished (no streaming), holds a database connection while it works, and only
-  knows what its tools expose (items, links, coverage, impact, history — not documents, baselines, plans or BOM).
+- The assistant holds a database connection while it works and only knows what its tools expose (items, links,
+  coverage, impact, history, documents, plans, BOM, risks and code — not baselines or variants).
 - Single-sign-on users cannot give electronic signatures (they check the user's own password): approvals with a
   signature need a local account until signing through the identity provider or a signing password is added.
 - Sign-in limits are kept in memory of the one application process (a restart clears them); behind a proxy the client

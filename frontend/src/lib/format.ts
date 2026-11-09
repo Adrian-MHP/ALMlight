@@ -30,9 +30,19 @@ export function humanize(key: string): string {
   return key.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
 }
 
-export function fmtValue(v: unknown): string {
-  if (v === null || v === undefined || v === "") return "–";
-  if (Array.isArray(v)) return v.join(", ");
+/** A field value as one line of text — lists, test steps and a diagram canvas included. */
+export function fmtValue(v: unknown, empty = "–"): string {
+  if (v === null || v === undefined || v === "") return empty;
+  if (Array.isArray(v)) {
+    return v.map((x) => (x && typeof x === "object" ? Object.values(x).join(" → ") : String(x))).join(", ");
+  }
   if (typeof v === "boolean") return v ? tx("Yes") : tx("No");
+  if (typeof v === "object") {
+    const canvas = v as { nodes?: unknown[]; edges?: unknown[] };
+    if (Array.isArray(canvas.nodes) && Array.isArray(canvas.edges)) {
+      return tx("{n} elements, {m} relationships", { n: canvas.nodes.length, m: canvas.edges.length });
+    }
+    return Object.entries(v).map(([k, x]) => `${k}: ${String(x)}`).join(", ");
+  }
   return String(v);
 }

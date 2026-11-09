@@ -193,18 +193,26 @@ def _diagram(value: Any) -> dict[str, Any]:
                 raise ValueError(f"node '{n['id']}' shows no item")
             node["item"] = key[:32]
         nodes.append(node)
-    edges = []
+    edges, seen_edges = [], set()
     for e in edges_in:
         if not isinstance(e, dict) or not _ID.match(str(e.get("id") or "")):
             raise ValueError("has an edge without a usable id")
+        if e["id"] in seen_edges:
+            raise ValueError(f"has the relationship '{e['id']}' twice")
+        seen_edges.add(e["id"])
         if e.get("from") not in seen or e.get("to") not in seen:
             raise ValueError(f"edge '{e['id']}' does not connect two of its nodes")
         edge = {"id": e["id"], "from": e["from"], "to": e["to"]}
-        if e.get("link"):
-            try:
-                edge["link"] = str(uuid.UUID(str(e["link"])))
-            except ValueError:
-                raise ValueError(f"edge '{e['id']}' has no usable link") from None
+        if e.get("type"):
+            edge["type"] = str(e["type"])[:50]
+        if not e.get("link"):
+            # a relationship on a diagram *is* a link of the project; one is drawn through the connect
+            # endpoint, which creates that link. A canvas may not carry a line that stands for nothing.
+            raise ValueError(f"edge '{e['id']}' shows no link")
+        try:
+            edge["link"] = str(uuid.UUID(str(e["link"])))
+        except ValueError:
+            raise ValueError(f"edge '{e['id']}' has no usable link") from None
         edges.append(edge)
     return {"nodes": nodes, "edges": edges}
 

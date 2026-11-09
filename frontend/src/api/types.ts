@@ -47,7 +47,8 @@ export interface TemplateInfo {
 // --- information model ---------------------------------------------------------------------
 
 export type FieldType =
-  | "string" | "text" | "integer" | "number" | "boolean" | "date" | "enum" | "multienum" | "tags" | "user" | "url" | "steps";
+  | "string" | "text" | "integer" | "number" | "boolean" | "date" | "enum" | "multienum" | "tags" | "user" | "url"
+  | "steps" | "diagram";
 
 export interface EnumOption {
   key: string;

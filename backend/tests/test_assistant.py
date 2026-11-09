@@ -545,6 +545,22 @@ def test_the_new_tools_read_documents_plans_bom_risks_and_code(db, admin, config
         assert item_code["revisions"] and item_code["revisions"][0]["commit"]
 
 
+def test_a_diagram_reaches_the_model_as_its_size_not_as_its_canvas(db, admin, configured, monkeypatch):
+    """A canvas is hundreds of coordinates; the model gets what the diagram shows, which also keeps it inside
+    the context of a small local model."""
+    from almlight.seed.demo import seed_demo
+
+    seed_demo(db)
+    diagram = admin.get("/projects/DEMO/diagrams")[0]
+    fake = model(monkeypatch, call("get_item", {"key": diagram["key"]}), llm.Reply(content="."))
+    tid = thread_of(admin, "DEMO")
+    out = admin.post(f"/projects/DEMO/assistant/threads/{tid}/messages", {"text": "What is on that diagram?"})
+    content = [m["content"] for m in out["messages"] if m["role"] == "tool"][-1]
+    assert '"x":' not in content and "nodes" not in content
+    assert "an architecture diagram with 10 elements and 9 relationships" in content
+    assert len(content) < 2_000 and fake  # not a wall of coordinates
+
+
 def sse(*events) -> httpx.Response:
     body = "".join(f"data: {json.dumps(e)}\n\n" if isinstance(e, dict) else f"data: {e}\n\n" for e in events)
     return httpx.Response(200, text=body + "data: [DONE]\n\n", request=httpx.Request("POST", "http://x"))

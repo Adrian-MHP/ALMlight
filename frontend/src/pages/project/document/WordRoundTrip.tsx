@@ -4,6 +4,7 @@ import { IconFileTypeDocx, IconUpload } from "@tabler/icons-react";
 import { api, downloadUrl } from "@/api/client";
 import { useProjectMutation } from "@/api/hooks";
 import type { WordImportResult } from "@/api/types";
+import { fmtValue } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
 import { tx } from "@/lib/i18n";
 
@@ -72,7 +73,7 @@ export function WordImportDialog({ docKey, opened, onClose }: { docKey: string; 
                       <Table.Td><Badge color={STATUS_COLORS[i.status] ?? "gray"} variant="light">{i.status}</Badge>
                         {i.conflicts && <Text size="xs" c="red">{tx("changed in Ariadne too: {conflicts}", { conflicts: i.conflicts.join(", ") })}</Text>}</Table.Td>
                       <Table.Td>{(i.changes ?? []).map((c) => (
-                        <Text key={c.field} size="xs"><b>{c.field}:</b> <span className="diff-del">{String(c.old).slice(0, 80)}</span> → <span className="diff-add">{String(c.new).slice(0, 80)}</span></Text>
+                        <Text key={c.field} size="xs"><b>{c.field}:</b> <span className="diff-del">{fmtValue(c.old).slice(0, 80)}</span> → <span className="diff-add">{fmtValue(c.new).slice(0, 80)}</span></Text>
                       ))}</Table.Td>
                     </Table.Tr>
                   ))}

@@ -1655,4 +1655,6 @@ export const de: Record<string, string> = {
   "frozen": "eingefroren",
   "{n} elements": "{n} Elemente",
   "{n} relationships": "{n} Beziehungen",
+  "{n} elements, {m} relationships": "{n} Elemente, {m} Beziehungen",
+  "Show all": "Alles zeigen",
 };

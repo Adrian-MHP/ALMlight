@@ -38,6 +38,12 @@ def _wrap(text: str, width: float, lines: int) -> list[str]:
     return out or [""]
 
 
+def _cut(text: str, width: float, char: float = 5.6) -> str:
+    """One line that fits into ``width``: the type label must not run into the key in the other corner."""
+    limit = max(3, int(width / char))
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
 def _edge_points(a: dict[str, Any], b: dict[str, Any]) -> tuple[float, float, float, float]:
     """A straight line between two node centres, cut off at the edge of each box."""
     ax, ay = a["x"] + a["w"] / 2, a["y"] + a["h"] / 2
@@ -56,15 +62,20 @@ def _edge_points(a: dict[str, Any], b: dict[str, Any]) -> tuple[float, float, fl
     return start[0], start[1], end[0], end[1]
 
 
-def parallel(edges: list[dict[str, Any]]) -> dict[str, float]:
-    """How far each edge is bowed aside, so two relationships between the same pair stay apart."""
+def parallel(edges: list[dict[str, Any]]) -> dict[str, tuple[float, float]]:
+    """How two relationships between the same pair stay apart: (bow, label offset).
+
+    The bow pushes the curve sideways, the offset stacks the labels — a bow alone separates the lines but not
+    their names, which are wider than the gap between them.
+    """
     groups: dict[tuple[str, str], list[str]] = {}
     for e in edges:
         groups.setdefault(tuple(sorted((e["from"], e["to"]))), []).append(e["id"])
-    out: dict[str, float] = {}
+    out: dict[str, tuple[float, float]] = {}
     for members in groups.values():
         for i, edge_id in enumerate(members):
-            out[edge_id] = (i - (len(members) - 1) / 2) * 26
+            off = i - (len(members) - 1) / 2
+            out[edge_id] = (off * 26, off * 14)
     return out
 
 
@@ -102,13 +113,13 @@ def render(view: dict[str, Any], *, title: bool = True) -> str:
         if a is None or b is None:
             continue
         x1, y1, x2, y2 = _edge_points(a, b)
-        bow = bows.get(edge["id"], 0.0)
+        bow, label_dy = bows.get(edge["id"], (0.0, 0.0))
         cx, cy = control(x1, y1, x2, y2, bow)
         colour = "#d9534f" if edge.get("suspect") else MUTED
         out.append(f'<path d="M {x1:.1f} {y1:.1f} Q {cx:.1f} {cy:.1f} {x2:.1f} {y2:.1f}" fill="none" '
                    f'stroke="{colour}" stroke-width="1.3" marker-end="url(#arrow)"/>')
         if edge.get("label"):
-            mx, my = (x1 + 2 * cx + x2) / 4, (y1 + 2 * cy + y2) / 4
+            mx, my = (x1 + 2 * cx + x2) / 4, (y1 + 2 * cy + y2) / 4 + label_dy
             label = escape(edge["label"])
             out.append(f'<rect x="{mx - len(label) * CHAR / 2 - 3:.1f}" y="{my - 8:.1f}" '
                        f'width="{len(label) * CHAR + 6:.1f}" height="14" rx="3" fill="#ffffff" opacity="0.9"/>'
@@ -129,10 +140,12 @@ def render(view: dict[str, Any], *, title: bool = True) -> str:
         stroke = "#d9534f" if missing else STROKE.get(category, STROKE["other"])
         out.append(f'<rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" rx="5" fill="{fill}" '
                    f'stroke="{stroke}" stroke-width="1.2"/>')
+        key_text = n.get("item") or ""
+        type_label = _cut(n.get("type_label") or "", w - 40 - len(key_text) * 5.6)  # 40: margins and a gap
         out.append(f'<text x="{x + 10:.0f}" y="{y + 17:.0f}" font-size="10" fill="{stroke}" '
-                   f'font-weight="600">{escape(n.get("type_label") or "")}</text>')
+                   f'font-weight="600">{escape(type_label)}</text>')
         out.append(f'<text x="{x + w - 10:.0f}" y="{y + 17:.0f}" font-size="10" fill="{MUTED}" '
-                   f'text-anchor="end">{escape(n.get("item") or "")}</text>')
+                   f'text-anchor="end">{escape(key_text)}</text>')
         title_lines = _wrap(n.get("title") or ("(deleted)" if missing else ""), w - 20, 2)
         for i, line in enumerate(title_lines):
             out.append(f'<text x="{x + 10:.0f}" y="{y + 36 + i * 15:.0f}" font-size="11.5" fill="{TEXT}">'

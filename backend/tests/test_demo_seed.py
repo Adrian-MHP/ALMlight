@@ -21,6 +21,31 @@ def test_demo_seed_is_consistent_and_idempotent(db, admin):
     assert "Provide HART communication" in titles and "Provide an IO-Link interface" not in titles
 
 
+def test_demo_has_architecture_diagrams(db, admin):
+    """The demo shows what the feature is for: three views of the same model, with real links drawn."""
+    from almlight.seed.demo import seed_demo
+
+    seed_demo(db)
+    diagrams = admin.get("/projects/DEMO/diagrams")
+    assert [d["title"] for d in diagrams] == ["Pressure transmitter — decomposition",
+                                              "Signal chain — internal structure",
+                                              "Requirements allocation — measuring chain"]
+    decomposition = admin.get(f"/projects/DEMO/diagrams/{diagrams[0]['key']}")
+    assert len(decomposition["nodes"]) == 10 and decomposition["viewpoint"] == "decomposition"
+    assert {e["type"] for e in decomposition["edges"]} == {"contains"}
+    # the layering put the product above its subsystems, and those above their modules
+    place = {n["item"]: n["y"] for n in decomposition["nodes"]}
+    product = next(n for n in decomposition["nodes"] if n["title"] == "Smart pressure transmitter")
+    assert place[product["item"]] < min(y for k, y in place.items() if k != product["item"])
+
+    allocation = admin.get(f"/projects/DEMO/diagrams/{diagrams[2]['key']}")
+    # the allocation is drawn, and so is the containment the shown elements happen to have
+    assert {"satisfies", "derives_from"} <= {e["type"] for e in allocation["edges"]} <= {"satisfies",
+                                                                                          "derives_from", "contains"}
+    assert allocation["stale"] == {"missing_items": [], "removed_links": []}
+    assert admin.get(f"/projects/DEMO/diagrams/{diagrams[1]['key']}.svg").text.startswith("<svg")
+
+
 def test_demo_kpis_and_reports(db, admin):
     from almlight.seed.demo import seed_demo
 

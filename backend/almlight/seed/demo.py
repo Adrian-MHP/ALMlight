@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from almlight.core.config import get_settings
 from almlight.modules.baselines import service as baselines
+from almlight.modules.diagrams import service as diagrams
 from almlight.modules.identity.models import User
 from almlight.modules.identity.service import create_user
 from almlight.modules.integrations import service as integrations
@@ -219,6 +220,20 @@ def seed_demo(db: Session) -> None:
     datasheet = new("document", "Measuring cell datasheet", fields={"doc_kind": "datasheet",
                                                                    "external_ref": "PDM-DOC-88231"})
     link("documented_by", cell, datasheet)
+
+    # --- architecture diagrams: views of the model above (the links are drawn from what already exists) -----
+
+    def diagram(title: str, viewpoint: str, shown: list[Item]) -> Item:
+        d = new("diagram", title, by=max_, fields={"viewpoint": viewpoint})
+        diagrams.add_items(db, project, max_, d, [i.key for i in shown])
+        diagrams.layout(db, project, max_, d)
+        return d
+
+    diagram("Pressure transmitter — decomposition", "decomposition",
+            [product, sensor, proc, comm, housing, cell, board, fw, hart_mod, iol_mod])
+    diagram("Signal chain — internal structure", "internal", [sensor, cell, iface, board, proc, fw])
+    diagram("Requirements allocation — measuring chain", "allocation",
+            [sysr["range"], sysr["accuracy"], mrq_cell, mrq_comp, sensor, cell, proc, fw])
     integrations.upsert_ref(db, project, mrq_comp, system="github", kind="commit", external_id="9f3c2ab",
                             url="https://git.example.com/sensor/firmware/commit/9f3c2ab",
                             title=f"Add polynomial temperature compensation ({mrq_comp.key})", status="pushed",

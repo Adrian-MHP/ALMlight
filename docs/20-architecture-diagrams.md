@@ -44,7 +44,10 @@ Its content is the canvas:
   putting something on a diagram creates no traceability and changes no data.
 - **Edges** *are* links of the project. Drawing one creates a real typed link with all the model's rules (a test
   case cannot `satisfy` a requirement), and it shows up in the matrix, in coverage and in the impact analysis.
-  When two elements that are already linked meet on a canvas, the link is drawn by itself.
+  When two elements that are already linked meet on a canvas, the link is drawn by itself. An edge that stands
+  for no link cannot be stored — this is the rule the canvas is checked against. Editing a link's attributes
+  writes a new link row with a new id (that is how versioned links work); the diagram follows it by the
+  relationship it shows, so the edge survives.
 - **Notes** are plain text on the canvas, nothing else.
 
 That gives the distinction people expect from a modelling tool:
@@ -66,9 +69,10 @@ That gives the distinction people expect from a modelling tool:
   relationship types the information model allows between those two types.
 - **Arrange** lays the canvas out in layers: whatever points at something else stands above it (containment,
   derivation). Cycles are broken rather than looping.
-- Drag to move, drag the background to pan, the wheel or the buttons to zoom. **Save** stores the places — layout
+- Drag to move, drag the background to pan, the wheel or the buttons to zoom. A diagram that is wider than the
+  window is fitted into it when opened, and *Show all* goes back to that view. **Save** stores the places — layout
   is saved explicitly so that moving a box does not produce a version for every pixel, while adding, connecting
-  and removing are immediate and audited.
+  and removing are immediate and audited. Places that were moved but not saved survive a refresh of the data.
 - The side panel shows what the selected element is, its state and version, its relationships, and the way to its
   item page.
 - **Download as SVG** gives the picture; the same rendering is available at
@@ -78,7 +82,19 @@ That gives the distinction people expect from a modelling tool:
 physical/deployment, free) decide which element and relationship types are *suggested*. They never restrict what
 you may draw — a project's own model is the authority.
 
-## 20.4 Limits
+The demo project carries three diagrams to look at: *Pressure transmitter — decomposition* (the product and its
+subsystems and modules), *Signal chain — internal structure* (the measuring cell, the board and the interface
+between them) and *Requirements allocation — measuring chain* (which element satisfies which requirement, and
+where that requirement comes from).
+
+## 20.4 What a canvas is not
+
+A canvas is a picture, not a field value. It is therefore not a column in the CSV and Excel exports, not a
+filter in the query builder, and not a value in the item list; the version history, the baseline and the
+document comparison say how much a diagram shows ("10 elements, 9 relationships") instead of printing its
+coordinates, and the assistant is told the same. The picture itself comes from the SVG endpoint.
+
+## 20.5 Limits
 
 - One canvas, straight (and for parallel relationships, slightly bowed) connections: no manual bend points, no
   routing around boxes, no swimlanes, no nesting of elements inside elements.

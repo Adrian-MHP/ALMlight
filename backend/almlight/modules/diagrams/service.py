@@ -65,7 +65,8 @@ def _items_by_key(db: Session, project: Project, keys: list[str]) -> dict[str, I
     return {i.key: i for i in rows}
 
 
-def _links_by_id(db: Session, ids: list[str]) -> dict[str, Link]:
+def _links_by_id(db: Session, project: Project, ids: list[str]) -> dict[str, Link]:
+    """Links of *this* project by id — a canvas comes from the browser, so a foreign id must not resolve."""
     valid = []
     for raw in ids:
         try:
@@ -74,8 +75,40 @@ def _links_by_id(db: Session, ids: list[str]) -> dict[str, Link]:
             continue
     if not valid:
         return {}
-    rows = db.execute(select(Link).where(Link.id.in_(valid), Link.deleted_at.is_(None))).scalars().all()
+    rows = db.execute(select(Link).where(Link.id.in_(valid), Link.project_id == project.id,
+                                         Link.deleted_at.is_(None))).scalars().all()
     return {str(link.id): link for link in rows}
+
+
+def edge_links(db: Session, project: Project, content: dict[str, Any],
+               items: dict[str, Item]) -> dict[str, Link]:
+    """The live link edge stands for.
+
+    By its id, and when that is gone by *the same relationship between the same two items*: editing a link's
+    attributes (a BOM quantity, an effectivity) closes the row and writes a new one with a new id, and a
+    diagram must not lose its connection because of that.
+    """
+    by_id = _links_by_id(db, project, [e["link"] for e in content["edges"] if e.get("link")])
+    nodes = {n["id"]: n for n in content["nodes"]}
+    live: dict[tuple[Any, Any, str], Link] = {}
+    ids = [i.id for i in items.values()]
+    if ids:
+        db.flush()
+        for link in db.execute(select(Link).where(Link.source_id.in_(ids), Link.target_id.in_(ids),
+                                                  Link.project_id == project.id,
+                                                  Link.deleted_at.is_(None))).scalars():
+            live.setdefault((link.source_id, link.target_id, link.type_key), link)
+    out: dict[str, Link] = {}
+    for e in content["edges"]:
+        link = by_id.get(e.get("link") or "")
+        if link is None and e.get("type"):
+            source = items.get((nodes.get(e["from"]) or {}).get("item") or "")
+            target = items.get((nodes.get(e["to"]) or {}).get("item") or "")
+            if source is not None and target is not None:
+                link = live.get((source.id, target.id, e["type"]))
+        if link is not None:
+            out[e["id"]] = link
+    return out
 
 
 def view(db: Session, project: Project, item: Item) -> dict[str, Any]:
@@ -83,7 +116,7 @@ def view(db: Session, project: Project, item: Item) -> dict[str, Any]:
     content = content_of(item)
     model = project.model
     items = _items_by_key(db, project, [n["item"] for n in content["nodes"] if n.get("item")])
-    links = _links_by_id(db, [e["link"] for e in content["edges"] if e.get("link")])
+    links = edge_links(db, project, content, items)
     nodes, missing = [], []
     for n in content["nodes"]:
         node = {k: n[k] for k in ("id", "x", "y", "w", "h")}
@@ -103,12 +136,13 @@ def view(db: Session, project: Project, item: Item) -> dict[str, Any]:
                       "state_category": state.category if state else None, "version": shown.version_label})
     edges, dropped = [], []
     for e in content["edges"]:
-        link = links.get(e.get("link") or "")
-        if e.get("link") and link is None:  # the link was removed elsewhere
+        link = links.get(e["id"])
+        if (e.get("link") or e.get("type")) and link is None:  # the relationship is gone from the model
             dropped.append(e["id"])
             continue
         lt = model.link_type(link.type_key) if link else None
-        edges.append({"id": e["id"], "from": e["from"], "to": e["to"], "link": e.get("link"),
+        edges.append({"id": e["id"], "from": e["from"], "to": e["to"],
+                      "link": str(link.id) if link else None,
                       "type": link.type_key if link else None, "label": lt.label if lt else None,
                       "suspect": bool(link.suspect) if link else False})
     return {"key": item.key, "title": item.title, "version": item.version_label, "version_no": item.version_no,
@@ -154,10 +188,11 @@ def add_items(db: Session, project: Project, actor: User, item: Item, keys: list
     if missing:
         raise NotFound(f"Not in this project: {', '.join(sorted(missing))}")
     added = 0
+    before = list(content["nodes"])  # the places are measured against what was there, so a row stays a row
     for key in [k.strip().upper() for k in keys]:
         if key in shown:
             continue
-        x, y = at if at and added == 0 else _free_place(content["nodes"], added)
+        x, y = at if at and added == 0 else _free_place(before, added)
         content["nodes"].append({"id": f"n{uuid.uuid4().hex[:8]}", "item": key, "x": x, "y": y,
                                  "w": NODE_W, "h": NODE_H})
         added += 1
@@ -181,23 +216,32 @@ def with_known_links(db: Session, project: Project, content: dict[str, Any]) -> 
     by_key = {n["item"]: n["id"] for n in content["nodes"] if n.get("item")}
     if len(by_key) < 2:
         return content
+    db.flush()  # the session does not flush by itself: links written in this transaction must be visible here
     items = _items_by_key(db, project, list(by_key))
     ids = {i.id: key for key, i in items.items()}
     have = {e.get("link") for e in content["edges"]}
+    # also by what the edge shows: editing a link closes its row and writes a new id, and the relationship
+    # that is already on the canvas must not be drawn a second time under the successor's id
+    drawn = {(e["from"], e["to"], e.get("type")) for e in content["edges"]}
     rows = db.execute(select(Link).where(Link.source_id.in_(ids), Link.target_id.in_(ids),
+                                         Link.project_id == project.id,
                                          Link.deleted_at.is_(None))).scalars().all()
     for link in rows:
         if str(link.id) in have:
             continue
         source, target = ids.get(link.source_id), ids.get(link.target_id)
-        if source and target and source != target:
-            content["edges"].append({"id": f"e{uuid.uuid4().hex[:8]}", "from": by_key[source],
-                                     "to": by_key[target], "link": str(link.id)})
+        if not source or not target or source == target:
+            continue
+        if (by_key[source], by_key[target], link.type_key) in drawn:
+            continue
+        content["edges"].append({"id": f"e{uuid.uuid4().hex[:8]}", "from": by_key[source],
+                                 "to": by_key[target], "link": str(link.id), "type": link.type_key})
     return content
 
 
 def related(db: Session, project: Project, item: Item, keys: list[str], limit: int = 25) -> list[dict[str, Any]]:
     """Items linked to the ones already shown — the offer for "add what belongs to this"."""
+    db.flush()  # see with_known_links: pending changes of this transaction must be visible
     shown = _items_by_key(db, project, keys)
     if not shown:
         return []
@@ -232,7 +276,7 @@ def connect(db: Session, project: Project, actor: User, item: Item, *, source_no
     link = links_svc.create_link(db, project, actor, type_key=type_key, source=source_item, target=target_item)
     db.flush()
     content["edges"].append({"id": f"e{uuid.uuid4().hex[:8]}", "from": source_node, "to": target_node,
-                             "link": str(link.id)})
+                             "link": str(link.id), "type": type_key})
     lt = project.model.link_type(type_key)
     return _save(db, project, actor, item, content,
                  f"{source_item.key} {lt.label if lt else type_key} {target_item.key}")
@@ -260,8 +304,12 @@ def remove_edge(db: Session, project: Project, actor: User, item: Item, edge_id:
         raise NotFound("The diagram has no such relationship")
     content["edges"] = [e for e in content["edges"] if e["id"] != edge_id]
     note = "Removed a relationship from the diagram"
-    if delete_link and edge.get("link"):
-        link = links_svc.get_link(db, project, uuid.UUID(edge["link"]))
+    if delete_link and (edge.get("link") or edge.get("type")):
+        stored = content_of(item)
+        items = _items_by_key(db, project, [n["item"] for n in stored["nodes"] if n.get("item")])
+        link = edge_links(db, project, stored, items).get(edge_id)
+        if link is None:
+            raise NotFound("This relationship no longer exists in the project")
         links_svc.delete_link(db, project, actor, link)
         note = "Deleted a link and removed it from the diagram"
     return _save(db, project, actor, item, content, note)

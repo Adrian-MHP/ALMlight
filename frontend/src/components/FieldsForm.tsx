@@ -17,7 +17,8 @@ export function FieldsForm({ defs, values, onChange }: {
   const shown = withComputed(defs, values);
   const wide = defs.filter((f) => f.type === "text");
   const steps = defs.filter((f) => f.type === "steps");
-  const narrow = defs.filter((f) => f.type !== "text" && f.type !== "steps");
+  // a diagram canvas has its own editor; it is not a value anybody types into this form
+  const narrow = defs.filter((f) => f.type !== "text" && f.type !== "steps" && f.type !== "diagram");
   return (
     <>
       <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
@@ -72,7 +73,7 @@ function FieldInput({ def, value, onChange, users }: {
 /** Read-only display of field values. */
 export function FieldsView({ defs, values }: { defs: FieldDef[]; values: Record<string, unknown> }) {
   const users = useDirectory().data ?? [];
-  const shown = defs.filter((f) => f.type !== "text" && f.type !== "steps");
+  const shown = defs.filter((f) => f.type !== "text" && f.type !== "steps" && f.type !== "diagram");
   if (!shown.length) return null;
   return (
     <SimpleGrid cols={{ base: 2, md: 3 }} spacing="xs" verticalSpacing="xs">

@@ -5,7 +5,7 @@ import { api } from "@/api/client";
 import { useDiff, useHistory, useProjectMutation, useVersions } from "@/api/hooks";
 import type { Change, ItemDetail } from "@/api/types";
 import { RichDiff } from "@/components/rich/RichText";
-import { fmtDateTime } from "@/lib/format";
+import { fmtDateTime, fmtValue } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
 import { tx } from "@/lib/i18n";
 
@@ -106,7 +106,7 @@ export function ChangeView({ change }: { change: Change }) {
       </div>
     );
   }
-  const fmt = (v: unknown) => (v === null || v === undefined || v === "" ? "∅" : Array.isArray(v) ? v.join(", ") : String(v));
+  const fmt = (v: unknown) => fmtValue(v, "∅");  // a canvas shows as "9 elements, 8 relationships", not as JSON
   return (
     <Group gap="xs" wrap="nowrap" align="flex-start">
       <Text size="xs" fw={600} w={140} style={{ flexShrink: 0 }}>{change.field}</Text>

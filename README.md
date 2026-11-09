@@ -264,7 +264,7 @@ docs/      concept, architecture, guides, ADRs
 ## Tests
 
 ```bash
-docker compose -f compose.test.yaml run --rm backend-tests                      # 235 API/unit tests
+docker compose -f compose.test.yaml run --rm backend-tests                      # 240 API/unit tests
 docker compose -f compose.test.yaml up -d --build app && \
 docker compose -f compose.test.yaml run --rm e2e                                 # 60 browser E2E tests
 docker compose -f compose.test.yaml down
@@ -272,8 +272,8 @@ docker compose -f compose.test.yaml down
 
 ## Status
 
-Version 0.10: **architecture diagrams** — views of the project's own model, where a drawn relationship is a real
-link ([guide](docs/20-architecture-diagrams.md)) — on top of 0.9 (an **AI assistant** that answers from the
+Version 0.10.1: **architecture diagrams** — views of the project's own model, where a drawn relationship is a
+real link ([guide](docs/20-architecture-diagrams.md)); the demo project carries three of them — on top of 0.9 (an **AI assistant** that answers from the
 project's data and proposes changes you confirm, [guide](docs/19-ai-assistant.md)) and 0.8 (sign-in protection, projects open to every signed-in user,
 revisions picked from the repository, running on Azure Container Apps — [guide](docs/18-azure-container-apps.md)):
 Git interface (linked revisions, repository browser) and connectors to Enterprise Architect, medini

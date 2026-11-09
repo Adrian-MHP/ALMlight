@@ -71,7 +71,7 @@ export function queryFields(model: Model, opts: { users: UserRef[]; releases: QO
   const seen = new Set<string>();
   for (const t of types) {
     for (const f of t.fields) {
-      if (f.type === "steps" || seen.has(f.key)) continue;
+      if (f.type === "steps" || f.type === "diagram" || seen.has(f.key)) continue;  // nothing to compare against
       seen.add(f.key);
       const kind = KIND_OF[f.type] ?? "text";
       const options = kind === "user" ? userOptions

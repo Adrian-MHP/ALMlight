@@ -50,7 +50,8 @@ def _rows_for_export(db: Session, project: Project, types: list[str] | None,
     field_keys: list[str] = []
     for t in selected:
         for f in t.fields:
-            if f.key not in field_keys:
+            # a diagram canvas is no cell value (and openpyxl cannot write a dict at all)
+            if f.key not in field_keys and f.type != "diagram":
                 field_keys.append(f.key)
     structural = model.structural_link_types()
     link_keys = [lt.key for lt in model.link_types if not lt.structural]
@@ -78,7 +79,11 @@ def _rows_for_export(db: Session, project: Project, types: list[str] | None,
                to_markdown(it.description), it.applicability or "", parents.get(it.id, "")]
         for fk in field_keys:
             v = it.fields.get(fk)
-            row.append(", ".join(map(str, v)) if isinstance(v, list) else ("" if v is None else v))
+            if isinstance(v, list):  # tags, multi-select, and test steps as "action → expected"
+                v = ", ".join(" → ".join(str(x) for x in e.values()) if isinstance(e, dict) else str(e) for e in v)
+            elif isinstance(v, dict):
+                v = ""
+            row.append("" if v is None else v)
         for lk in link_keys:
             row.append(", ".join(sorted(outgoing[it.id].get(lk, []))))
         out.append(row)

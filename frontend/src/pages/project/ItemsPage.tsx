@@ -78,7 +78,9 @@ export function ItemsPage() {
   const allFieldDefs = useMemo(() => {
     const map = new Map<string, FieldDef>();
     for (const t of types.length ? types.map((k) => model.type(k)!).filter(Boolean) : model.config.item_types) {
-      for (const f of t.fields) if (f.type !== "steps" && f.type !== "text" && !map.has(f.key)) map.set(f.key, f);
+      for (const f of t.fields) {  // a long text, test steps and a canvas are no table column
+        if (f.type !== "steps" && f.type !== "text" && f.type !== "diagram" && !map.has(f.key)) map.set(f.key, f);
+      }
     }
     return [...map.values()];
   }, [model, types]);

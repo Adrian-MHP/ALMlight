@@ -83,7 +83,9 @@ def view_content(view):
     return {"nodes": [{k: n[k] for k in ("id", "x", "y", "w", "h")} | (
         {"item": n["item"]} if n.get("kind") != "note" else {"kind": "note", "text": n["text"]})
         for n in view["nodes"]],
-        "edges": [{k: e[k] for k in ("id", "from", "to") if e.get(k)} | ({"link": e["link"]} if e.get("link") else {})
+        "edges": [{k: e[k] for k in ("id", "from", "to") if e.get(k)}
+                  | ({"link": e["link"]} if e.get("link") else {})
+                  | ({"type": e["type"]} if e.get("type") else {})
                   for e in view["edges"]]}
 
 
@@ -128,6 +130,66 @@ def test_a_relationship_can_be_taken_off_the_diagram_or_deleted(team, project):
                   {**view_content(again), "delete_link": True})
     assert gone["edges"] == [] and c.get(f"{p}/items/{a}/links") == []
     assert c.get(f"{p}/items/{key}/versions")[0]["change_note"].startswith("Deleted a link")
+
+
+def test_an_edge_survives_a_link_that_was_edited(team, project):
+    """Editing a link's attributes closes its row and writes a new one with a new id (BOM quantities do this).
+    The diagram must keep showing the relationship, not lose it silently."""
+    c = team["contributor"]
+    p = f"/projects/{project}"
+    parent = new_item(c, project, "system_element", "Transmitter")["key"]
+    child = new_item(c, project, "system_element", "Measuring cell")["key"]
+    link = c.post(f"{p}/links", {"type": "contains", "source": parent, "target": child}, expect=201)
+    key = make(c, project, viewpoint="decomposition")
+    view = c.post(f"{p}/diagrams/{key}/items", {"keys": [parent, child]})
+    assert view["edges"][0]["link"] == link["id"]
+
+    # the canvas is saved in between, exactly as the editor does it after a node was moved
+    view = c.put(f"{p}/diagrams/{key}", {**view_content(view), "expected_version": c.get(f"{p}/items/{key}")["version_no"]})
+
+    # the quantity is set on the link — the project now has a new link row for the same relationship
+    changed = c.patch(f"{p}/links/{link['id']}", {"attributes": {"quantity": 2, "unit": "pcs"}})
+    assert changed["id"] != link["id"]
+
+    after = c.get(f"{p}/diagrams/{key}")
+    assert len(after["edges"]) == 1 and after["stale"]["removed_links"] == []
+    assert after["edges"][0]["type"] == "contains" and after["edges"][0]["link"] == changed["id"]
+
+    # adding something else runs the "draw what already exists" pass again — the relationship that is
+    # already on the canvas must not appear a second time under the successor's id
+    third = new_item(c, project, "system_element", "Housing")["key"]
+    grown = c.post(f"{p}/diagrams/{key}/items", {**view_content(after), "keys": [third]})
+    assert len(grown["edges"]) == 1
+
+    # and deleting through the diagram hits the link that is live now
+    gone = c.post(f"{p}/diagrams/{key}/edges/{after['edges'][0]['id']}/remove",
+                  {**view_content(after), "delete_link": True})
+    assert gone["edges"] == [] and c.get(f"{p}/items/{parent}/links") == []
+
+
+def test_a_canvas_cannot_reach_a_link_of_another_project(team, project, admin):
+    """A canvas comes from the browser: an id it carries must be looked up inside this project only,
+    or a diagram would be a way to read and delete links somewhere else."""
+    c = team["contributor"]
+    p = f"/projects/{project}"
+    admin.post("/projects", {"key": "OTH", "name": "Other product", "template": "systems_engineering"})
+    far_a = new_item(admin, "OTH", "system_element", "Far parent")["key"]
+    far_b = new_item(admin, "OTH", "system_element", "Far child")["key"]
+    foreign = admin.post("/projects/OTH/links", {"type": "contains", "source": far_a, "target": far_b},
+                         expect=201)["id"]
+
+    a = new_item(c, project, "system_element", "Pump")["key"]
+    b = new_item(c, project, "system_element", "Valve")["key"]
+    key = make(c, project)
+    view = c.post(f"{p}/diagrams/{key}/items", {"keys": [a, b]})
+    canvas = view_content(view)
+    canvas["edges"] = [{"id": "efar", "from": canvas["nodes"][0]["id"], "to": canvas["nodes"][1]["id"],
+                        "link": foreign}]
+    saved = c.put(f"{p}/diagrams/{key}", canvas)
+    assert saved["edges"] == [] and saved["stale"]["removed_links"] == ["efar"]  # nothing of the other project
+
+    c.post(f"{p}/diagrams/{key}/edges/efar/remove", {**canvas, "delete_link": True}, expect=404)
+    assert len(admin.get(f"/projects/OTH/items/{far_a}/links")) == 1  # the other project kept its link
 
 
 def test_the_diagram_says_what_no_longer_matches_the_model(team, project):
@@ -210,6 +272,12 @@ def test_what_a_browser_may_store_in_the_canvas(team, project):
         ({"nodes": [], "edges": [{"id": "e1", "from": "n1", "to": "n2"}]}, "does not connect"),
         ({"nodes": [{"id": "n1", "item": "X-1", "x": 0, "y": 0}, {"id": "n2", "item": "X-2", "x": 0, "y": 0}],
           "edges": [{"id": "e1", "from": "n1", "to": "n2", "link": "not-a-uuid"}]}, "usable link"),
+        ({"nodes": [{"id": "n1", "item": "X-1", "x": 0, "y": 0}, {"id": "n2", "item": "X-2", "x": 0, "y": 0}],
+          "edges": [{"id": "e1", "from": "n1", "to": "n2", "link": str(uuid.uuid4())},
+                    {"id": "e1", "from": "n2", "to": "n1", "link": str(uuid.uuid4())}]}, "twice"),
+        # a line that stands for no link would be drawing, not modelling
+        ({"nodes": [{"id": "n1", "item": "X-1", "x": 0, "y": 0}, {"id": "n2", "item": "X-2", "x": 0, "y": 0}],
+          "edges": [{"id": "e1", "from": "n1", "to": "n2", "type": "contains"}]}, "shows no link"),
     ]:
         err = c.put(f"{p}/diagrams/{key}", broken, expect=422)
         assert why in err["error"]["details"]["fields"]["content"], (why, err)
@@ -265,7 +333,9 @@ def test_the_picture_can_be_downloaded_and_shows_what_is_on_the_canvas(team, pro
     two = {**view, "edges": [{**view["edges"][0], "id": "e1"}, {**view["edges"][0], "id": "e2"}]}
     paths = [line for line in svg.render(two).split("<path") if " Q " in line]
     assert len(paths) == 2 and paths[0] != paths[1]
-    assert svg.parallel(two["edges"]) == {"e1": -13.0, "e2": 13.0}
+    assert svg.parallel(two["edges"]) == {"e1": (-13.0, -7.0), "e2": (13.0, 7.0)}  # apart, and so are the labels
+    labels = [line for line in svg.render(two).split("<text") if "satisfies" in line]
+    assert len(labels) == 2 and labels[0] != labels[1]
     assert svg.control(0, 0, 10, 0, 0) == (5, 0) and svg.control(0, 0, 10, 0, 10) == (5.0, 10.0)
 
     # a long title is cut instead of running out of its box
@@ -328,3 +398,29 @@ def test_the_diagram_field_is_validated_on_its_own():
     kept = _diagram({"nodes": [{"id": "a", "item": "X-1", "x": 0, "y": 0}, {"id": "b", "item": "X-2", "x": 0, "y": 0}],
                      "edges": [{"id": "e", "from": "a", "to": "b", "link": link, "junk": 1}]})
     assert kept["edges"] == [{"id": "e", "from": "a", "to": "b", "link": link}]
+
+
+def test_a_diagram_does_not_break_the_item_exports(team, project):
+    """A canvas is not a field value: the table exports must not carry it (and openpyxl cannot write a dict)."""
+    import io as _io
+
+    from openpyxl import load_workbook
+
+    c = team["contributor"]
+    p = f"/projects/{project}"
+    element = new_item(c, project, "system_element", "Measuring cell")["key"]
+    key = make(c, project)
+    c.post(f"{p}/diagrams/{key}/items", {"keys": [element]})
+
+    wb = load_workbook(_io.BytesIO(c.get(f"{p}/export.xlsx").content))
+    header = list(next(wb.active.values))
+    assert "content" not in header and "viewpoint" in header
+    rows = {r[0]: r for r in list(wb.active.values)[1:]}
+    assert rows[key][2] == "Architecture"
+
+    exported = c.get(f"{p}/export.csv").content.decode("utf-8-sig")
+    assert "content" not in exported.splitlines()[0].split(",") and "'nodes'" not in exported
+    # and a query cannot be built on it either — there is nothing to compare a canvas against
+    assert [i["key"] for i in c.get(f"{p}/items?ql=field.viewpoint:internal")["items"]] == [key]
+    err = c.get(f"{p}/items?ql=field.content:anything", expect=422)
+    assert "Unknown field" in err["error"]["message"]

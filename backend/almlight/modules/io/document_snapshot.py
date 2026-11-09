@@ -325,12 +325,16 @@ def _field_rows(project: Project, type_key: str, values: dict[str, Any],
     rows = []
     for f in t.fields if t else []:
         v = values.get(f.key)
-        if v in (None, "", []) or f.type == "text":
+        # a long text is part of the description, a canvas is a picture — neither is a field value here
+        if v in (None, "", []) or f.type in ("text", "diagram"):
             continue
         if f.type == "enum":
             v = next((lab(o.label) for o in f.options if o.key == v), v)
         elif f.type == "multienum":
             v = ", ".join(next((lab(o.label) for o in f.options if o.key == x), x) for x in v)
+        elif f.type == "steps":
+            v = "\n".join(f"{i}. {s.get('step', '')} → {s.get('expected', '')}".rstrip(" →")
+                          for i, s in enumerate(v, 1) if isinstance(s, dict))
         elif isinstance(v, list):
             v = ", ".join(map(str, v))
         elif isinstance(v, bool):

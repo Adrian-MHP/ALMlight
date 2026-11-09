@@ -147,6 +147,11 @@ def _result_text(value: Any, limit: int = MAX_RESULT_CHARS) -> str:
                       ensure_ascii=False)
 
 
+def _limit(model: llm.Model | None) -> int:
+    """How much of a tool answer the chosen model can take."""
+    return MAX_RESULT_CHARS_LOCAL if model and model.local else MAX_RESULT_CHARS
+
+
 def _run_tool(ctx: tools.Context, call: dict[str, Any], limit: int = MAX_RESULT_CHARS) -> tuple[str, bool]:
     try:
         return _result_text(tools.run(ctx, call["name"], call["arguments"]), limit), True
@@ -176,7 +181,7 @@ def _loop(db: Session, thread: AssistantThread, ctx: tools.Context, stream: bool
     steps = get_settings().assistant_max_steps
     schemas = tools.schemas(ctx)
     model = llm.resolve(thread.model or None)
-    limit = MAX_RESULT_CHARS_LOCAL if model and model.local else MAX_RESULT_CHARS
+    limit = _limit(model)
     for _ in range(steps):
         reply = None
         for kind, value in _answer(_history(db, thread, ctx), schemas, model, stream):
@@ -260,15 +265,17 @@ def ask_stream(db: Session, project: Project, user: User, thread: AssistantThrea
 def _settle(db: Session, thread: AssistantThread, ctx: tools.Context, *, approve: bool, note: str = "") -> int:
     """Apply or discard the waiting proposals and tell the model what happened."""
     applied = 0
+    limit = _limit(llm.resolve(thread.model or None))  # a local model has a much smaller context
     for call in thread.pending:
         if approve and not call.get("error"):
-            content, ok = _run_tool(ctx, call)
+            content, ok = _run_tool(ctx, call, limit)
             applied += int(ok)
             meta = {"call_id": call["call_id"], "name": call["name"], "ok": ok, "applied": ok,
                     "summary": call.get("summary")}
         else:
             reason = note or ("The person discarded this change." if approve is False else "")
-            content = _result_text({"not_executed": call.get("error") or reason or "discarded by the person"})
+            content = _result_text({"not_executed": call.get("error") or reason or "discarded by the person"},
+                                   limit)
             meta = {"call_id": call["call_id"], "name": call["name"], "ok": False, "applied": False,
                     "summary": call.get("summary")}
         _add(db, thread, "tool", content, meta)

@@ -93,7 +93,7 @@ def custom_fields(project: Project) -> dict[str, FieldDef]:
     out: dict[str, FieldDef] = {}
     for t in project.model.item_types:
         for f in t.fields:
-            if f.type != "steps":
+            if f.type not in ("steps", "diagram"):  # nothing a query can compare against
                 out.setdefault(f.key, f)
     return out
 

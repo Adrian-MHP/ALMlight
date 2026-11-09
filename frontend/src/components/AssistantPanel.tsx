@@ -85,9 +85,14 @@ export function AssistantPanel({ projectKey, opened, onClose }: {
   };
 
   const ask = async (question: string) => {
-    const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`, { model: wanted })).id;
-    setThreadId(id);
-    await run(`${base}/threads/${id}/stream`, { text: question });
+    try {
+      const id = threadId ?? (await api.post<AssistantThread>(`${base}/threads`, { model: wanted })).id;
+      setThreadId(id);
+      await run(`${base}/threads/${id}/stream`, { text: question });
+    } catch (err) {  // starting the conversation failed; run() reports its own errors
+      notifications.show({ color: "red", title: tx("The assistant could not answer"),
+        message: err instanceof ApiError ? err.full : String(err) });
+    }
   };
   const confirm = (approve: boolean) => run(`${base}/threads/${threadId}/confirm-stream`, { approve }, approve);
   const remove = useMutation<unknown, ApiError, string>({

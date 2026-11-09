@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useCompare } from "@/api/hooks";
 import type { CompareResult, DocStateRef } from "@/api/types";
 import { RichDiff, RichText } from "@/components/rich/RichText";
+import { fmtValue } from "@/lib/format";
 import { useProjectCtx } from "../ProjectLayout";
 import { tx } from "@/lib/i18n";
 
@@ -116,7 +117,7 @@ export function CompareView() {
                 {r.moved && r.status !== "moved" && <Badge color="blue" variant="light" leftSection={<IconArrowsMove size={10} />}>{tx("moved")}</Badge>}
                 {r.changes.filter((c) => !["title", "description"].includes(c.field)).map((c) => (
                   <Badge key={c.field} size="sm" variant="outline" color="gray" style={{ textTransform: "none" }}>
-                    {c.field.replace("fields.", "")}: {String(c.old ?? "∅")} → {String(c.new ?? "∅")}
+                    {c.field.replace("fields.", "")}: {fmtValue(c.old, "∅")} → {fmtValue(c.new, "∅")}
                   </Badge>
                 ))}
               </Group>

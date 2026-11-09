@@ -4,8 +4,8 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
-  IconAlertTriangle, IconArrowLeft, IconDeviceFloppy, IconDownload, IconLayoutGrid, IconLink, IconNote,
-  IconPlus, IconTrash, IconZoomIn, IconZoomOut,
+  IconAlertTriangle, IconArrowLeft, IconDeviceFloppy, IconDownload, IconLayoutGrid, IconLink, IconMaximize,
+  IconNote, IconPlus, IconTrash, IconZoomIn, IconZoomOut,
 } from "@tabler/icons-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
@@ -42,13 +42,17 @@ function edgePoints(a: DiagramNode, b: DiagramNode) {
   return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
 }
 
-/** How far each edge is bowed aside, so two relationships between the same pair stay apart. */
-function parallel(edges: DiagramEdge[]): Record<string, number> {
+/** How two relationships between the same pair stay apart: the bow of the curve and the offset of its label
+ *  (a bow alone separates the lines, not their names, which are wider than the gap). */
+function parallel(edges: DiagramEdge[]): Record<string, { bow: number; dy: number }> {
   const groups: Record<string, string[]> = {};
   for (const e of edges) (groups[[e.from, e.to].sort().join("|")] ??= []).push(e.id);
-  const out: Record<string, number> = {};
+  const out: Record<string, { bow: number; dy: number }> = {};
   for (const members of Object.values(groups)) {
-    members.forEach((id, i) => { out[id] = (i - (members.length - 1) / 2) * 26; });
+    members.forEach((id, i) => {
+      const off = i - (members.length - 1) / 2;
+      out[id] = { bow: off * 26, dy: off * 14 };
+    });
   }
   return out;
 }
@@ -58,6 +62,12 @@ function control(x1: number, y1: number, x2: number, y2: number, bow: number) {
   if (!bow) return { cx: mx, cy: my };
   const dx = x2 - x1, dy = y2 - y1, length = Math.hypot(dx, dy) || 1;
   return { cx: mx - (dy / length) * bow, cy: my + (dx / length) * bow };
+}
+
+/** One line that fits: the type label must not run into the key in the other corner. */
+function cut(text: string, width: number): string {
+  const limit = Math.max(3, Math.floor(width / 5.6));
+  return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;
 }
 
 function wrap(text: string, width: number, lines: number): string[] {
@@ -92,7 +102,29 @@ export function DiagramEditor() {
   const drag = useRef<{ id: string; dx: number; dy: number } | null>(null);
   const pan = useRef<Point | null>(null);
 
-  useEffect(() => { if (diagram) { setNodes(diagram.nodes); setDirty(false); } }, [diagram]);
+  // what the server sent becomes what is on screen — but a refetch must not throw away places that were
+  // moved and not saved yet
+  useEffect(() => { if (diagram && !dirty) setNodes(diagram.nodes); }, [diagram]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // a diagram that is wider than the canvas is shown as a whole when it is opened (never enlarged), and the
+  // button puts it back after panning away
+  const fit = useCallback((nodesNow: DiagramNode[]) => {
+    const box = svgRef.current?.getBoundingClientRect();
+    if (!box?.width || !box.height) return;
+    if (!nodesNow.length) { setView({ x: 20, y: 20, zoom: 1 }); return; }
+    const pad = 24;
+    const minX = Math.min(...nodesNow.map((n) => n.x)), minY = Math.min(...nodesNow.map((n) => n.y));
+    const maxX = Math.max(...nodesNow.map((n) => n.x + n.w)), maxY = Math.max(...nodesNow.map((n) => n.y + n.h));
+    const zoom = Math.max(0.3, Math.min(1, (box.width - 2 * pad) / Math.max(1, maxX - minX),
+      (box.height - 2 * pad) / Math.max(1, maxY - minY)));
+    setView({ x: pad - minX * zoom, y: pad - minY * zoom, zoom });
+  }, []);
+  const fitted = useRef("");
+  useEffect(() => {
+    if (!diagram || fitted.current === diagramKey) return;
+    fitted.current = diagramKey;
+    fit(diagram.nodes);
+  }, [diagram, diagramKey, fit]);
 
   const edges = diagram?.edges ?? [];
   const byId = useMemo(() => Object.fromEntries(nodes.map((n) => [n.id, n])), [nodes]);
@@ -103,12 +135,20 @@ export function DiagramEditor() {
     nodes: nodes.map((n) => (n.kind === "note"
       ? { id: n.id, kind: "note", text: n.text ?? "", x: n.x, y: n.y, w: n.w, h: n.h }
       : { id: n.id, item: n.item, x: n.x, y: n.y, w: n.w, h: n.h })),
-    edges: edges.map((e) => ({ id: e.id, from: e.from, to: e.to, ...(e.link ? { link: e.link } : {}) })),
+    // an edge stands for a link; one that has none (a canvas from an older version) is not sent back
+    edges: edges.filter((e) => e.link).map((e) => ({
+      id: e.id, from: e.from, to: e.to, link: e.link, ...(e.type ? { type: e.type } : {}),
+    })),
   }), [nodes, edges]);
   const latest = useRef(content);
   latest.current = content;
 
-  const applied = (d: Diagram) => { qc.setQueryData(pk(key, "diagram", diagramKey), d); qc.invalidateQueries({ queryKey: pk(key, "diagrams") }); };
+  const applied = (d: Diagram) => {
+    qc.setQueryData(pk(key, "diagram", diagramKey), d);
+    qc.invalidateQueries({ queryKey: pk(key, "diagrams") });
+    setNodes(d.nodes);
+    setDirty(false);  // every request sends the canvas as it is now, so the server holds it after this
+  };
   const act = useProjectMutation(key, (v: { path: string; body?: Record<string, unknown> }) =>
     api.post<Diagram>(`${base}${v.path}`, { ...latest.current(), ...(v.body ?? {}) }), { onSuccess: applied });
   const save = useProjectMutation(key, () =>
@@ -193,6 +233,7 @@ export function DiagramEditor() {
           <ActionIcon.Group>
             <ActionIcon variant="default" onClick={() => zoom(1 / 1.2)} aria-label={tx("Zoom out")}><IconZoomOut size={16} /></ActionIcon>
             <ActionIcon variant="default" onClick={() => zoom(1.2)} aria-label={tx("Zoom in")}><IconZoomIn size={16} /></ActionIcon>
+            <ActionIcon variant="default" onClick={() => fit(nodes)} aria-label={tx("Show all")} data-testid="diagram-fit"><IconMaximize size={16} /></ActionIcon>
           </ActionIcon.Group>
           <Tooltip label={tx("Download as SVG")}>
             <ActionIcon variant="default" component="a" href={downloadUrl(`${base}.svg`)} aria-label={tx("Download as SVG")}><IconDownload size={16} /></ActionIcon>
@@ -226,13 +267,14 @@ export function DiagramEditor() {
                 const a = byId[e.from], b = byId[e.to];
                 if (!a || !b) return null;
                 const { x1, y1, x2, y2 } = edgePoints(a, b);
-                const { cx, cy } = control(x1, y1, x2, y2, bows[e.id] ?? 0);
+                const { bow, dy } = bows[e.id] ?? { bow: 0, dy: 0 };
+                const { cx, cy } = control(x1, y1, x2, y2, bow);
                 return (
                   <g key={e.id} data-testid={`edge-${e.type ?? "x"}`}>
                     <path d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`} fill="none"
                       stroke={e.suspect ? "#d9534f" : "#6b7a8c"} strokeWidth={1.3} markerEnd="url(#arrow)" />
                     {e.label && (
-                      <text x={(x1 + 2 * cx + x2) / 4} y={(y1 + 2 * cy + y2) / 4 + 3} fontSize={10} fill="#6b7a8c" textAnchor="middle"
+                      <text x={(x1 + 2 * cx + x2) / 4} y={(y1 + 2 * cy + y2) / 4 + 3 + dy} fontSize={10} fill="#6b7a8c" textAnchor="middle"
                         style={{ paintOrder: "stroke", stroke: "var(--mantine-color-body)", strokeWidth: 4 }}>{e.label}</text>
                     )}
                   </g>
@@ -318,7 +360,9 @@ function Node({ node, selected, connecting, onDown }: {
           <text key={i} x={node.x + 8} y={node.y + 20 + i * 14} fontSize={11} fill="#1f2d3d">{line}</text>))
         : (
           <>
-            <text x={node.x + 10} y={node.y + 17} fontSize={10} fontWeight={600} fill={stroke}>{node.type_label}</text>
+            <text x={node.x + 10} y={node.y + 17} fontSize={10} fontWeight={600} fill={stroke}>
+              {cut(node.type_label ?? "", node.w - 40 - (node.item?.length ?? 0) * 5.6)}
+            </text>
             <text x={node.x + node.w - 10} y={node.y + 17} fontSize={10} fill="#6b7a8c" textAnchor="end">{node.item}</text>
             {wrap(node.title ?? tx("(deleted)"), node.w - 20, 2).map((line, i) => (
               <text key={i} x={node.x + 10} y={node.y + 36 + i * 15} fontSize={11.5} fill="#1f2d3d">{line}</text>))}

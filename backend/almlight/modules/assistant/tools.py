@@ -91,6 +91,14 @@ def _text(html: str | None, limit: int = MAX_TEXT) -> str:
     return text[:limit] + " …" if len(text) > limit else text
 
 
+def _shown(value: Any) -> Any:
+    """A diagram canvas is a picture: the model gets its size, not hundreds of coordinates."""
+    if isinstance(value, dict) and isinstance(value.get("nodes"), list) and isinstance(value.get("edges"), list):
+        return (f"an architecture diagram with {len(value['nodes'])} elements and "
+                f"{len(value['edges'])} relationships")
+    return value
+
+
 def _item_row(ctx: Context, item: Item) -> dict[str, Any]:
     t = ctx.project.model.item_type(item.type_key)
     state = ctx.project.model.workflow(t.workflow).state(item.state) if t and t.workflow and item.state else None
@@ -168,7 +176,7 @@ def _get_item(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
              for v in links_svc.links_of(ctx.db, item)[:MAX_ROWS]]
     owner = ctx.db.get(User, item.owner_id) if item.owner_id else None
     return {**_item_row(ctx, item), "description": _text(item.description),
-            "fields": {labels.get(k, k): v for k, v in item.fields.items() if v not in (None, "", [])},
+            "fields": {labels.get(k, k): _shown(v) for k, v in item.fields.items() if v not in (None, "", [])},
             "owner": owner.display_name if owner else None,
             "links": [{k: v for k, v in link.items() if v is not None} for link in links],
             "attachments": [a.get("filename") for a in item.attachments][:20]}
@@ -342,7 +350,8 @@ def _create_summary(ctx: Context, args: dict[str, Any]) -> str:
 
 def _update_item(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
     item = _item(ctx, _str(args, "key"))
-    before = {"title": item.title, "fields": dict(item.fields), "description": _text(item.description, 200)}
+    before = {"title": item.title, "fields": {k: _shown(v) for k, v in item.fields.items()},
+              "description": _text(item.description, 200)}
     description = args.get("description")
     change = items_svc.ContentChange(
         title=_str(args, "title") or None,
@@ -353,7 +362,8 @@ def _update_item(ctx: Context, args: dict[str, Any]) -> dict[str, Any]:
                                  change_note=_str(args, "reason") or "Changed by the assistant")
     ctx.db.flush()
     return {"updated": item.key, "version": item.version_label, "before": before,
-            "after": {"title": item.title, "fields": item.fields, "description": _text(item.description, 200)}}
+            "after": {"title": item.title, "fields": {k: _shown(v) for k, v in item.fields.items()},
+                      "description": _text(item.description, 200)}}
 
 
 def _update_summary(ctx: Context, args: dict[str, Any]) -> str:
